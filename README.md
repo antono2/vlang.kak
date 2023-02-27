@@ -84,8 +84,8 @@ Also, you can change `vlang_output_to_info_box` to `false`, if you don't want to
 
 ## Test Files
 This plugin supports the `:alt` command of Kakoune, which switches the buffer to the corresponding V test file. You can bind it to a key the same way as described above.
--  currently editing `main.v` will try opening `main_test.v`
--  currently editing `main.c.v` will try opening `main.c_test.v`
+-  currently editing `main.v` will try to open `main_test.v`
+-  currently editing `main.c.v` will try to open `main.c_test.v`
 
 ## Customizing Colors
 One may want to change some colors around in order to make them terminal independent. The predefined faces can be looked up [here](https://github.com/mawww/kakoune/blob/master/colors/default.kak), where `default` means terminal color.
