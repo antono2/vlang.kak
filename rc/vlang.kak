@@ -37,15 +37,20 @@ hook global WinSetOption filetype=v %§
 
   # Set indentation commands
   # cleanup trailing whitespaces when exiting insert mode
-    hook window ModeChange pop:insert:.* -group v-trim-indent %{ try %{ execute-keys -draft xs^\h+$<ret>d } }
-    hook window InsertChar \n -group v-indent v-indent-on-new-line
-    hook window InsertChar \{ -group v-indent v-indent-on-opening-curly-brace
-    hook window InsertChar \} -group v-indent v-indent-on-closing-curly-brace
-    hook window InsertChar \n -group v-comment-insert v-insert-comment-on-new-line
-    hook window InsertChar \n -group v-closing-delimiter-insert v-insert-closing-delimiter-on-new-line
+  hook window ModeChange pop:insert:.* -group v-trim-indent %{ try %{ execute-keys -draft xs^\h+$<ret>d } }
+  hook window InsertChar \n -group v-indent v-indent-on-new-line
+  hook window InsertChar \{ -group v-indent v-indent-on-opening-curly-brace
+  hook window InsertChar \} -group v-indent v-indent-on-closing-curly-brace
+  hook window InsertChar \n -group v-comment-insert v-insert-comment-on-new-line
+  hook window InsertChar \n -group v-closing-delimiter-insert v-insert-closing-delimiter-on-new-line
+    
+  alias window alt v-alternative-file
   
   # remove all v-... hooks on any other filetype
-  hook -once -always window WinSetOption filetype=.* %{ remove-hooks window v-.+ }
+  hook -once -always window WinSetOption filetype=.* %{ 
+    remove-hooks window v-.+
+    unalias window alt v-alternative-file
+  }
 §
 
 hook -group v-highlight global WinSetOption filetype=v %§
@@ -99,6 +104,26 @@ add-highlighter shared/v/code/function_declaration   regex (?:fn\h+)(_?\w+)(?:<[
 
 # Commands
 # ‾‾‾‾‾‾‾‾
+## ALT FILE
+define-command v-alternative-file -docstring 'Jump to the alternate file (implementation ↔ test)' %{ evaluate-commands %sh{
+  # looks like _test.c.v files aren't supported by V, so can be ignored
+  case $kak_buffile in
+    *_test.v)
+      altfile=${kak_buffile%_test.v}.v
+      test ! -f "$altfile" && echo "fail 'implementation file not found'" && exit
+    ;;
+    *.v)
+      altfile=${kak_buffile%.v}_test.v
+      test ! -f "$altfile" && echo "fail 'test file not found'" && exit
+    ;;
+    *)
+      echo "fail 'alternative file not found'" && exit
+    ;;
+  esac
+  printf "edit -- '%s'" "$(printf %s "$altfile" | sed "s/'/''/g")"
+}}
+
+
 ## INDENTATION
 define-command -hidden v-indent-on-new-line %~
   evaluate-commands -draft -itersel %=

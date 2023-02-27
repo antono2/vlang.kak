@@ -1,4 +1,5 @@
 
+
 # vlang.kak
 ![Screenshot](https://i.imgur.com/uZ8lCAj.png)
 
@@ -80,6 +81,11 @@ hook global WinSetOption filetype=v %{
 ```
 Make sure to adapt the keys to your needs.
 Also, you can change `vlang_output_to_info_box` to `false`, if you don't want to see the V output in the info box and the same with `vlang_output_to_debug_buffer` for the \*debug\* buffer.
+
+## Test Files
+This plugin supports the `:alt` command of Kakoune, which switches the buffer to the corresponding V test file. You can bind it to a key the same way describes above.
+-  currently editing `main.v` will try opening `main_test.v`
+-  currently editing `main.c.v` will try opening `main.c_test.v`
 
 ## Customizing Colors
 One may want to change some colors around in order to make them terminal independent. The predefined faces can be looked up [here](https://github.com/mawww/kakoune/blob/master/colors/default.kak), where `default` means terminal color.
