@@ -26,6 +26,7 @@ hook global BufCreate .*\.(v|vsh|vv|c\.v)$ %{
 
 hook global BufCreate .*\bv\.mod$ %{
   set-option buffer filetype json
+  info %opt{filetype}
 }
 
 
@@ -227,4 +228,3 @@ define-command -params 0 -docstring "Runs v fmt -w on the current file and saves
 }
 
 §
-
