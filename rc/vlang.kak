@@ -1,6 +1,6 @@
 ############################################
 ###                                      ###
-### V lang plugin for kakoune            ###
+### V lang plugin for Kakoune            ###
 ###                                      ###
 ### Author antono2@github.com            ###
 ###                                      ###
@@ -13,15 +13,19 @@
 
 # Detection
 # ‾‾‾‾‾‾‾‾‾
-hook global BufCreate .*\.(v|vsh|vv|v\.mod|c\.v)$ %{
+hook global BufCreate .*\.(v|vsh|vv|c\.v)$ %{
   set-option buffer filetype v
   
-  declare-option -hidden str vlang_run_command "v -keepc -cg run ."
   declare-option -hidden bool vlang_output_to_info_box true
   declare-option -hidden bool vlang_output_to_debug_buffer true
   
+  declare-option -hidden str vlang_run_command "v -keepc -cg run ."
   # $kak_buffile will be expanded to the path of the current file
   declare-option -hidden str vlang_fmt_command "v fmt -w $kak_buffile"
+}
+
+hook global BufCreate \b.*v\.mod$ %{
+  set-option buffer filetype json
 }
 
 
