@@ -74,7 +74,7 @@ hook global WinSetOption filetype=v %{
   map -docstring 'Switch to debug buffer'    window normal <F7> ":buffer *debug*<ret>"
   map -docstring 'Switch to previous buffer' global normal <F8> ":buffer-previous;delete-buffer *debug*<ret>"
   
-  # set true or false for displaying the vlang_output in the info box and/or debug buffer.
+  # Optionally set true or false for displaying the vlang_output in the info box and/or debug buffer.
   set-option buffer vlang_output_to_info_box true
   set-option buffer vlang_output_to_debug_buffer true
 }
