@@ -242,11 +242,9 @@ define-command -params 0 -docstring "Looks for a v.mod file in up to 3 parent di
 }
 
 define-command -params 0 -docstring "Runs v fmt -w on the current file and saves it" vlang_fmt %{
-  require-module sh
   execute-keys ":w<ret>"
   declare-option -hidden str current_formatcmd %opt{formatcmd}
   set window formatcmd %opt{vlang_fmt_command}
-  info %opt{formatcmd}
   execute-keys ":format-buffer<ret>"
   set window formatcmd %opt{current_formatcmd}
   execute-keys ":w<ret>"
