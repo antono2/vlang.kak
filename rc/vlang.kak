@@ -24,7 +24,7 @@ hook global BufCreate .*\.(v|vsh|vv|c\.v)$ %{
   declare-option -hidden str vlang_fmt_command "v fmt -w $kak_buffile"
 }
 
-hook global BufCreate \b.*v\.mod$ %{
+hook global BufCreate .*\bv\.mod$ %{
   set-option buffer filetype json
 }
 
@@ -227,3 +227,4 @@ define-command -params 0 -docstring "Runs v fmt -w on the current file and saves
 }
 
 §
+
