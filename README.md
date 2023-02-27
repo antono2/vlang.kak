@@ -80,7 +80,7 @@ hook global WinSetOption filetype=v %{
 }
 ```
 Make sure to adapt the keys to your needs.
-Also, you can change `vlang_output_to_info_box` to `false`, if you don't want to see the V output in the info box and the same with `vlang_output_to_debug_buffer` for the \*debug\* buffer.
+Also, you can change `vlang_output_to_info_box` to `false`, if you don't want to see the V output in the info box and the same with `vlang_output_to_debug_buffer` for the \*debug\* buffer. The default values are set to `true`, so these don't need to be set in your `kakrc`.
 
 ## Test Files
 This plugin supports the `:alt` command of Kakoune, which switches the buffer to the corresponding V test file. You can bind it to a key the same way as describes above.
