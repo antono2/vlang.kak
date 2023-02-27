@@ -47,7 +47,7 @@ The plugin provides the commands
 - `vlang_fmt` to run `v fmt -w` on the current file and save it.
 Default `"v fmt -w $kak_buffile"`
 
-You can change each shell command by setting one or both options in your `kekrc`
+You can change each shell command by setting one or both options in your `kakrc`
 ```kak
 # Use filetype hook to ensure the options are defined
 hook global WinSetOption filetype=v %{
@@ -55,7 +55,7 @@ hook global WinSetOption filetype=v %{
   set-option buffer vlang_fmt_command 'YOUR FMT COMMAND'
 }
 ```
-**Note**: Be veeery careful when changing the `vlang_fmt_command`, because it also saves the file and any issue will break your V code. Best test it on the hello world program before adding it to your `kekrc`.
+**Note**: Be veeery careful when changing the `vlang_fmt_command`, because it also saves the file and any issue will break your V code. Best test it on the hello world program before adding it to your `kakrc`.
 You can set the option from inside Kakoune by typing
 `:set-option buffer vlang_fmt_command 'YOUR FMT COMMAND'`
 and then test it by pressing the vlang_fmt key mapped below.
