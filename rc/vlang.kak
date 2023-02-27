@@ -26,7 +26,6 @@ hook global BufCreate .*\.(v|vsh|vv|c\.v)$ %{
 
 hook global BufCreate .*\bv\.mod$ %{
   set-option buffer filetype json
-  info %opt{filetype}
 }
 
 
