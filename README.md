@@ -83,7 +83,7 @@ Make sure to adapt the keys to your needs.
 Also, you can change `vlang_output_to_info_box` to `false`, if you don't want to see the V output in the info box and the same with `vlang_output_to_debug_buffer` for the \*debug\* buffer.
 
 ## Test Files
-This plugin supports the `:alt` command of Kakoune, which switches the buffer to the corresponding V test file. You can bind it to a key the same way describes above.
+This plugin supports the `:alt` command of Kakoune, which switches the buffer to the corresponding V test file. You can bind it to a key the same way as describes above.
 -  currently editing `main.v` will try opening `main_test.v`
 -  currently editing `main.c.v` will try opening `main.c_test.v`
 
