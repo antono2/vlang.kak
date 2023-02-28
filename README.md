@@ -1,5 +1,6 @@
 
 
+
 # vlang.kak
 ![Screenshot](https://i.imgur.com/uZ8lCAj.png)
 
@@ -10,27 +11,14 @@ It provides syntax highlighting and includes functions to run your program and r
 
 ## Installation
 
-### With [plug.kak](https://github.com/andreyorst/plug.kak)
-
-Add this to your `kakrc`:
-
-```kak
-plug "antono2/vlang.kak"
-```
-
-Source your `kakrc`, or restart Kakoune. Then execute `:plug-install`.
-If you don't want to restart Kakoune or source its config, simply run `plug-install antono2/vlang.kak`.
-
-### Without plugin manager
+Put this repo in your `autoload` directory. [Read all about installing plugins here.](https://github.com/mawww/kakoune/wiki/Installing-Plugins)
 
 ```sh
+cd YOUR/AUTOLOAD/DIRECTORY/
 git clone https://github.com/antono2/vlang.kak.git
 ```
-You can put this repo in your `autoload` directory or manually `source` the `vlang.kak` script in your configuration file.
-[Read all about installing plugins here.](https://github.com/mawww/kakoune/wiki/Installing-Plugins)
-
-
-
+Alternatively you can manually `source` the `vlang.kak` script in your configuration file
+```source "path to rc/vlang.kak"```
 
 
 
