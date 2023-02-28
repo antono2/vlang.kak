@@ -42,9 +42,9 @@ hook global WinSetOption filetype=v %§
   hook window InsertChar \} -group v-indent v-indent-on-closing-curly-brace
   hook window InsertChar \n -group v-comment-insert v-insert-comment-on-new-line
   hook window InsertChar \n -group v-closing-delimiter-insert v-insert-closing-delimiter-on-new-line
-    
+
   alias window alt v-alternative-file
-  
+
   # remove all v-... hooks on any other filetype
   hook -once -always window WinSetOption filetype=.* %{ 
     remove-hooks window v-.+
@@ -104,7 +104,7 @@ add-highlighter shared/v/code/function_declaration   regex (?:fn\h+)(_?\w+)(?:<[
 # Commands
 # ‾‾‾‾‾‾‾‾
 ## ALT FILE
-define-command v-alternative-file -docstring 'Jump to the alternate file (implementation ↔ test)' %{ evaluate-commands %sh{
+define-command -hidden v-alternative-file -docstring 'Jump to the alternate file (implementation ↔ test)' %{ evaluate-commands %sh{
   # looks like _test.c.v files aren't supported by V, so can be ignored
   case $kak_buffile in
     *_test.v)
