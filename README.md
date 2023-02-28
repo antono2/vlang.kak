@@ -1,6 +1,7 @@
 
 
 
+
 # vlang.kak
 ![Screenshot](https://i.imgur.com/uZ8lCAj.png)
 
@@ -17,10 +18,9 @@ Put this repo in your `autoload` directory. [Read all about installing plugins h
 cd YOUR/AUTOLOAD/DIRECTORY/
 git clone https://github.com/antono2/vlang.kak.git
 ```
-Alternatively you can manually `source` the `vlang.kak` script in your configuration file
+Alternatively you can manually source the `vlang.kak` script in your configuration file
 
 ```source "path_to/rc/vlang.kak"```
-
 
 
 ## Usage
@@ -77,6 +77,6 @@ This plugin supports the `:alt` command of Kakoune, which switches the buffer to
 -  currently editing `main.c.v` will try to open `main.c_test.v`
 
 ## Customizing Colors
-One may want to change some colors around in order to make them terminal independent. The predefined faces can be looked up [here](https://github.com/mawww/kakoune/blob/master/colors/default.kak), where `default` means terminal color.
+One may want to change some colors around. The predefined faces can be looked up [here](https://github.com/mawww/kakoune/blob/master/colors/default.kak).
 Changing colors is pretty easy if you can dig through all the regex in `vlang.kak`. Search for `# Highlighters` and below that you can - for example - go to `## TYPES` and change the color for all the types to yellow by changing `1:type` to `1:yellow`. The function `<regex> <capture_id>:<face>` is described [here.](https://github.com/mawww/kakoune/blob/master/doc/pages/highlighters.asciidoc#general-highlighters)
 
