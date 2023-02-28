@@ -137,9 +137,9 @@ Add this  to the [configuration toml file](https://github.com/mawww/kakoune-lsp#
 filetypes = ["v"]
 roots = ["mod.v", ".git/"]
 command = "v"
-args = ["ls", "--socket"]
+args = ["ls"]
 ```
-Start your Kakoune on a V file and type `:lsp` to check if all the lsp-commands are defined.
+Start your Kakoune on a V file and type `:lsp-enable` to check if all the lsp-commands are defined.
 You can start typing and switch through the autocomplete suggestions with [Ctrl+n] or [Ctrl+p].
 ![V autocompletion](https://i.imgur.com/H1XOSqV.png) 
 The rest is trivial and left to the reader.
