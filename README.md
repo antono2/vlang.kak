@@ -19,7 +19,7 @@ git clone https://github.com/antono2/vlang.kak.git
 ```
 Alternatively you can manually `source` the `vlang.kak` script in your configuration file
 
-```:source "path_to/rc/vlang.kak"```
+```source "path_to/rc/vlang.kak"```
 
 
 
