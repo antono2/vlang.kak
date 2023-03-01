@@ -133,7 +133,7 @@ v run build.vsh clang
 cp ./bin/vls ../bin/vls_linux_x64
 ```
 Now `kak-lsp` can be configured to recognize the V language.
-Add this  to the [configuration toml file](https://github.com/mawww/kakoune-lsp#configuration).
+Use this in your [configuration toml file](https://github.com/mawww/kakoune-lsp#configuration).
 ```
 [language.v]
 filetypes = ["v"]
