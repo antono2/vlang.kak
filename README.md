@@ -85,7 +85,7 @@ Although this is completely separate from vlang.kak, I can still tell you how to
 The goal is to get [vlang vls](https://github.com/vlang/vls) to work with Kakoune's [kak-lsp](https://github.com/mawww/kakoune-lsp#installation) and get the [full list of capabilities](https://github.com/vlang/vls/blob/master/CAPABILITIES.md).</br>
 Install `kak-lsp` -> put it in `kakrc` -> install `vls` -> configure `kak-lsp` -> configure key mappings.
 
-First install the [Kakoune language server protocol](https://github.com/mawww/kakoune-lsp#installation).</br>
+First install the [Kakoune language server protocol client](https://github.com/mawww/kakoune-lsp#installation).</br>
 **Note**: Get the most current download URL for your system from the [releases](https://github.com/kak-lsp/kak-lsp/releases).
 
 After`kak-lsp` is found in `$PATH`, you can add the start script to your Kakoune configuration.
