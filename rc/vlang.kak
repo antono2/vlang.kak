@@ -2,7 +2,7 @@
 ###                                      ###
 ### V lang plugin for Kakoune            ###
 ###                                      ###
-### Author antono2@github.com            ###
+### Author antono2@github                ###
 ###                                      ###
 ### License MIT                          ###
 ###                                      ###
@@ -89,8 +89,6 @@ add-highlighter shared/v/code/compile_time_keywords regex \B(?:\$else|\$embed_fi
 
 ## TYPES
 add-highlighter shared/v/code/builtin_types regex \b(?:bool|byte|byteptr|rune|string|voidptr|int|i8|u8|i16|u16|i32|u32|i64|u64|f32|f64|enum|struct|interface|type)\b 0:type
-#add-highlighter shared/v/code/builtin_type_generic regex (?:\[)(\w+)(?:\]) 1:type
-#add-highlighter shared/v/code/builtin_type_array regex (?:\[\])(\w+) 1:type
 
 ## VALUES
 add-highlighter shared/v/code/values regex \b(?:true|false|[0-9][_0-9]*(?:\.[0-9][_0-9]*|(?:\.[0-9][_0-9]*)?e[\+\-][_0-9]+)(?:f(?:32|64))?|(?:0x[_0-9a-fA-F]+|0o[_0-7]+|0b[_01]+|[0-9][_0-9]*)(?:(?:i|u|f)(?:8|16|32|64|128|size))?)\b 0:value

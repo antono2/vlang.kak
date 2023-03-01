@@ -3,6 +3,7 @@
 
 
 
+
 # vlang.kak
 ![Screenshot](https://i.imgur.com/uZ8lCAj.png)
 
@@ -77,16 +78,19 @@ This plugin supports the `:alt` command of Kakoune, which switches the buffer to
 -  currently editing `main.v` will try to open `main_test.v`
 -  currently editing `main.c.v` will try to open `main.c_test.v`
 
+
 ## Customizing Colors
 Colors are called faces in Kakoune. The predefined faces can be looked up in [the /share/kak/colors directory](https://github.com/mawww/kakoune/blob/master/colors/default.kak).
-Changing colors is pretty easy if you can dig through all the regex in `vlang.kak`. Search for `# Highlighters` and below that you can - for example - go to `## TYPES` and change the color for all the types to yellow by changing `1:type` to `1:yellow`. The function `<regex> <capture_id>:<face>` is described [here.](https://github.com/mawww/kakoune/blob/master/doc/pages/highlighters.asciidoc#general-highlighters)
+Changing colors is pretty easy if you can dig through all the regex in `vlang.kak`. Search for `# Highlighters` and below that you can - for example - go to `## TYPES` and change the color for all the types to yellow by changing `0:type` to `0:yellow`. Take a look at the [`<regex> <capture_id>:<face>`](https://github.com/mawww/kakoune/blob/master/doc/pages/highlighters.asciidoc#general-highlighters) function.
 
 ## Code Completion
 Although this is completely separate from vlang.kak, I can still tell you how to set it up. *Who could stop me?*
 *Nobody can stop you with all that raw code editing power at your fingertips!*
+
 **Note**: VLS is early software.
 
-The goal is to get [vlang vls](https://github.com/vlang/vls) to work with Kakoune's [kak-lsp](https://github.com/mawww/kakoune-lsp#installation) and get this [full list of capabilities](https://github.com/vlang/vls/blob/master/CAPABILITIES.md). 
+The goal is to get [vlang vls](https://github.com/vlang/vls) to work with Kakoune's [kak-lsp](https://github.com/mawww/kakoune-lsp#installation) and get this [full list of capabilities](https://github.com/vlang/vls/blob/master/CAPABILITIES.md).
+
 Install `kak-lsp` -> put it in `kakrc` -> install `vls` -> configure `kak-lsp` -> configure key mappings
 
 First install the [Kakoune language server protocol](https://github.com/mawww/kakoune-lsp#installation).
@@ -110,7 +114,7 @@ v ls --install
 Now there should be a new directory `$HOME/.vls` and running `v ls --socket` should give no errors.
 If that's the case, you can continue with configuring `kak-lsp` in the next step.
 
-Though on older systems you might got an error like this
+Though on older systems you might get an error like this
 ```
 ... /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.34' not found (required by ...
 ```
@@ -139,7 +143,8 @@ roots = ["mod.v", ".git/"]
 command = "v"
 args = ["ls"]
 ```
-Start your Kakoune on a V file and type `:lsp-enable` to check if all the lsp-commands are defined.
+Start your Kakoune on a V file and type `:lsp-enable` to check if all the lsp-commands are defined, maybe even add it to your `kakrc`.
+
 You can start typing and switch through the autocomplete suggestions with [Ctrl+n] or [Ctrl+p].
 ![V autocompletion](https://i.imgur.com/H1XOSqV.png) 
 The rest is trivial and left to the reader.
