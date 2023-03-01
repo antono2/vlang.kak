@@ -1,9 +1,3 @@
-
-
-
-
-
-
 # vlang.kak
 ![Screenshot](https://i.imgur.com/uZ8lCAj.png)
 
@@ -136,7 +130,8 @@ Now `kak-lsp` can be configured to recognize the V language.
 Use this in your [configuration toml file](https://github.com/mawww/kakoune-lsp#configuration).
 ```
 [language.v]
-filetypes = ["v", "vsh", "vv"]
+# The filetype variable is set in vlang.kak for .v, .vsh, .vv, .c.v under the name "v"
+filetypes = ["v"]
 roots = ["mod.v", ".git/"]
 command = "v"
 args = ["ls"]
