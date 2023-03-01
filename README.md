@@ -97,6 +97,8 @@ First install the [Kakoune language server protocol](https://github.com/mawww/ka
 After`kak-lsp` is found in `$PATH`, you can add the start script to your Kakoune configuration.
 ```
 eval %sh{kak-lsp --kakoune -s $kak_session}
+# Uncomment if you get issues with VLS after restarting Kakoune
+#hook global KakEnd .* %sh{ kill $(ps aux | grep 'kak-lsp' | awk '{print $2}') }
 ```
 **Note**: The [kak-lsp toml config file](https://github.com/mawww/kakoune-lsp#configuration) path can be configured with `--config`.
 
@@ -144,6 +146,6 @@ args = ["ls"]
 Start your Kakoune on a V file and type `:lsp-enable` to check if all the lsp-commands are defined, maybe even add it to your `kakrc`.
 
 You can start typing and switch through the autocomplete suggestions with [Ctrl+n] or [Ctrl+p].
-![V autocompletion](https://i.imgur.com/H1XOSqV.png) 
+![V autocompletion](https://i.imgur.com/H1XOSqV.png)
 The rest is trivial and left to the reader.
 
