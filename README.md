@@ -97,8 +97,6 @@ First install the [Kakoune language server protocol](https://github.com/mawww/ka
 After`kak-lsp` is found in `$PATH`, you can add the start script to your Kakoune configuration.
 ```
 eval %sh{kak-lsp --kakoune -s $kak_session}
-# Uncomment if you get issues with VLS after restarting Kakoune
-#hook global KakEnd .* %sh{ kill $(ps aux | grep 'kak-lsp' | awk '{print $2}') }
 ```
 **Note**: The [kak-lsp toml config file](https://github.com/mawww/kakoune-lsp#configuration) path can be configured with `--config`.
 
