@@ -54,15 +54,15 @@ and then test it by pressing the vlang_fmt key mapped below.
 
 ## Kakrc
 
-It might be useful to map the commands to some keys whenever a V file is opened.
+You can map these commands to some keys whenever a V file is opened.</br>For example you could map `<F5> - <F8>` to quickly format -> run -> read output -> go back.
 
 ```kak
 hook global WinSetOption filetype=v %{
   require-module v
   
-  map -docstring "Save current file"         window normal <F5> ":vlang_fmt<ret>"
+  map -docstring "Format and save file"      window normal <F5> ":vlang_fmt<ret>"
   map -docstring 'Run v in v.mod directory'  window normal <F6> ":vlang_run<ret>"
-  map -docstring 'Switch to debug buffer'    window normal <F7> ":buffer *debug*<ret>"
+  map -docstring 'Switch to *debug* buffer'  window normal <F7> ":buffer *debug*<ret>"
   map -docstring 'Switch to previous buffer' global normal <F8> ":buffer-previous;delete-buffer *debug*<ret>"
   
   # Optionally set true or false for displaying the vlang_output in the info box and/or debug buffer.
@@ -81,24 +81,24 @@ This plugin supports the `:alt` command of Kakoune, which switches the buffer to
 
 ## Customizing Colors
 Colors are called faces in Kakoune. The predefined faces can be looked up in [the /share/kak/colors directory](https://github.com/mawww/kakoune/blob/master/colors/default.kak).
-Changing colors is pretty easy if you can dig through all the regex in `vlang.kak`. Search for `# Highlighters` and below that you can - for example - go to `## TYPES` and change the color for all the types to yellow by changing `0:type` to `0:yellow`. Take a look at the [`<regex> <capture_id>:<face>`](https://github.com/mawww/kakoune/blob/master/doc/pages/highlighters.asciidoc#general-highlighters) function.
+Changing colors is pretty easy if you can dig through all the regex in `vlang.kak`.</br>Search for `# Highlighters` and below that you can - for example - go to `## TYPES` and change the color for all the types to yellow by changing `0:type` to `0:yellow`. Take a look at the [`<regex> <capture_id>:<face>`](https://github.com/mawww/kakoune/blob/master/doc/pages/highlighters.asciidoc#general-highlighters) function.
 
 ## Code Completion
 Although this is completely separate from vlang.kak, I can still tell you how to set it up. *Who could stop me?*
 *Nobody can stop you with all that raw code editing power at your fingertips!*</br>
 **Note**: VLS is early software.
 
-The goal is to get [vlang vls](https://github.com/vlang/vls) to work with Kakoune's [kak-lsp](https://github.com/mawww/kakoune-lsp#installation) and get this [full list of capabilities](https://github.com/vlang/vls/blob/master/CAPABILITIES.md).</br>
-Install `kak-lsp` -> put it in `kakrc` -> install `vls` -> configure `kak-lsp` -> configure key mappings
+The goal is to get [vlang vls](https://github.com/vlang/vls) to work with Kakoune's [kak-lsp](https://github.com/mawww/kakoune-lsp#installation) and get the [full list of capabilities](https://github.com/vlang/vls/blob/master/CAPABILITIES.md).</br>
+Install `kak-lsp` -> put it in `kakrc` -> install `vls` -> configure `kak-lsp` -> configure key mappings.
 
-First install the [Kakoune language server protocol](https://github.com/mawww/kakoune-lsp#installation).
+First install the [Kakoune language server protocol](https://github.com/mawww/kakoune-lsp#installation).</br>
 **Note**: Get the most current download URL for your system from the [releases](https://github.com/kak-lsp/kak-lsp/releases).
 
 After`kak-lsp` is found in `$PATH`, you can add the start script to your Kakoune configuration.
 ```
 eval %sh{kak-lsp --kakoune -s $kak_session}
 ```
-**Note**: The kak-lsp toml config file path can be configured with `--config`.
+**Note**: The [kak-lsp toml config file](https://github.com/mawww/kakoune-lsp#configuration) path can be configured with `--config`.
 
 Then install the V language server as [described in the README](https://github.com/vlang/vls#via-v-cli-recommended).
 ```
