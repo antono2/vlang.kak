@@ -150,10 +150,8 @@ eval %sh{ kak-lsp --kakoune --config $HOME/PATH_TO_YOUR_CONFIG_TOML/kak-lsp/conf
 hook global WinSetOption filetype=v %{
     lsp-enable-window
 }
-# Close kak-lsp when kakoune is terminated
+# Close kak-lsp when Kakoune is terminated
 hook global KakEnd .* lsp-exit
-# Uncomment if you get issues with VLS after restarting Kakoune
-#hook global KakEnd .* %sh{ kill $(ps aux | grep 'kak-lsp' | awk '{print $2}') }
 ```
 
 You can start typing and switch through the autocomplete suggestions with [Ctrl+n] or [Ctrl+p].
