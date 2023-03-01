@@ -136,7 +136,7 @@ Now `kak-lsp` can be configured to recognize the V language.
 Use this in your [configuration toml file](https://github.com/mawww/kakoune-lsp#configuration).
 ```
 [language.v]
-filetypes = ["v"]
+filetypes = ["v", "vsh", "vv"]
 roots = ["mod.v", ".git/"]
 command = "v"
 args = ["ls"]
