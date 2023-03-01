@@ -143,7 +143,18 @@ roots = ["mod.v", ".git/"]
 command = "v"
 args = ["ls"]
 ```
-Start your Kakoune on a V file and type `:lsp-enable` to check if all the lsp-commands are defined, maybe even add it to your `kakrc`.
+Start your Kakoune on a V file and type `:lsp-enable` to check if all the lsp-commands are defined and finish up your `kakrc`.
+```
+eval %sh{ kak-lsp --kakoune --config $HOME/PATH_TO_YOUR_CONFIG_TOML/kak-lsp/config.toml -s $kak_session }
+# Enable kak-lsp for V files
+hook global WinSetOption filetype=v %{
+    lsp-enable-window
+}
+# Close kak-lsp when kakoune is terminated
+hook global KakEnd .* lsp-exit
+# Uncomment if you get issues with VLS after restarting Kakoune
+#hook global KakEnd .* %sh{ kill $(ps aux | grep 'kak-lsp' | awk '{print $2}') }
+```
 
 You can start typing and switch through the autocomplete suggestions with [Ctrl+n] or [Ctrl+p].
 ![V autocompletion](https://i.imgur.com/H1XOSqV.png)
