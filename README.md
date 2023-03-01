@@ -85,12 +85,10 @@ Changing colors is pretty easy if you can dig through all the regex in `vlang.ka
 
 ## Code Completion
 Although this is completely separate from vlang.kak, I can still tell you how to set it up. *Who could stop me?*
-*Nobody can stop you with all that raw code editing power at your fingertips!*
-
+*Nobody can stop you with all that raw code editing power at your fingertips!*</br>
 **Note**: VLS is early software.
 
-The goal is to get [vlang vls](https://github.com/vlang/vls) to work with Kakoune's [kak-lsp](https://github.com/mawww/kakoune-lsp#installation) and get this [full list of capabilities](https://github.com/vlang/vls/blob/master/CAPABILITIES.md).
-
+The goal is to get [vlang vls](https://github.com/vlang/vls) to work with Kakoune's [kak-lsp](https://github.com/mawww/kakoune-lsp#installation) and get this [full list of capabilities](https://github.com/vlang/vls/blob/master/CAPABILITIES.md).</br>
 Install `kak-lsp` -> put it in `kakrc` -> install `vls` -> configure `kak-lsp` -> configure key mappings
 
 First install the [Kakoune language server protocol](https://github.com/mawww/kakoune-lsp#installation).
@@ -111,14 +109,14 @@ Running it for the first time will give you the message `If you are using this f
 ```
 v ls --install
 ```
-Now there should be a new directory `$HOME/.vls` and running `v ls --socket` should give no errors.
+Now there should be a new directory `$HOME/.vls` and running `v ls` should give no errors.
 If that's the case, you can continue with configuring `kak-lsp` in the next step.
 
 Though on older systems you might get an error like this
 ```
 ... /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.34' not found (required by ...
 ```
-There is no fixing this by updating glibc, as it's a system package and changing the version would break the system.
+There is no fixing this by updating glibc, as it's a system package and changing the version would break the system.</br>
 One solution is to [build vls from source](https://github.com/vlang/vls#build-from-source), which then uses the system default.
 ```
 cd ~/.vls
