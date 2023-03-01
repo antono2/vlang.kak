@@ -72,6 +72,7 @@ add-highlighter shared/v/line_comment1/todo regex (?i)(TODO|NOTE|FIXME)[^\n]* 0:
 add-highlighter shared/v/line_comment2 region '/\*[^*]?' '\*/' group
 add-highlighter shared/v/line_comment2/comment fill comment
 add-highlighter shared/v/line_comment2/todo regex (?i)(TODO|NOTE|FIXME)[^\n]* 0:meta
+add-highlighter shared/v/bin_bash region '(?<!\\)(?:\\\\)*(?:^|\h)\K#!' '$' fill comment
 
 ## STRINGS
 add-highlighter shared/v/string1 region %{(?<!')"} (?<!\\)(\\\\)*" fill string
