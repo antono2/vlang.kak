@@ -16,12 +16,12 @@
 hook global BufCreate .*\.(v|vsh|vv|c\.v)$ %{
   set-option buffer filetype v
   
-  declare-option -hidden bool vlang_output_to_info_box true
-  declare-option -hidden bool vlang_output_to_debug_buffer true
+  declare-option -hidden bool v_output_to_info_box true
+  declare-option -hidden bool v_output_to_debug_buffer true
   
-  declare-option -hidden str vlang_run_command "v -keepc -cg run ."
+  declare-option -hidden str v_run_command "v -keepc -cg run ."
   # $kak_buffile will be expanded to the path of the current file
-  declare-option -hidden str vlang_fmt_command "v fmt -w $kak_buffile"
+  declare-option -hidden str v_fmt_command "v fmt -w $kak_buffile"
 }
 
 hook global BufCreate .*\bv\.mod$ %{
@@ -37,24 +37,20 @@ hook global WinSetOption filetype=v %§
   # Set indentation commands
   # cleanup trailing whitespaces when exiting insert mode
   hook window ModeChange pop:insert:.* -group v-trim-indent %{ try %{ execute-keys -draft xs^\h+$<ret>d } }
-  hook window InsertChar \n -group v-indent v-indent-on-new-line
-  hook window InsertChar \{ -group v-indent v-indent-on-opening-curly-brace
-  hook window InsertChar \} -group v-indent v-indent-on-closing-curly-brace
-  hook window InsertChar \n -group v-comment-insert v-insert-comment-on-new-line
-  hook window InsertChar \n -group v-closing-delimiter-insert v-insert-closing-delimiter-on-new-line
+  v-enable-indenting
 
   alias window alt v-alternative-file
 
-  # remove all v-... hooks on any other filetype
+  # remove all v-... hooks when changing to any other filetype
   hook -once -always window WinSetOption filetype=.* %{ 
-    remove-hooks window v-.+
+    v-disable-indenting
     unalias window alt v-alternative-file
   }
 §
 
 hook -group v-highlight global WinSetOption filetype=v %§
     add-highlighter window/v ref v
-    #remove all window/v == /shared/v highlighters on any other filetype
+    #remove all window/v == /shared/v highlighters when changing to any other filetype
     hook -once -always window WinSetOption filetype=.* %{ remove-highlighter window/v }
 §
 
@@ -102,6 +98,18 @@ add-highlighter shared/v/code/function_declaration   regex (?:fn\h+)(_?\w+)(?:<[
 
 # Commands
 # ‾‾‾‾‾‾‾‾
+define-command v-enable-indenting -docstring 'Enable v lang indentation hooks' %{
+  hook window InsertChar \n -group v-indent v-indent-on-new-line
+  hook window InsertChar \{ -group v-indent v-indent-on-opening-curly-brace
+  hook window InsertChar \} -group v-indent v-indent-on-closing-curly-brace
+  hook window InsertChar \n -group v-comment-insert v-insert-comment-on-new-line
+  hook window InsertChar \n -group v-closing-delimiter-insert v-insert-closing-delimiter-on-new-line
+}
+
+define-command v-disable-indenting -docstring 'Disable v lang indentation hooks' %{
+  remove-hooks window v-.+
+}
+
 ## ALT FILE
 define-command -hidden v-alternative-file -docstring 'Jump to the alternate file (implementation ↔ test)' %{ evaluate-commands %sh{
   # looks like _test.c.v files aren't supported by V, so can be ignored
@@ -197,10 +205,10 @@ define-command -hidden v-insert-closing-delimiter-on-new-line %[
 ]
 
 ## V-LANG COMMANDS
-define-command -params 0 -docstring "Looks for a v.mod file in up to 3 parent directories and runs v in there. If none is found, it runs v in the current directory. The output is printed to the info box and *debug* buffer" vlang_run %{
+define-command -params 0 -docstring "Looks for a v.mod file in up to 3 parent directories and runs v in there. If none is found, it runs v in the current directory. The output is printed to the info box and *debug* buffer" v-run %{
   require-module sh
   
-  declare-option -hidden str vlang_mod_file_dir %sh{
+  declare-option -hidden str v_mod_file_dir %sh{
     # find v.mod in up to 3 parent dirs 
     # remove 'v.mod' using substitution
     # pipe to xargs to trim the output
@@ -208,44 +216,43 @@ define-command -params 0 -docstring "Looks for a v.mod file in up to 3 parent di
   }
 
   # print v output to debug buffer and info box
-  declare-option -hidden str vlang_output %sh{ 
-    cd "$kak_opt_vlang_mod_file_dir"
-    $kak_opt_vlang_run_command
+  declare-option -hidden str v_output %sh{ 
+    cd "$kak_opt_v_mod_file_dir"
+    $kak_opt_v_run_command
     cd -
   }
   
-  # prepare if vlang_output should be printed to info box
-  declare-option -hidden str vlang_info_box_output_command %sh{
-    if [ "${kak_opt_vlang_output_to_info_box}" = "true" ]; then
-      echo 'info %opt{vlang_output}'
+  # prepare if v_output should be printed to info box
+  declare-option -hidden str v_info_box_output_command %sh{
+    if [ "${kak_opt_v_output_to_info_box}" = "true" ]; then
+      echo 'info %opt{v_output}'
     else
       echo ''
     fi
   }
   
-  # prepare if vlang_output should be echoed to *debug* buffer
-  declare-option -hidden str vlang_debug_buffer_output_command %sh{
-    if [ "${kak_opt_vlang_output_to_debug_buffer}" = "true" ]; then
-      echo 'echo -debug %opt{vlang_output}'
+  # prepare if v_output should be echoed to *debug* buffer
+  declare-option -hidden str v_debug_buffer_output_command %sh{
+    if [ "${kak_opt_v_output_to_debug_buffer}" = "true" ]; then
+      echo 'echo -debug %opt{v_output}'
     else
       echo ''
     fi
   }
   
-  #info %opt{vlang_output}
-  eval %opt{vlang_info_box_output_command}
+  #info %opt{v_output}
+  eval %opt{v_info_box_output_command}
   
-  #echo -debug %opt{vlang_output}
-  eval %opt{vlang_debug_buffer_output_command}
+  #echo -debug %opt{v_output}
+  eval %opt{v_debug_buffer_output_command}
 }
 
-define-command -params 0 -docstring "Runs v fmt -w on the current file and saves it" vlang_fmt %{
-  execute-keys ":w<ret>"
+define-command -params 0 -docstring "Runs v fmt -w on the current file and saves it" v-fmt %{
+  eval write
   declare-option -hidden str current_formatcmd %opt{formatcmd}
-  set window formatcmd %opt{vlang_fmt_command}
-  execute-keys ":format-buffer<ret>"
+  set window formatcmd %opt{v_fmt_command}
+  eval format-buffer
   set window formatcmd %opt{current_formatcmd}
-  execute-keys ":w<ret>"
 }
 
 §

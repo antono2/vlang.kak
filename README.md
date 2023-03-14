@@ -1,3 +1,4 @@
+
 # vlang.kak
 ![Screenshot](https://i.imgur.com/uZ8lCAj.png)
 
@@ -25,26 +26,29 @@ You will have syntax highlighting for these V file types:
 `v` `vsh` `vv` `v.mod` `c.v`
 
 The plugin provides the commands
--  `vlang_run` to run v in the `v.mod` directory.
+-  `v-run` to run v in the `v.mod` directory.
  It looks for the v.mod file in up to 3 parent directories and executes v.
  The output is put into the info box and the \*debug\* buffer.
  Default `"v -keepc -cg run ."`
  
-- `vlang_fmt` to run `v fmt -w` on the current file and save it.
+- `v-fmt` to run `v fmt -w` on the current file and save it.
 Default `"v fmt -w $kak_buffile"`
+
+- `v-enable-indenting` and `v-disable-indenting` to set the indenting as you wish. Default on.
 
 You can change each shell command by setting one or both options in your `kakrc`
 ```kak
 # Use filetype hook to ensure the options are defined
 hook global WinSetOption filetype=v %{
-  set-option buffer vlang_run_command 'YOUR RUN COMMAND'
-  set-option buffer vlang_fmt_command 'YOUR FMT COMMAND'
+  set-option buffer v_run_command 'YOUR RUN COMMAND'
+  set-option buffer v_fmt_command 'YOUR FMT COMMAND'
 }
 ```
-**Note**: Be veeery careful when changing the `vlang_fmt_command`, because it also saves the file and any issue will break your V code. Best test it on the hello world program before adding it to your `kakrc`.
+**Note**: Be veeery careful when changing the `v_fmt_command`, because it also saves the file and any issue will break your V code. Best test it on the hello world program before adding it to your `kakrc`.
 You can set the option from inside Kakoune by typing
-`:set-option buffer vlang_fmt_command 'YOUR FMT COMMAND'`
-and then test it by pressing the vlang_fmt key mapped below.
+`:set-option buffer v_fmt_command 'YOUR FMT COMMAND'`
+and then test it by pressing the v_fmt key mapped below. Look at the current value with
+`:echo %opt{v_fmt_command}`
 
 ## Kakrc
 
@@ -54,18 +58,18 @@ You can map these commands to some keys whenever a V file is opened.</br>For exa
 hook global WinSetOption filetype=v %{
   require-module v
   
-  map -docstring "Format and save file"      window normal <F5> ":vlang_fmt<ret>"
-  map -docstring 'Run v in v.mod directory'  window normal <F6> ":vlang_run<ret>"
+  map -docstring "Format and save file"      window normal <F5> ":v-fmt<ret>"
+  map -docstring 'Run v in v.mod directory'  window normal <F6> ":v-run<ret>"
   map -docstring 'Switch to *debug* buffer'  window normal <F7> ":buffer *debug*<ret>"
   map -docstring 'Switch to previous buffer' global normal <F8> ":buffer-previous;delete-buffer *debug*<ret>"
   
-  # Optionally set true or false for displaying the vlang_output in the info box and/or debug buffer.
-  set-option buffer vlang_output_to_info_box true
-  set-option buffer vlang_output_to_debug_buffer true
+  # Optionally set true or false for displaying the v_output in the info box and/or debug buffer.
+  set-option buffer v_output_to_info_box     true
+  set-option buffer v_output_to_debug_buffer true
 }
 ```
 Make sure to adapt the keys to your needs.
-Also, you can change `vlang_output_to_info_box` to `false`, if you don't want to see the V output in the info box and the same with `vlang_output_to_debug_buffer` for the \*debug\* buffer. The default values are set to `true`, so these don't need to be set in your `kakrc`.
+Also, you can change `v_output_to_info_box` to `false`, if you don't want to see the V output in the info box and the same with `v_output_to_debug_buffer` for the \*debug\* buffer. The default values are set to `true`, so these don't need to be set in your `kakrc`.
 
 ## Test Files
 This plugin supports the `:alt` command of Kakoune, which switches the buffer to the corresponding V test file and back. You can bind it to a key the same way as described above.
