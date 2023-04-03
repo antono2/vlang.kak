@@ -64,10 +64,10 @@ add-highlighter shared/v/code default-region group
 ## COMMENTS
 add-highlighter shared/v/line_comment1 region '//[^/]?' $ group
 add-highlighter shared/v/line_comment1/comment fill comment
-add-highlighter shared/v/line_comment1/todo regex (?i)(TODO|NOTE|FIXME)[^\n]* 0:meta
+add-highlighter shared/v/line_comment1/todo regex (TODO|NOTE|FIXME).*: 0:meta
 add-highlighter shared/v/line_comment2 region '/\*[^*]?' '\*/' group
 add-highlighter shared/v/line_comment2/comment fill comment
-add-highlighter shared/v/line_comment2/todo regex (?i)(TODO|NOTE|FIXME)[^\n]* 0:meta
+add-highlighter shared/v/line_comment2/todo regex (TODO|NOTE|FIXME).*: 0:meta
 add-highlighter shared/v/bin_bash region '(?<!\\)(?:\\\\)*(?:^|\h)\K#!' '$' fill comment
 
 ## STRINGS
