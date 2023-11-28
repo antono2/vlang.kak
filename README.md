@@ -1,5 +1,6 @@
 
 
+
 # vlang.kak
 ![Screenshot](https://i.imgur.com/uZ8lCAj.png)
 
@@ -142,7 +143,8 @@ hook global KakEnd .* lsp-exit
 You can start typing and switch through the autocomplete suggestions with [CTRL+N] or [CTRL+P].
 
 ![V autocompletion](https://i.imgur.com/H1XOSqV.png)
-Also check out [SPACE+L] to get a nice list of things you can do with your newly acquired V language server.
+Don't forget to check out the [suggested key mappings from kak-lsp](https://github.com/kak-lsp/kak-lsp/blob/master/README.asciidoc#configure-mappings).
+After adding these mappings to your kakrc you can press [SPACE+L] to get a nice list of things you can do with your newly acquired V language server.
 
 The rest is trivial and left to the reader.
 
