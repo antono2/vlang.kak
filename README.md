@@ -142,9 +142,23 @@ hook global KakEnd .* lsp-exit
 ```
 You can start typing and switch through the autocomplete suggestions with [CTRL+N] or [CTRL+P].
 
-![V autocompletion](https://i.imgur.com/H1XOSqV.png)
 Don't forget to check out the [suggested key mappings from kak-lsp](https://github.com/kak-lsp/kak-lsp/blob/master/README.asciidoc#configure-mappings).
 After adding these mappings to your kakrc you can press [SPACE+L] to get a nice list of things you can do with your newly acquired V language server.
+```
+# Suggested by kak-lsp https://github.com/kak-lsp/kak-lsp/blob/master/README.asciidoc#configure-mappings
+map global user l %{:enter-user-mode lsp<ret>} -docstring "LSP mode"
+map global insert <tab> '<a-;>:try lsp-snippets-select-next-placeholders catch %{ execute-keys -with-hooks <lt>tab> }<ret>' -docstring 'Select next snippet placeholder'
+map global object a '<a-semicolon>lsp-object<ret>' -docstring 'LSP any symbol'
+map global object <a-a> '<a-semicolon>lsp-object<ret>' -docstring 'LSP any symbol'
+map global object e '<a-semicolon>lsp-object Function Method<ret>' -docstring 'LSP function or method'
+map global object k '<a-semicolon>lsp-object Class Interface Struct<ret>' -docstring 'LSP class interface or struct'
+map global object d '<a-semicolon>lsp-diagnostic-object --include-warnings<ret>' -docstring 'LSP errors and warnings'
+map global object D '<a-semicolon>lsp-diagnostic-object<ret>' -docstring 'LSP errors'
+```
+
+
+![V autocompletion](https://i.imgur.com/H1XOSqV.png)
+
 
 The rest is trivial and left to the reader.
 
