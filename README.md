@@ -106,7 +106,7 @@ git clone https://github.com/v-analyzer/v-analyzer/
 cd v-analyzer
 # Update v itself
 v up
-# Check the v.mod file for dependecies and take care of them
+# Check the v.mod file for dependencies and take care of them
 v install
 # Build the actual thing
 v build.vsh release
