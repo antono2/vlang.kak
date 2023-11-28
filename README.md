@@ -1,4 +1,5 @@
 
+
 # vlang.kak
 ![Screenshot](https://i.imgur.com/uZ8lCAj.png)
 
@@ -84,63 +85,52 @@ Changing colors is pretty easy if you can dig through all the regex in `vlang.ka
 ## Code Completion
 Although this is completely separate from vlang.kak, I can still tell you how to set it up. *Who could stop me?*
 *Nobody can stop you with all that raw code editing power at your fingertips!*</br>
-**Note**: VLS is early software.
 
-The goal is to get [vlang vls](https://github.com/vlang/vls) to work with Kakoune's [kak-lsp](https://github.com/mawww/kakoune-lsp#installation) and get the [full list of capabilities](https://github.com/vlang/vls/blob/master/CAPABILITIES.md).</br>
-Install `kak-lsp` -> put it in `kakrc` -> install `vls` -> configure `kak-lsp` -> configure key mappings.
+The goal is to get [v-analyzer](https://github.com/v-analyzer/v-analyzer/) to work with Kakoune's [kak-lsp](https://github.com/mawww/kakoune-lsp#installation) and get the [full list of capabilities](https://github.com/v-analyzer/v-analyzer/#v-analyzer).</br>
+Install `kak-lsp` -> put start command in `kakrc` -> install `v-analyzer` -> configure `kak-lsp` -> ggnore.
 
 First install the [Kakoune language server protocol client](https://github.com/mawww/kakoune-lsp#installation).</br>
 **Note**: Get the most current download URL for your system from the [releases](https://github.com/kak-lsp/kak-lsp/releases).
 
-After`kak-lsp` is found in `$PATH`, you can add the start script to your Kakoune configuration.
+After`kak-lsp` is found in `$PATH`, you can add the start command to your Kakoune configuration file.
 ```
 eval %sh{kak-lsp --kakoune -s $kak_session}
 ```
-**Note**: The [kak-lsp toml config file](https://github.com/mawww/kakoune-lsp#configuration) path can be configured with `--config`.
+**Note**: The [kak-lsp toml config file path](https://github.com/mawww/kakoune-lsp#configuration) can be configured with `--config`.
 
-Then install the V language server as [described in the README](https://github.com/vlang/vls#via-v-cli-recommended).
+Then install the v-analyzer as [described here](https://github.com/v-analyzer/v-analyzer/#installation) or build from source, as I've done.
 ```
-v ls --install
+# Replace the `workspace` directory with wherever you want to store it
+cd ~/workspace
+git clone https://github.com/v-analyzer/v-analyzer/
+cd v-analyzer
+# Update v itself
+v up
+# Check the v.mod file for dependecies and take care of them
+v install
+# Build the actual thing
+v build.vsh release
 ```
-Running it for the first time will give you the message `If you are using this for the first time, please run
-  'v ls --install' first to download and install VLS.` So, let's do that.
+In any case, afterwards you'll also need to put the `v-analyzer/bin` directory into your PATH variable, so that kak-lsp can execute it. For example with bash you could add this to your `~/.bashrc` or look up how to do it for your system.
 ```
-v ls --install
+export PATH="$HOME/PATH_TO_WHERE_YOU_STORED_IT/v-analyzer/bin:$PATH"
 ```
-Now there should be a new directory `$HOME/.vls` and running `v ls` should give no errors.
-If that's the case, you can continue with configuring `kak-lsp` in the next step.
 
-Though on older systems you might get an error like this
-```
-... /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.34' not found (required by ...
-```
-There is no fixing this by updating glibc, as it's a system package and changing the version would break the system.</br>
-One solution is to [build vls from source](https://github.com/vlang/vls#build-from-source), which then uses the system default.
-```
-cd ~/.vls
-## Clone the project:
-git clone https://github.com/vlang/vls && cd vls
+Now you can restart your terminal to load the new bash configuration.
+Test that v-analyzer is found in PATH, e.g. `v-analyzer --help` should print some helpful information.
 
-## Build the project
-## Use "v run build.vsh gcc" if you're compiling VLS with GCC.
-v run build.vsh clang
-
-# The binary will be created in the `bin` directory inside the vls folder.
-# Move it to ~/.vls/bin and replace the original.
-# In case of linux_x64
-cp ./bin/vls ../bin/vls_linux_x64
-```
-Now `kak-lsp` can be configured to recognize the V language.
+Finally `kak-lsp` can be configured to run v-analyzer whenever kakoune recognizes a V language file.
 Use this in your [configuration toml file](https://github.com/mawww/kakoune-lsp#configuration).
 ```
 [language.v]
 # The filetype variable is set in vlang.kak for .v, .vsh, .vv, .c.v under the name "v"
 filetypes = ["v"]
-roots = ["mod.v", ".git/"]
-command = "v"
-args = ["ls"]
+roots = ["mod.v"]
+command = "v-analyzer"
 ```
-Start your Kakoune on a V file and type `:lsp-enable` to check if all the lsp-commands are defined and finish up your `kakrc`.
+**NOTE**: Assuming `mod.v` is present in any V project, otherwise just add more roots as you wish, e.g. `roots = ["mod.v", ".git/", "my_notes.txt"]`, as long as the file (or directory? not sure) is located at the root directory of your project.
+
+Start your Kakoune on a V file and type `:lsp-enable` to check if all the lsp-commands are defined and finish up your `kakrc`. Here I've added a custom path to the kak-lsp config and set hooks to enable and disable lsp.
 ```
 eval %sh{ kak-lsp --kakoune --config $HOME/PATH_TO_YOUR_CONFIG_TOML/kak-lsp/config.toml -s $kak_session }
 # Enable kak-lsp for V files
@@ -148,12 +138,11 @@ hook global WinSetOption filetype=v %{ lsp-enable-window }
 
 # Close kak-lsp when kakoune is closed
 hook global KakEnd .* lsp-exit
-# When VLS throws errors after a Kakoune restart is
-# when you absolutely, positively, have to kill a process
-#hook global KakEnd .* %sh{ kill $(ps ax | grep "kak-lsp" | awk '{print $1}') }
 ```
+You can start typing and switch through the autocomplete suggestions with [CTRL+N] or [CTRL+P].
 
-You can start typing and switch through the autocomplete suggestions with [Ctrl+n] or [Ctrl+p].
 ![V autocompletion](https://i.imgur.com/H1XOSqV.png)
+Also check out [SPACE+L] to get a nice list of things you can do with your newly acquired V language server.
+
 The rest is trivial and left to the reader.
 
