@@ -141,9 +141,10 @@ hook global WinSetOption filetype=v %{ lsp-enable-window }
 hook global KakEnd .* lsp-exit
 ```
 You can start typing and switch through the autocomplete suggestions with [CTRL+N] or [CTRL+P].
+![V autocompletion](https://i.imgur.com/H1XOSqV.png)
 
 Don't forget to check out the [suggested key mappings from kak-lsp](https://github.com/kak-lsp/kak-lsp/blob/master/README.asciidoc#configure-mappings).
-After adding these mappings to your kakrc you can press [SPACE+L] to get a nice list of things you can do with your newly acquired V language server.
+After adding these mappings to your `kakrc` you can press [SPACE+L] to get a nice list of things you can do with your newly acquired V language server.
 ```
 # Suggested by kak-lsp https://github.com/kak-lsp/kak-lsp/blob/master/README.asciidoc#configure-mappings
 map global user l %{:enter-user-mode lsp<ret>} -docstring "LSP mode"
@@ -156,9 +157,27 @@ map global object d '<a-semicolon>lsp-diagnostic-object --include-warnings<ret>'
 map global object D '<a-semicolon>lsp-diagnostic-object<ret>' -docstring 'LSP errors'
 ```
 
+**BONUS POINTS**: Since v-analyzer supports [semantic tokens](https://github.com/kak-lsp/kak-lsp#semantic-tokens), we can use `:lsp-semantic-tokens` to get syntax highlighting. Simply add it to the v filetype hook in your `kakrc`. Mine looks like this:
+```
+# key mappings, options and hooks for V language files
+hook global WinSetOption filetype=v %§
+  require-module v
+  map -docstring "Format and save current file"	window normal <F5> ":v-fmt<ret>"
+  map -docstring 'Run v in v.mod directory'	window normal <F6> ":v-run<ret>"
+  map -docstring 'Switch to debug buffer'	window normal <F7> ":buffer *debug*<ret>"
+  map -docstring 'Switch to previous buffer'	global normal <F8> ":buffer-previous;delete-buffer *debug*<ret>"
+  set-option buffer v_output_to_info_box	true
+  set-option buffer v_output_to_debug_buffer	true
 
-![V autocompletion](https://i.imgur.com/H1XOSqV.png)
-
+  # Add semantic tokens highlighting
+  hook window -group semantic-tokens BufReload .* lsp-semantic-tokens
+  hook window -group semantic-tokens NormalIdle .* lsp-semantic-tokens
+  hook window -group semantic-tokens InsertIdle .* lsp-semantic-tokens
+  hook -once -always window WinSetOption filetype=.* %{
+    remove-hooks window semantic-tokens
+  }
+§
+```
 
 The rest is trivial and left to the reader.
 
