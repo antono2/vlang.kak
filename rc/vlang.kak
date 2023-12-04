@@ -15,6 +15,9 @@
 # ‾‾‾‾‾‾‾‾‾
 hook global BufCreate .*\.(v|vsh|vv|c\.v)$ %{
   set-option buffer filetype v
+  set-option buffer comment_line "//"
+  set-option buffer comment_block_begin "/*"
+  set-option buffer comment_block_end "*/"
   
   declare-option -hidden bool v_output_to_info_box true
   declare-option -hidden bool v_output_to_debug_buffer true
