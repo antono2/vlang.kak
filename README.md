@@ -103,7 +103,7 @@ Then install the v-analyzer as [described here](https://github.com/v-analyzer/v-
 ```
 # Replace the `workspace` directory with wherever you want to store it
 cd ~/workspace
-git clone https://github.com/v-analyzer/v-analyzer/
+git clone --recurse-submodules https://github.com/v-analyzer/v-analyzer/
 cd v-analyzer
 # Update v itself
 v up
