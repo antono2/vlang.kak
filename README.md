@@ -146,7 +146,7 @@ You can start typing and switch through the autocomplete suggestions with [CTRL+
 Don't forget to check out the [suggested key mappings from kak-lsp](https://github.com/kakoune-lsp/kakoune-lsp/blob/master/README.asciidoc#configure-key-mappings).
 After adding these mappings to your `kakrc` you can press [SPACE+L] to get a nice list of things you can do with your newly acquired V language server.
 ```
-# Suggested by kak-lsp https://github.com/kak-lsp/kak-lsp/blob/master/README.asciidoc#configure-mappings
+# Something like this. Check the original docu here https://github.com/kakoune-lsp/kakoune-lsp/blob/master/README.asciidoc
 map global user l %{:enter-user-mode lsp<ret>} -docstring "LSP mode"
 map global insert <tab> '<a-;>:try lsp-snippets-select-next-placeholders catch %{ execute-keys -with-hooks <lt>tab> }<ret>' -docstring 'Select next snippet placeholder'
 map global object a '<a-semicolon>lsp-object<ret>' -docstring 'LSP any symbol'
