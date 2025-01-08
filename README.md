@@ -11,7 +11,7 @@ It provides syntax highlighting and includes functions to run your program and r
 
 ## Installation
 
-Put this repo in your `autoload` directory. [Read all about installing plugins here.](https://github.com/mawww/kakoune/wiki/Installing-Plugins)
+Put this repo in your `autoload` directory, like `kakoune/share/kak/autoload`. [Read all about installing plugins here.](https://github.com/mawww/kakoune/wiki/Installing-Plugins)
 
 ```sh
 cd YOUR/AUTOLOAD/DIRECTORY/
