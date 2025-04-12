@@ -57,6 +57,17 @@ and then test it by pressing the v_fmt key mapped below. Look at the current val
 You can map these commands to some keys whenever a V file is opened.</br>For example you could map `<F5> - <F8>` to quickly format -> run -> read output -> go back.
 
 ```kak
+# NOTE: The .v extension might be assigned to other filetypes.
+#       Please put these 2 hooks in your kakrc as well.
+#       kakrc is loaded last and ensures filetype=v.
+hook global BufCreate .*\.(v|vsh|vv|c\.v)$ %{
+  set-option buffer filetype v
+}
+
+hook global BufCreate .+v\.mod$ %{
+  set-option buffer filetype json
+}
+
 hook global WinSetOption filetype=v %{
   require-module v
   
@@ -159,6 +170,17 @@ map global object D '<a-semicolon>lsp-diagnostic-object<ret>' -docstring 'LSP er
 
 **BONUS POINTS**: Since v-analyzer supports [semantic tokens](https://github.com/kak-lsp/kak-lsp#semantic-tokens), we can use `:lsp-semantic-tokens` to get syntax highlighting. Simply add it to the v filetype hook in your `kakrc`. Mine looks like this:
 ```
+# NOTE: The .v extension might be assigned to other filetypes.
+#       Please put these 2 hooks in your kakrc as well.
+#       kakrc is loaded last and ensures filetype=v.
+hook global BufCreate .*\.(v|vsh|vv|c\.v)$ %{
+  set-option buffer filetype v
+}
+
+hook global BufCreate .+v\.mod$ %{
+  set-option buffer filetype json
+}
+
 # key mappings, options and hooks for V language files
 hook global WinSetOption filetype=v %§
   require-module v
