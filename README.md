@@ -13,7 +13,7 @@ It provides syntax highlighting and includes functions to run your program and r
 
 Put this repo in your `autoload` directory, like `kakoune/share/kak/autoload`. [Read all about installing plugins here.](https://github.com/mawww/kakoune/wiki/Installing-Plugins)
 
-```sh
+```bash
 cd YOUR/AUTOLOAD/DIRECTORY/
 git clone https://github.com/antono2/vlang.kak.git
 ```
@@ -39,7 +39,7 @@ Default `"v fmt -w $kak_buffile"`
 - `v-enable-indenting` and `v-disable-indenting` to set the indenting as you wish. Default on.
 
 You can change each shell command by setting one or both options in your `kakrc`
-```kak
+```bash
 # Use filetype hook to ensure the options are defined
 hook global WinSetOption filetype=v %{
   set-option buffer v_run_command 'YOUR RUN COMMAND'
@@ -56,7 +56,7 @@ and then test it by pressing the v_fmt key mapped below. Look at the current val
 
 You can map these commands to some keys whenever a V file is opened.</br>For example you could map `<F5> - <F8>` to quickly format -> run -> read output -> go back.
 
-```kak
+```bash
 # NOTE: The .v extension might be assigned to other filetypes.
 #       Please put these 2 hooks in your kakrc as well.
 #       kakrc is loaded last and ensures filetype=v.
@@ -105,13 +105,13 @@ First install the [Kakoune language server protocol client](https://github.com/m
 **Note**: Get the most current download URL for your system from the [releases](https://github.com/kak-lsp/kak-lsp/releases).
 
 After`kak-lsp` is found in `$PATH`, you can add the start command to your Kakoune configuration file.
-```
+```bash
 eval %sh{kak-lsp --kakoune -s $kak_session}
 ```
 **Note**: The [kak-lsp toml config file path](https://github.com/mawww/kakoune-lsp#configuration) can be configured with `--config`.
 
 Then install the v-analyzer as [described here](https://github.com/v-analyzer/v-analyzer/#installation) or build from source, as I've done.
-```
+```bash
 # Replace the `workspace` directory with wherever you want to store it
 cd ~/workspace
 git clone --recurse-submodules https://github.com/v-analyzer/v-analyzer/
@@ -124,7 +124,7 @@ v install
 v build.vsh release
 ```
 In any case, afterwards you'll also need to put the `v-analyzer/bin` directory into your PATH variable, so that kak-lsp can execute it. For example with bash you could add this to your `~/.bashrc` or look up how to do it for your system.
-```
+```bash
 export PATH="$HOME/PATH_TO_WHERE_YOU_STORED_IT/v-analyzer/bin:$PATH"
 ```
 
@@ -133,9 +133,9 @@ Test that v-analyzer is found in PATH, e.g. `v-analyzer --help` should print som
 
 Finally `kak-lsp` can be configured to run v-analyzer whenever kakoune recognizes a V language file.
 Use this in your [configuration toml file](https://github.com/mawww/kakoune-lsp#configuration).
-```
+```toml
 [language.v]
-# The filetype variable is set in vlang.kak for .v, .vsh, .vv, .c.v under the name "v"
+# The filetype variable is set in kakrc for .v, .vsh, .vv, .c.v under the name "v"
 filetypes = ["v"]
 roots = ["mod.v"]
 command = "v-analyzer"
@@ -143,7 +143,7 @@ command = "v-analyzer"
 **NOTE**: Assuming `mod.v` is present in any V project, otherwise just add more roots as you wish, e.g. `roots = ["mod.v", ".git/", "my_notes.txt"]`, as long as the file (or directory? not sure) is located at the root directory of your project.
 
 Start your Kakoune on a V file and type `:lsp-enable` to check if all the lsp-commands are defined and finish up your `kakrc`. Here I've added a custom path to the kak-lsp config and set hooks to enable and disable lsp.
-```
+```bash
 eval %sh{ kak-lsp --kakoune --config $HOME/PATH_TO_YOUR_CONFIG_TOML/kak-lsp/config.toml -s $kak_session }
 # Enable kak-lsp for V files
 hook global WinSetOption filetype=v %{ lsp-enable-window }
@@ -156,7 +156,7 @@ You can start typing and switch through the autocomplete suggestions with [CTRL+
 
 Don't forget to check out the [suggested key mappings from kak-lsp](https://github.com/kakoune-lsp/kakoune-lsp/blob/master/README.asciidoc#configure-key-mappings).
 After adding these mappings to your `kakrc` you can press [SPACE+L] to get a nice list of things you can do with your newly acquired V language server.
-```
+```bash
 # Something like this. Check the original docu here https://github.com/kakoune-lsp/kakoune-lsp/blob/master/README.asciidoc
 map global user l %{:enter-user-mode lsp<ret>} -docstring "LSP mode"
 map global insert <tab> '<a-;>:try lsp-snippets-select-next-placeholders catch %{ execute-keys -with-hooks <lt>tab> }<ret>' -docstring 'Select next snippet placeholder'
@@ -169,7 +169,7 @@ map global object D '<a-semicolon>lsp-diagnostic-object<ret>' -docstring 'LSP er
 ```
 
 **BONUS POINTS**: Since v-analyzer supports [semantic tokens](https://github.com/kak-lsp/kak-lsp#semantic-tokens), we can use `:lsp-semantic-tokens` to get syntax highlighting. Simply add it to the v filetype hook in your `kakrc`. Mine looks like this:
-```
+```bash
 # NOTE: The .v extension might be assigned to other filetypes.
 #       Please put these 2 hooks in your kakrc as well.
 #       kakrc is loaded last and ensures filetype=v.
