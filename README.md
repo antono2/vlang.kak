@@ -2,6 +2,8 @@
 
 
 # vlang.kak
+[Project portfolio](https://oreskin.de/projects_en.php) · [Support independent development](https://oreskin.de/dono_en.php)
+
 ![Screenshot](https://i.imgur.com/uZ8lCAj.png)
 
 `vlang.kak` enables support for the [V programming language](https://vlang.io/) in the [Kakoune](https://github.com/mawww/kakoune) text editor.
@@ -202,4 +204,3 @@ hook global WinSetOption filetype=v %§
 ```
 
 The rest is trivial and left to the reader.
-
