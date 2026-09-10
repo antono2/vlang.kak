@@ -1,0 +1,56 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Kakoune ${{ matrix.kakoune }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        kakoune:
+          - packaged
+          - v2026.05.21
+
+    steps:
+      - name: Check out vlang.kak
+        uses: actions/checkout@v5
+
+      - name: Install V
+        uses: vlang/setup-v@v1.7
+        with:
+          stable: true
+
+      - name: Install packaged Kakoune
+        if: matrix.kakoune == 'packaged'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes kakoune
+          echo "KAK=$(command -v kak)" >> "$GITHUB_ENV"
+
+      - name: Build Kakoune ${{ matrix.kakoune }}
+        if: matrix.kakoune != 'packaged'
+        env:
+          KAKOUNE_VERSION: ${{ matrix.kakoune }}
+        run: |
+          git clone --depth 1 --branch "$KAKOUNE_VERSION" \
+            https://github.com/mawww/kakoune.git "$RUNNER_TEMP/kakoune"
+          make -C "$RUNNER_TEMP/kakoune" -j2
+          echo "KAK=$RUNNER_TEMP/kakoune/src/kak" >> "$GITHUB_ENV"
+          echo "KAKOUNE_RUNTIME=$RUNNER_TEMP/kakoune/share/kak" >> "$GITHUB_ENV"
+
+      - name: Run integration tests
+        run: ./tests/run.sh

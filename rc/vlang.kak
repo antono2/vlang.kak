@@ -31,8 +31,8 @@ provide-module v %§
   declare-option -hidden bool v_output_to_debug_buffer true
 
   declare-option -hidden str v_run_command "v -keepc -cg run ."
-  # $kak_buffile will be expanded to the path of the current file
-  declare-option -hidden str v_fmt_command "v fmt -w $kak_buffile"
+  # The formatter reads the buffer from stdin and writes formatted code to stdout.
+  declare-option -hidden str v_fmt_command "v fmt"
 
   # Highlighters
   # ‾‾‾‾‾‾‾‾‾‾‾‾
@@ -186,17 +186,34 @@ provide-module v %§
     require-module sh
     
     declare-option -hidden str v_mod_file_dir %sh{
-      # find v.mod in up to 3 parent dirs 
-      # remove 'v.mod' using substitution
-      # pipe to xargs to trim the output
-      find ./ ../ ../../ ../../../ -maxdepth 1 -iname "v.mod" | sed -ne 's/v.mod//p' | xargs
+      case $kak_buffile in
+        */*) buffer_dir=${kak_buffile%/*} ;;
+        *) buffer_dir=. ;;
+      esac
+
+      run_dir=$buffer_dir
+      search_dir=$buffer_dir
+      level=0
+      while [ "$level" -le 3 ]; do
+        if [ -f "$search_dir/v.mod" ]; then
+          run_dir=$search_dir
+          break
+        fi
+
+        parent_dir=${search_dir%/*}
+        test -n "$parent_dir" || parent_dir=/
+        test "$parent_dir" != "$search_dir" || break
+        search_dir=$parent_dir
+        level=$((level + 1))
+      done
+
+      printf %s "$run_dir"
     }
 
     # print v output to debug buffer and info box
     declare-option -hidden str v_output %sh{ 
-      cd "$kak_opt_v_mod_file_dir"
-      $kak_opt_v_run_command
-      cd -
+      cd "$kak_opt_v_mod_file_dir" || exit 1
+      eval "$kak_opt_v_run_command" 2>&1 || true
     }
     
     # prepare if v_output should be printed to info box
@@ -224,12 +241,17 @@ provide-module v %§
     eval %opt{v_debug_buffer_output_command}
   }
 
-  define-command -params 0 -docstring "Runs v fmt -w on the current file and saves it" v-fmt %{
-    eval write
+  define-command -params 0 -docstring "Formats the current buffer and saves it" v-fmt %{
     declare-option -hidden str current_formatcmd %opt{formatcmd}
     set window formatcmd %opt{v_fmt_command}
-    eval format-buffer
-    set window formatcmd %opt{current_formatcmd}
+    try %{
+      eval format-buffer
+      set window formatcmd %opt{current_formatcmd}
+      eval write
+    } catch %{
+      set window formatcmd %opt{current_formatcmd}
+      fail "%val{error}"
+    }
   }
 §
 
