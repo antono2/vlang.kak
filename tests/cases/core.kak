@@ -3,7 +3,7 @@ hook global RuntimeError "\d+:\d+: (.+)" %{
   kill! 1
 }
 
-try %{
+try %§
   evaluate-commands %sh{
     test "$kak_opt_filetype" = v || echo "fail 'expected filetype v'"
     test "$kak_opt_comment_line" = // || echo "fail 'expected V line comments'"
@@ -60,9 +60,25 @@ try %{
   execute-keys -with-hooks /\x7b<ret>a<ret><esc>
   write
 
+  edit -- indent_content.v
+  execute-keys -with-hooks "/\x7b<ret>a<ret>println('ok')<esc>"
+  write
+
+  edit -- indent_nested.v
+  execute-keys -with-hooks "/if<space>true<space>\x7b<ret>a<ret>println('nested')<esc>"
+  write
+
+  edit -- comment.v
+  execute-keys -with-hooks /first<ret>a<ret>second<esc>
+  write
+
+  edit -- parenthesis.v
+  execute-keys -with-hooks "/println\x28<ret>a<ret>'paired'<esc>"
+  write
+
   echo -to-file core-ok ok
   quit
-} catch %{
+§ catch %§
   echo -to-file failure "%val{error}"
   kill! 1
-}
+§

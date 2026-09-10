@@ -8,6 +8,7 @@ All notable changes to `vlang.kak` will be documented in this file.
 
 - Real Kakoune JSON-UI assertions for rendered syntax highlighting.
 - Compiling coverage for modern V language constructs.
+- Editing-hook coverage for typed content, nested blocks, comments, and parentheses.
 - Tested installation guidance for `plug.kak`.
 
 ### Changed
@@ -17,3 +18,4 @@ All notable changes to `vlang.kak` will be documented in this file.
 ### Fixed
 
 - Triple-slash comments are now highlighted as comments.
+- New lines after opening braces and parentheses now indent the inserted content correctly.
