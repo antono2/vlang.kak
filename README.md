@@ -2,6 +2,8 @@
 
 
 # vlang.kak
+[![Test](https://github.com/antono2/vlang.kak/actions/workflows/test.yml/badge.svg)](https://github.com/antono2/vlang.kak/actions/workflows/test.yml)
+
 [Project portfolio](https://oreskin.de/projects_en.php)
 
 ![Screenshot](https://i.imgur.com/uZ8lCAj.png)
@@ -13,15 +15,28 @@ It provides syntax highlighting and includes functions to run your program and r
 
 ## Installation
 
-Put this repo in your `autoload` directory, like `kakoune/share/kak/autoload`. [Read all about installing plugins here.](https://github.com/mawww/kakoune/wiki/Installing-Plugins)
+With [plug.kak](https://github.com/andreyorst/plug.kak):
+
+```kak
+plug "antono2/vlang.kak"
+```
+
+Without a plugin manager, put this repository in your `autoload` directory, such as `kakoune/share/kak/autoload`:
 
 ```bash
 cd YOUR/AUTOLOAD/DIRECTORY/
 git clone https://github.com/antono2/vlang.kak.git
 ```
-Alternatively you can manually source the `vlang.kak` script in your configuration file
 
-```source "path_to/rc/vlang.kak"```
+Alternatively, source the script from your `kakrc`:
+
+```kak
+source "path_to/rc/vlang.kak"
+```
+
+## Compatibility
+
+The test suite runs against the Kakoune version packaged by Ubuntu 24.04 and Kakoune 2026.05.21, using V 0.5.2. It exercises both the editor integration and a compiling corpus of current V language features.
 
 
 ## Usage
@@ -208,7 +223,7 @@ The rest is trivial and left to the reader.
 
 ## Testing
 
-The integration suite requires Kakoune, V, and the `timeout` command. It starts isolated Kakoune sessions and exercises filetype detection, formatting, running V, alternate files, and editing hooks.
+The integration suite requires Kakoune, V, Python 3, and the `timeout` command. It starts isolated Kakoune sessions and exercises rendered syntax highlighting, filetype detection, formatting, running V, alternate files, editing hooks, and a compiling modern-V corpus.
 
 ```bash
 ./tests/run.sh

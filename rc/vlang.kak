@@ -40,38 +40,46 @@ provide-module v %§
   add-highlighter shared/v/code default-region group
 
   ## COMMENTS
-  add-highlighter shared/v/line_comment1 region '//[^/]?' $ group
+  add-highlighter shared/v/line_comment1 region '//' $ group
   add-highlighter shared/v/line_comment1/comment fill comment
   add-highlighter shared/v/line_comment1/todo regex (TODO|NOTE|FIXME).*: 0:meta
-  add-highlighter shared/v/line_comment2 region '/\*[^*]?' '\*/' group
+  add-highlighter shared/v/line_comment2 region '/\*' '\*/' group
   add-highlighter shared/v/line_comment2/comment fill comment
   add-highlighter shared/v/line_comment2/todo regex (TODO|NOTE|FIXME).*: 0:meta
   add-highlighter shared/v/bin_bash region '(?<!\\)(?:\\\\)*(?:^|\h)\K#!' '$' fill comment
+
+  ## ATTRIBUTES
+  add-highlighter shared/v/attribute region -recurse '\[' '@\[' '\]' regions
+  add-highlighter shared/v/attribute/code default-region fill attribute
+  add-highlighter shared/v/attribute/string1 region %{(?<!')"} (?<!\\)(\\\\)*" fill string
+  add-highlighter shared/v/attribute/string2 region %{(?<!')'} (?<!\\)(\\\\)*' fill string
 
   ## STRINGS
   add-highlighter shared/v/string1 region %{(?<!')"} (?<!\\)(\\\\)*" fill string
   add-highlighter shared/v/string2 region %{(?<!')'} (?<!\\)(\\\\)*' fill string
   add-highlighter shared/v/raw_string1 region -match-capture %{(?<!')r"} (?<!\\)(\\\\)*" fill string
   add-highlighter shared/v/raw_string2 region -match-capture %{(?<!')r'} (?<!\\)(\\\\)*' fill string
+  add-highlighter shared/v/character region '\x60' '(?<!\\)(\\\\)*\x60' fill value
 
   ## OPERATORS
-  add-highlighter shared/v/code/operators regex (\+|-|/|\*|\^|&|\||!|>|<|%|:=|~|!=|==|<=|>=|\+=|-=|\*=|/=|%=|&=|\|=|\^=|>>=|<<=|>>>=)=? 0:operator
+  add-highlighter shared/v/code/operators regex (?:>>>=|>>=|<<=|>>>|>>|<<|\|\|=|&&=|\*\*=|\*\*|\+\+|--|:=|<-|!in\b|!is\b|!=|==|<=|>=|\+=|-=|\*=|/=|%=|&=|\|=|\^=|\.\.\.?|\|\||&&|\+|-|/|\*|\^|&|\||!|>|<|%|=|~) 0:operator
   add-highlighter shared/v/code/question_mark regex \? 0:meta
 
-  ## KEYWORDS
-  add-highlighter shared/v/code/keywords regex \b(?:as|asm|assert|atomic|break|const|continue|defer|else|enum|false|fn|for|go|goto|if|import|in|interface|is|isreftype|lock|match|module|mut|none|or|pub|return|rlock|select|shared|sizeof|spawn|static|struct|true|type|typeof|union|unsafe|volatile|__global|__offsetof)\b 0:keyword
-  add-highlighter shared/v/code/compile_time_keywords regex \B(?:\$else|\$embed_file|\$for|\$if|\$Array|\$Map|\$Struct|\$env|\$pkgconfig)\b 0:keyword
+  ## FUNCTIONS
+  add-highlighter shared/v/code/function_call regex \b(_?[a-zA-Z]\w*)\h*(?:\[[^\]\n]+\]\h*)?(?=\() 1:function
+  add-highlighter shared/v/code/function_declaration regex \bfn\h+(?:\([^\n)]*\)\h+)?(_?\w+)(?:\[[^\]\n]+\])?\h*(?=\() 1:function
 
-  ## TYPES
-  add-highlighter shared/v/code/builtin_types regex \b(?:bool|byte|byteptr|rune|string|voidptr|int|i8|u8|i16|u16|i32|u32|i64|u64|f32|f64|enum|struct|interface|type)\b 0:type
+  ## KEYWORDS
+  add-highlighter shared/v/code/keywords regex \b(?:as|asm|assert|atomic|break|const|continue|defer|dump|else|enum|false|fn|for|go|goto|if|implements|import|in|interface|is|isreftype|lock|match|module|mut|nil|none|or|pub|return|rlock|select|shared|sizeof|spawn|static|struct|true|type|typeof|union|unsafe|volatile|_likely_|_unlikely_|__global|__offsetof)\b 0:keyword
+  add-highlighter shared/v/code/compile_time_keywords regex \B\$(?:else|for|if|html|tmpl|env|embed_file|pkgconfig|compile_error|compile_warn|d|res|zero|new|map|array|array_dynamic|array_fixed|int|float|struct|interface|enum|sumtype|alias|function|option|shared|string|pointer|voidptr)\b 0:keyword
+  add-highlighter shared/v/code/compile_time_constants regex @[A-Z][A-Z0-9_]*\b 0:meta
 
   ## VALUES
-  add-highlighter shared/v/code/values regex \b(?:true|false|[0-9][_0-9]*(?:\.[0-9][_0-9]*|(?:\.[0-9][_0-9]*)?e[\+\-][_0-9]+)(?:f(?:32|64))?|(?:0x[_0-9a-fA-F]+|0o[_0-7]+|0b[_01]+|[0-9][_0-9]*)(?:(?:i|u|f)(?:8|16|32|64|128|size))?)\b 0:value
+  add-highlighter shared/v/code/values regex \b(?:true|false|(?:0x[0-9a-fA-F](?:_?[0-9a-fA-F])*|0o[0-7](?:_?[0-7])*|0b[01](?:_?[01])*)(?:(?:i|u)(?:8|16|32|64|128|size))?|[0-9](?:_?[0-9])*(?:\.[0-9](?:_?[0-9])*)?(?:[eE][\+\-]?[0-9](?:_?[0-9])*)?(?:(?:i|u)(?:8|16|32|64|128|size)|f(?:32|64))?)\b 0:value
 
-  ## FUNCTIONS
-  add-highlighter shared/v/code/function_call          regex _?[a-zA-Z]\w*\s*(?=\() 0:function
-  add-highlighter shared/v/code/generic_function_call  regex _?[a-zA-Z]\w*\s*(?=::<) 0:function
-  add-highlighter shared/v/code/function_declaration   regex (?:fn\h+)(_?\w+)(?:<[^>]+?>)?\( 1:function
+  ## TYPES
+  add-highlighter shared/v/code/type_name regex \b[A-Z]\w*\b 0:type
+  add-highlighter shared/v/code/builtin_types regex \b(?:bool|byte|byteptr|char|charptr|rune|string|voidptr|int|i8|u8|i16|u16|i32|u32|i64|u64|isize|usize|f32|f64|map|thread)\b 0:type
 
 
   # Commands

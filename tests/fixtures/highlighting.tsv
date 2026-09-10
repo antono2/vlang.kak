@@ -1,0 +1,28 @@
+# line<TAB>text<TAB>face
+1	module	keyword
+3	@[deprecated: 	attribute
+3	'use replacement'	string
+3	]	attribute
+4	fn	keyword
+4	legacy	function
+4	string	type
+5	return	keyword
+5	'legacy'	string
+8	struct	keyword
+8	Widget	type
+9	string	type
+9	'demo'	string
+10	usize	type
+10	0x2a	value
+13	identity	function
+13	T	type
+18	'${widget.name}: ${widget.count}'	string
+22	:=	operator
+22	Widget	type
+23	identity	function
+23	int	type
+23	42	value
+23	1.2E3	value
+24	// 	comment
+24	TODO:	meta
+24	 exercise a modern V corpus	comment

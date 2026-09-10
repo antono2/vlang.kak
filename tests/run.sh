@@ -27,6 +27,11 @@ if ! command -v timeout >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 executable not found" >&2
+  exit 1
+fi
+
 test_tmp=$(mktemp -d "${TMPDIR:-/tmp}/vlang-kak-tests.XXXXXXXX")
 trap 'rm -rf -- "$test_tmp"' EXIT HUP INT TERM
 
@@ -34,7 +39,19 @@ cp -R "$script_dir/fixtures/." "$test_tmp/"
 mkdir -p "$test_tmp/config/kak"
 
 plugin_path=$(printf %s "$repo_dir/rc/vlang.kak" | sed "s/'/''/g")
-printf "source '%s'\n" "$plugin_path" > "$test_tmp/config/kak/kakrc"
+{
+  printf "source '%s'\n" "$plugin_path"
+  printf '%s\n' \
+    'face global attribute rgb:101001' \
+    'face global comment rgb:202002' \
+    'face global function rgb:303003' \
+    'face global keyword rgb:404004' \
+    'face global meta rgb:505005' \
+    'face global operator rgb:606006' \
+    'face global string rgb:707007' \
+    'face global type rgb:808008' \
+    'face global value rgb:909009'
+} > "$test_tmp/config/kak/kakrc"
 
 test_index=0
 
@@ -100,6 +117,26 @@ assert_file_equal() {
   echo "ok - $description"
 }
 
+assert_highlighting() {
+  filename=$1
+  expectations=$2
+  syntax_ui="$test_tmp/$(basename "$filename").jsonl"
+
+  if (
+    cd "$test_tmp"
+    env XDG_CONFIG_HOME="$test_tmp/config" \
+      "$kak" "$filename" -ui json -e 'execute-keys j' < /dev/null > "$syntax_ui"
+  ); then
+    :
+  else
+    render_status=$?
+    # The JSON UI treats stdin closing after its initial draw as a client error.
+    test "$render_status" -eq 255
+  fi
+
+  python3 "$script_dir/assert_highlighting.py" "$syntax_ui" "$expectations"
+}
+
 echo "Testing with $("$kak" -version) and $(v version)"
 
 run_kak \
@@ -137,6 +174,13 @@ run_kak \
   "$script_dir/cases/filetype.kak"
 test "$(sed -n '1p' "$test_tmp/detected")" = json
 
+assert_highlighting syntax.v "$script_dir/fixtures/highlighting.tsv"
+assert_highlighting language_features.v "$script_dir/fixtures/language_highlighting.tsv"
+
+v fmt -verify "$test_tmp/syntax.v"
+v -check "$test_tmp/syntax.v"
+v fmt -verify "$test_tmp/language_features.v"
+v -check "$test_tmp/language_features.v"
 v test "$test_tmp/project"
 
 echo "All vlang.kak tests passed"
