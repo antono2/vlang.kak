@@ -4,6 +4,8 @@ All notable changes to `vlang.kak` will be documented in this file.
 
 ## Unreleased
 
+## 1.0.0 - 2026-09-10
+
 ### Added
 
 - Real Kakoune JSON-UI assertions for rendered syntax highlighting.
