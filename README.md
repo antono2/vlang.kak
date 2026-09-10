@@ -30,13 +30,14 @@ You will have syntax highlighting for these V file types:
 `v` `vsh` `vv` `v.mod` `c.v`
 
 The plugin provides the commands
--  `v-run` to run v in the `v.mod` directory.
- It looks for the v.mod file in up to 3 parent directories and executes v.
+-  `v-run` to run V in the `v.mod` directory.
+ Starting at the current buffer's directory, it looks for `v.mod` in up to 3 parent directories and executes V there.
+ If no `v.mod` is found, it runs in the current buffer's directory.
  The output is put into the info box and the \*debug\* buffer.
  Default `"v -keepc -cg run ."`
  
-- `v-fmt` to run `v fmt -w` on the current file and save it.
-Default `"v fmt -w $kak_buffile"`
+- `v-fmt` to format the current buffer and save it after formatting succeeds.
+Default `"v fmt"`
 
 - `v-enable-indenting` and `v-disable-indenting` to set the indenting as you wish. Default on.
 
@@ -48,7 +49,7 @@ hook global WinSetOption filetype=v %{
   set-option buffer v_fmt_command 'YOUR FMT COMMAND'
 }
 ```
-**Note**: Be veeery careful when changing the `v_fmt_command`, because it also saves the file and any issue will break your V code. Best test it on the hello world program before adding it to your `kakrc`.
+**Note**: `v_fmt_command` must read V code from standard input and write the formatted code to standard output. The buffer is saved only when the formatter exits successfully. Test a custom command on a hello world program before adding it to your `kakrc`.
 You can set the option from inside Kakoune by typing
 `:set-option buffer v_fmt_command 'YOUR FMT COMMAND'`
 and then test it by pressing the v_fmt key mapped below. Look at the current value with
@@ -139,10 +140,10 @@ Use this in your [configuration toml file](https://github.com/mawww/kakoune-lsp#
 [language.v]
 # The filetype variable is set in kakrc for .v, .vsh, .vv, .c.v under the name "v"
 filetypes = ["v"]
-roots = ["mod.v"]
+roots = ["v.mod"]
 command = "v-analyzer"
 ```
-**NOTE**: Assuming `mod.v` is present in any V project, otherwise just add more roots as you wish, e.g. `roots = ["mod.v", ".git/", "my_notes.txt"]`, as long as the file (or directory? not sure) is located at the root directory of your project.
+**NOTE**: Assuming `v.mod` is present in any V project, otherwise add more roots as needed, e.g. `roots = ["v.mod", ".git/", "my_notes.txt"]`.
 
 Start your Kakoune on a V file and type `:lsp-enable` to check if all the lsp-commands are defined and finish up your `kakrc`. Here I've added a custom path to the kak-lsp config and set hooks to enable and disable lsp.
 ```bash
@@ -204,3 +205,19 @@ hook global WinSetOption filetype=v %§
 ```
 
 The rest is trivial and left to the reader.
+
+## Testing
+
+The integration suite requires Kakoune, V, and the `timeout` command. It starts isolated Kakoune sessions and exercises filetype detection, formatting, running V, alternate files, and editing hooks.
+
+```bash
+./tests/run.sh
+```
+
+To test a Kakoune build that is not installed globally, provide its executable and runtime directory:
+
+```bash
+KAK=/path/to/kakoune/src/kak \
+KAKOUNE_RUNTIME=/path/to/kakoune/share/kak \
+./tests/run.sh
+```
