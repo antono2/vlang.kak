@@ -1,0 +1,27 @@
+# line<TAB>text<TAB>face
+1	module	keyword
+3	interface	keyword
+3	Speaker	type
+7	enum	keyword
+7	Phase	type
+12	type	keyword
+12	Identifier	type
+12	=	operator
+12	string	type
+14	type	keyword
+14	Number	type
+14	f64	type
+14	|	operator
+14	int	type
+16	struct	keyword
+16	Greeter	type
+16	implements	keyword
+16	Speaker	type
+17	string	type
+20	fn	keyword
+20	Greeter	type
+20	speak	function
+20	string	type
+21	return	keyword
+24	identity	function
+24	T	type

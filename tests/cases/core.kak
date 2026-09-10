@@ -1,5 +1,5 @@
 hook global RuntimeError "\d+:\d+: (.+)" %{
-  echo -to-file failure -end-of-line "%val{hook_param_capture_1}"
+  echo -to-file failure "%val{hook_param_capture_1}"
   kill! 1
 }
 
@@ -63,6 +63,6 @@ try %{
   echo -to-file core-ok ok
   quit
 } catch %{
-  echo -to-file failure -end-of-line "%val{error}"
+  echo -to-file failure "%val{error}"
   kill! 1
 }
