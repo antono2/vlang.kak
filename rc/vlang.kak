@@ -129,8 +129,8 @@ provide-module v %§
           execute-keys -draft <a-?> /\* <ret> <a-K>\*/<ret>
         }
       } catch %{
-        # indent after lines with an unclosed { or (
-        try %< execute-keys -draft [c[({],[)}] <ret> <a-k> \A[({][^\n]*\n[^\n]*\n?\z <ret> j<a-gt> >
+        # indent after lines ending with an opening { or (
+        try %< execute-keys -draft kx <a-k> [({]\h*$ <ret> j<a-gt> >
         # indent after a switch's case/default statements
         try %[ execute-keys -draft kx <a-k> ^\h*(case|default).*:$ <ret> j<a-gt> ]
         # deindent closing brace(s) when after cursor

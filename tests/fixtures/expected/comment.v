@@ -1,0 +1,4 @@
+module main
+
+// first
+// second

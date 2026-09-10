@@ -157,6 +157,22 @@ assert_file_equal \
   "$script_dir/fixtures/expected/indent.v" \
   "$test_tmp/indent.v" \
   "newline hook inserts a closing delimiter"
+assert_file_equal \
+  "$script_dir/fixtures/expected/indent_content.v" \
+  "$test_tmp/indent_content.v" \
+  "newline hook indents typed content"
+assert_file_equal \
+  "$script_dir/fixtures/expected/indent_nested.v" \
+  "$test_tmp/indent_nested.v" \
+  "newline hook indents nested blocks"
+assert_file_equal \
+  "$script_dir/fixtures/expected/comment.v" \
+  "$test_tmp/comment.v" \
+  "newline hook continues line comments"
+assert_file_equal \
+  "$script_dir/fixtures/expected/parenthesis.v" \
+  "$test_tmp/parenthesis.v" \
+  "newline hook pairs parentheses"
 
 for filename in sample.v sample.vsh sample.vv sample.c.v; do
   rm -f "$test_tmp/detected"
