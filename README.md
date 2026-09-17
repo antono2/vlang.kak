@@ -38,6 +38,10 @@ source "path_to/rc/vlang.kak"
 
 The test suite runs against the Kakoune version packaged by Ubuntu 24.04 and Kakoune 2026.05.21, using V 0.5.2. It exercises both the editor integration and a compiling corpus of current V language features.
 
+The plugin and its test harness use Kakoune's POSIX shell integration. On a
+Windows machine, use it inside WSL with Kakoune and V installed in the same WSL
+distribution. A native Win32 Kakoune environment is not currently tested.
+
 
 ## Usage
 
