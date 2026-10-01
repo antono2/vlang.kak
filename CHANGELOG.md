@@ -2,7 +2,7 @@
 
 All notable changes to `vlang.kak` will be documented in this file.
 
-## 1.1.1 - 2026-10-01
+## 1.1.1 - 2026-10-02
 
 ### Added
 
