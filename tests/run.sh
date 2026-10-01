@@ -32,6 +32,11 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v git >/dev/null 2>&1; then
+  echo "git executable not found" >&2
+  exit 1
+fi
+
 test_tmp=$(mktemp -d "${TMPDIR:-/tmp}/vlang-kak-tests.XXXXXXXX")
 trap 'rm -rf -- "$test_tmp"' EXIT HUP INT TERM
 
@@ -145,6 +150,50 @@ run_kak \
   "$script_dir/cases/core.kak"
 
 test "$(sed -n '1p' "$test_tmp/core-ok")" = ok
+run_kak \
+  "V user-mode bindings" \
+  "$test_tmp/project/main.v" \
+  "$script_dir/cases/keymaps.kak"
+test "$(sed -n '1p' "$test_tmp/keymaps-ok")" = ok
+python3 "$script_dir/context.py" "$kak"
+python3 "$script_dir/browsing.py" "$kak"
+
+run_kak \
+  "test at cursor and rerun" \
+  "$test_tmp/project/nearest_test.v" \
+  "$script_dir/cases/nearest_test.kak"
+test "$(sed -n '1p' "$test_tmp/nearest-ok")" = ok
+
+run_kak \
+  "asynchronous V task dispatch" \
+  "$test_tmp/project/nearest_test.v" \
+  "$script_dir/cases/task_dispatch.kak"
+test "$(sed -n '1p' "$test_tmp/task-dispatch-ok")" = ok
+
+run_kak \
+  "V task failure navigation" \
+  "$test_tmp/project/main.v" \
+  "$script_dir/cases/task_errors.kak"
+test "$(sed -n '1p' "$test_tmp/task-errors-ok")" = ok
+
+mkdir -p "$test_tmp/history-project"
+printf 'module main\n\nfn old_version() {}\n' > "$test_tmp/history-project/main.v"
+git -C "$test_tmp/history-project" init -q
+git -C "$test_tmp/history-project" add main.v
+git -C "$test_tmp/history-project" \
+  -c user.name=Test -c user.email=test@example.com \
+  commit -qm 'first V version'
+printf 'module main\n\nfn working_version() {}\n' > "$test_tmp/history-project/main.v"
+run_kak \
+  "historical V scratch view" \
+  "$test_tmp/history-project/main.v" \
+  "$script_dir/cases/history.kak"
+assert_file_equal \
+  "$script_dir/fixtures/expected/history.v" \
+  "$test_tmp/history-content" \
+  "history view shows the committed version"
+test "$(sed -n '3p' "$test_tmp/history-project/main.v")" = 'fn working_version() {}'
+
 assert_file_equal \
   "$script_dir/fixtures/expected/formatted.v" \
   "$test_tmp/unformatted.v" \
@@ -192,6 +241,11 @@ test "$(sed -n '1p' "$test_tmp/detected")" = json
 
 assert_highlighting syntax.v "$script_dir/fixtures/highlighting.tsv"
 assert_highlighting language_features.v "$script_dir/fixtures/language_highlighting.tsv"
+
+python3 "$script_dir/settings.py" "$kak"
+python3 "$script_dir/restart.py" "$kak"
+python3 "$script_dir/explorer.py" "$repo_dir/scripts/explorer.sh"
+sh "$script_dir/windowing.sh" "$repo_dir/scripts/windowing.sh"
 
 v fmt -verify "$test_tmp/syntax.v"
 v -check "$test_tmp/syntax.v"

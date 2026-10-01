@@ -1,6 +1,14 @@
 name: Test
 
 on:
+  workflow_dispatch:
+    inputs:
+      kakoune_master:
+        description: Test current Kakoune master and propose the verified pin
+        type: boolean
+        default: false
+  schedule:
+    - cron: '17 4 * * 1'
   pull_request:
   push:
     branches:
@@ -61,3 +69,121 @@ jobs:
 
       - name: Run integration tests
         run: ./tests/run.sh
+
+      - name: Check setup and update scripts
+        run: |
+          sh -n scripts/*.sh
+          for script in scripts/*.sh; do "$script" --help > /dev/null; done
+
+  release:
+    name: Managed installation and live VLS
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      kakoune_ref: ${{ steps.kakoune-master.outputs.revision }}
+    steps:
+      - name: Check out vlang.kak
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Install build and terminal dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential git curl unzip tmux python3 gdb
+
+      - name: Build the pinned V compiler
+        run: |
+          . tests/release.env
+          git init "$RUNNER_TEMP/v"
+          git -C "$RUNNER_TEMP/v" fetch --depth 1 https://github.com/vlang/v.git "$V_REF"
+          git -C "$RUNNER_TEMP/v" checkout --detach FETCH_HEAD
+          git init "$RUNNER_TEMP/v/vc"
+          git -C "$RUNNER_TEMP/v/vc" fetch --depth 1 https://github.com/vlang/vc.git "$VC_REF"
+          git -C "$RUNNER_TEMP/v/vc" checkout --detach FETCH_HEAD
+          cd "$RUNNER_TEMP/v"
+          mkdir -p thirdparty/tcc/lib
+          gcc -O2 -fPIC -DGC_THREADS=1 -DTHREAD_LOCAL_ALLOC=1 \
+            -DGC_BUILTIN_ATOMIC=1 -DALL_INTERIOR_POINTERS=1 \
+            -I thirdparty/libgc/include -c thirdparty/libgc/gc.c \
+            -o thirdparty/tcc/lib/gc.o
+          ar rcs thirdparty/tcc/lib/libgc.a thirdparty/tcc/lib/gc.o
+          make -C "$RUNNER_TEMP/v" local=1 CC=gcc VFLAGS='-cc gcc'
+          echo "$RUNNER_TEMP/v" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/v/v" version
+
+      - name: Resolve the weekly Kakoune master revision
+        id: kakoune-master
+        if: github.event_name == 'schedule' || inputs.kakoune_master == true
+        run: |
+          revision=$(git ls-remote https://github.com/mawww/kakoune.git refs/heads/master | awk '{print $1}')
+          test "${#revision}" -eq 40
+          echo "VLANG_RELEASE_KAKOUNE_REF=$revision" >> "$GITHUB_ENV"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Test clean installation, live navigation, debugging, panes, and updates
+        run: |
+          ./tests/release.sh "$RUNNER_TEMP/vlang-release" 2>&1 | tee "$RUNNER_TEMP/vlang-release.log"
+
+      - name: Save release and acceptance logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification
+          path: |
+            ${{ runner.temp }}/vlang-release.log
+            ${{ runner.temp }}/vlang-release/lsp/**/ui.jsonl
+            ${{ runner.temp }}/vlang-release/lsp/**/editor-debug
+            ${{ runner.temp }}/vlang-release/lsp/**/kak-stderr
+            ${{ runner.temp }}/vlang-release/acceptance/lsp/**/ui.jsonl
+            ${{ runner.temp }}/vlang-release/acceptance/lsp/**/editor-debug
+            ${{ runner.temp }}/vlang-release/acceptance/lsp/**/kak-stderr
+            ${{ runner.temp }}/vlang-release/acceptance/**/*.log
+            ${{ runner.temp }}/vlang-release/acceptance/results.txt
+          if-no-files-found: ignore
+
+  kakoune-update:
+    name: Propose verified Kakoune master update
+    timeout-minutes: 10
+    needs: [test, release]
+    if: github.event_name == 'schedule' || inputs.kakoune_master == true
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out vlang.kak
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Propose the verified Kakoune update
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VLANG_RELEASE_KAKOUNE_REF: ${{ needs.release.outputs.kakoune_ref }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          path = Path('tests/release.env')
+          text = path.read_text()
+          lines = text.splitlines()
+          path.write_text('\n'.join('KAKOUNE_VERSION=' + os.environ['VLANG_RELEASE_KAKOUNE_REF']
+                                    if line.startswith('KAKOUNE_VERSION=') else line
+                                    for line in lines) + '\n')
+          PY
+          if git diff --quiet -- tests/release.env; then exit 0; fi
+          branch="automation/kakoune-${VLANG_RELEASE_KAKOUNE_REF}"
+          if gh pr list --head "$branch" --state all --json number --jq 'length' | grep -qv '^0$'; then exit 0; fi
+          git switch -c "$branch"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/release.env
+          git commit -m "Test IDE against Kakoune ${VLANG_RELEASE_KAKOUNE_REF}"
+          if ! git ls-remote --exit-code origin "refs/heads/$branch" >/dev/null; then
+            git push origin "$branch"
+          fi
+          cat > "$RUNNER_TEMP/kakoune-update.md" <<EOF
+          Weekly Kakoune master update to \`$VLANG_RELEASE_KAKOUNE_REF\`.
+
+          The clean install, automated IDE acceptance pass, and managed update checks passed.
+          Review the uploaded logs and merge to advance the release gate's Kakoune pin.
+          User settings and installed editor sessions are unchanged.
+          EOF
+          gh pr create --base '${{ github.event.repository.default_branch }}' --head "$branch" \
+            --title "Update verified Kakoune master revision" --body-file "$RUNNER_TEMP/kakoune-update.md"

@@ -1,242 +1,188 @@
-
-
-
 # vlang.kak
+
 [![Test](https://github.com/antono2/vlang.kak/actions/workflows/test.yml/badge.svg)](https://github.com/antono2/vlang.kak/actions/workflows/test.yml)
 
-[Project portfolio](https://oreskin.de/projects_en.php)
+A V development environment for [Kakoune](https://github.com/mawww/kakoune). It combines V syntax and editing support with [VLS](https://github.com/vlang/vls) through [kak-lsp](https://github.com/kakoune-lsp/kakoune-lsp), project tasks, search, diagnostics, and Kakoune user-mode shortcuts.
 
-![Screenshot](https://i.imgur.com/uZ8lCAj.png)
+The plugin still provides syntax highlighting, indentation, :v-run, and :v-fmt when VLS is unavailable. Language features depend on the capabilities of the installed VLS version.
 
-`vlang.kak` enables support for the [V programming language](https://vlang.io/) in the [Kakoune](https://github.com/mawww/kakoune) text editor.
-It provides syntax highlighting and includes functions to run your program and review the output.
-`v fmt` is available for key mappings and shell commands are customizable.
+## Quick start
 
+Install a recent V compiler separately and ensure `v` is on `PATH`. Setup builds the latest upstream VLS for you. Current upstream VLS needs the newer `json2` standard library, which the V 0.5.2 release archive does not contain; see the [tested compiler revision](docs/release.md). Setup never updates your V compiler. An existing VLS binary can be supplied with `--vls /path/to/vls`.
 
-## Installation
-
-With [plug.kak](https://github.com/andreyorst/plug.kak):
-
-```kak
-plug "antono2/vlang.kak"
-```
-
-Without a plugin manager, put this repository in your `autoload` directory, such as `kakoune/share/kak/autoload`:
-
-```bash
-cd YOUR/AUTOLOAD/DIRECTORY/
+~~~sh
 git clone https://github.com/antono2/vlang.kak.git
-```
+cd vlang.kak
+./scripts/setup.sh
+~/.local/bin/kak-v path/to/main.v
+./scripts/check.sh
+./scripts/check.sh --live-lsp
+~~~
 
-Alternatively, source the script from your `kakrc`:
+setup.sh builds the latest tagged Kakoune release, installs the latest tagged kak-lsp release, and builds the latest upstream VLS commit under ~/.local. It does not replace system packages. The managed ~/.local/bin/kak launcher selects that Kakoune build and its matching runtime. ~/.local/bin/kak-v starts an isolated V IDE configuration, so older settings in your personal kakrc cannot interrupt the quick start.
 
-```kak
-source "path_to/rc/vlang.kak"
-```
+Setup leaves your regular `kakrc` and autoload entries unchanged by default. It creates `~/.config/kak/vlang-user.kak` only if absent; put personal V IDE settings there. The isolated `kak-v` launcher loads this file, and setup/update preserve its contents and original location. To explicitly enable the IDE in your regular Kakoune configuration too, run `./scripts/setup.sh --integrate`. That adds autoload links and a marked kakrc block, preserves settings outside that block, and backs up kakrc. Conflicting files or links cause setup to stop with instructions instead of replacing them. Existing integrated installations retain their integration choice. See the [customization guide](docs/customization.md) for XDG paths and key overrides.
 
-## Compatibility
+The setup scripts target Linux. Building Kakoune needs Git, Make, and a C++ compiler accepting -std=c++2b. The prebuilt kak-lsp installer supports Linux x86_64 and needs curl and tar. On another Linux architecture, install kak-lsp yourself and run ./scripts/setup.sh --no-lsp --vls /path/to/vls. To use a suitable system Kakoune without building one, add --no-build. The default project explorer uses V; setup compiles its helper into the user cache, and an updated helper is rebuilt automatically. Local debugging uses GDB 14 or newer with DAP/Python support and GCC; setup prepares the V debugger helper when GDB is installed. Python 3 is needed only for the live VLS check and test suite; timeout is needed only for the test suite.
 
-The test suite runs against the Kakoune version packaged by Ubuntu 24.04 and Kakoune 2026.05.21, using V 0.5.2. It exercises both the editor integration and a compiling corpus of current V language features.
+To use a different prefix, pass --prefix /absolute/directory to setup and use its bin/kak-v launcher. If V is outside your usual PATH, add it before running setup and launching Kakoune. Setup links managed VLS into its prefix, and kak-lsp inherits that prefix on its PATH. Pass `--vls /absolute/path/to/vls` to use your own build instead.
 
 The plugin and its test harness use Kakoune's POSIX shell integration. On a
 Windows machine, use it inside WSL with Kakoune and V installed in the same WSL
 distribution. A native Win32 Kakoune environment is not currently tested.
 
+## Update
 
-## Usage
+~~~sh
+cd vlang.kak
+./scripts/update.sh
+./scripts/check.sh
+./scripts/check.sh --live-lsp
+~~~
 
-You will have syntax highlighting for these V file types:
-`v` `vsh` `vv` `v.mod` `c.v`
+Update fast-forwards a clean plugin checkout, installs the newest tagged Kakoune and kak-lsp releases, and builds the latest upstream VLS commit. If the checkout has local changes, it leaves them in place and still updates the managed tools. It preserves `vlang-user.kak`. Rerunning setup or update with the same versions is safe; previous versioned tool installs remain available. An externally linked VLS is preserved on update; pass `--vls-upstream` to switch it to the managed upstream build or `--vls PATH` to relink another build. Update V separately.
 
-The plugin provides the commands
--  `v-run` to run V in the `v.mod` directory.
- Starting at the current buffer's directory, it looks for `v.mod` in up to 3 parent directories and executes V there.
- If no `v.mod` is found, it runs in the current buffer's directory.
- The output is put into the info box and the \*debug\* buffer.
- Default `"v -keepc -cg run ."`
- 
-- `v-fmt` to format the current buffer and save it after formatting succeeds.
-Default `"v fmt"`
+Run `scripts/setup.sh` once after upgrading an older installation to refresh its `kak-v` launcher. From a session started by that launcher, run `:v-update` (`Space U`) to update inside Kakoune, including managed VLS. The command shows progress in `*make*`, then restarts Kakoune and reopens disk-backed buffers at the previous active file and cursor. It accepts the same update options except `--prefix`; for example, `:v-update --vls-ref COMMIT` selects an upstream VLS revision. Save your edits before updating. If unsaved edits prevent the automatic restart, save them and run `:v-restart`. The restart requires a single Kakoune client; reopen scratch buffers and other clients afterwards. See the [update workflow](docs/customization.md#installation-and-updates) for details.
 
-- `v-enable-indenting` and `v-disable-indenting` to set the indenting as you wish. Default on.
+`./scripts/check.sh --live-lsp` runs a VLS protocol check and opens a temporary Kakoune session through the managed launcher. It checks documentation hover, call signature help, references, call hierarchy, syntax selection, definition, rename, import organization, unsaved diagnostics, and formatting without changing your project files. Run it after updating the IDE. For a custom prefix, set `VLANG_KAK_PREFIX` first.
 
-You can change each shell command by setting one or both options in your `kakrc`
-```bash
-# Use filetype hook to ensure the options are defined
-hook global WinSetOption filetype=v %{
-  set-option buffer v_run_command 'YOUR RUN COMMAND'
-  set-option buffer v_fmt_command 'YOUR FMT COMMAND'
-}
-```
-**Note**: `v_fmt_command` must read V code from standard input and write the formatted code to standard output. The buffer is saved only when the formatter exits successfully. Test a custom command on a hello world program before adding it to your `kakrc`.
-You can set the option from inside Kakoune by typing
-`:set-option buffer v_fmt_command 'YOUR FMT COMMAND'`
-and then test it by pressing the v_fmt key mapped below. Look at the current value with
-`:echo %opt{v_fmt_command}`
+To select a particular release, use --kakoune-version vYYYY.MM.DD and --lsp-version vMAJOR.MINOR.PATCH with either setup or update. Use `--vls-ref TAG_OR_COMMIT` for a specific upstream VLS revision. These options can also switch back to an earlier installed release. scripts/build-kakoune.sh, scripts/install-kak-lsp.sh, and scripts/install-vls.sh can be run separately.
 
-## Kakrc
+## Key bindings
 
-You can map these commands to some keys whenever a V file is opened.</br>For example you could map `<F5> - <F8>` to quickly format -> run -> read output -> go back.
+In a V buffer, press `Space` to open Kakoune's user mode. The menu shows actions useful in the current buffer; press one more key to run an action. Source files, V task output, and VLS result lists have different menus. Other file types keep their existing user keys. Less frequent actions are grouped under Testing, Investigation and Maintenance. The table below lists source bindings; unavailable actions are hidden.
 
-```bash
-# NOTE: The .v extension might be assigned to other filetypes.
-#       Please put these 2 hooks in your kakrc as well.
-#       kakrc is loaded last and ensures filetype=v.
-hook global BufCreate .*\.(v|vsh|vv|c\.v)$ %{
-  set-option buffer filetype v
-}
+| Keys | Actions |
+| --- | --- |
+| `Space d`, `g`, `r`, `R`, `a`, `o` | Definition/peek, references, rename, code actions, organize imports |
+| `Space h`, `H`, `(`, `s`, `S` | Documentation popup, documentation view, call signature help, file symbols, project-symbol search |
+| `Space e`, `n`, `N` | Diagnostics, next/previous diagnostic |
+| `Space f`, `b`, `u`, `[`, `]` | Format, build, run project, previous/next task error |
+| `Space p`, `P`, `F`, `/`, `w`, `q` | Open by path, find project file, project explorer, project text search, another view of this file, close view |
+| `Space t` → `t`, `T`, `x`, `C`, `v` | Testing: project tests, test at cursor, repeat test, check file, vet |
+| `Space i` → `c`, `D`, `i`, `m`, `z`, `j`, `k`, `l`, `V` | Investigation: declaration, type definition, implementation, reference highlighting, syntax selection, caller/callee searches, code-lens actions, file at a Git revision |
+| `Space U` → `u`, `r`, `w` | Maintenance: update/restart, restart, window backend status |
+| `Space B` | Debugging setup submenu before launch (available actions only) |
+| `Space E`, `O`, `I`, `A`, `G`, `M`, `L`, `!` | Continue, step over/into/out, run to cursor, stack, variables/watches, breakpoint (while paused) |
+| `Space ?`, `W`, `-`, `:` | Evaluate, add/remove watch, native GDB command (while paused) |
+| `Space K`, `J`, `Q`, `Z` | Pause and send input (while running), debug output and stop (while active) |
 
-hook global BufCreate .+v\.mod$ %{
-  set-option buffer filetype json
-}
+`Space P` (**Find project file…**) is a completion-based path picker;
+`Space F` (**Project explorer**) opens the interactive tree. When the explorer
+is disabled, F becomes **Open project path…**. Definition peek is shown when
+pane support is available; documentation remains available through H.
 
-hook global WinSetOption filetype=v %{
-  require-module v
-  
-  map -docstring "Format and save file"      window normal <F5> ":v-fmt<ret>"
-  map -docstring 'Run v in v.mod directory'  window normal <F6> ":v-run<ret>"
-  map -docstring 'Switch to *debug* buffer'  window normal <F7> ":buffer *debug*<ret>"
-  map -docstring 'Switch to previous buffer' global normal <F8> ":buffer-previous;delete-buffer *debug*<ret>"
-  
-  # Optionally set true or false for displaying the v_output in the info box and/or debug buffer.
-  set-option buffer v_output_to_info_box     true
-  set-option buffer v_output_to_debug_buffer true
-}
-```
-Make sure to adapt the keys to your needs.
-Also, you can change `v_output_to_info_box` to `false`, if you don't want to see the V output in the info box and the same with `v_output_to_debug_buffer` for the \*debug\* buffer. The default values are set to `true`, so these don't need to be set in your `kakrc`.
+VLS formatting edits the buffer without saving. Without VLS, f is labelled
+**Format and save with V**. Call signature help applies at function calls;
+hover/documentation also contains the function declaration. File history opens
+a read-only revision rather than a comparison view. Debug output includes both
+the program's output and debugger messages.
 
-## Test Files
-This plugin supports the `:alt` command of Kakoune, which switches the buffer to the corresponding V test file and back. You can bind it to a key the same way as described above.
--  currently editing `main.v` will try to open `main_test.v`
--  currently editing `main.c.v` will try to open `main.c_test.v`
+For example, `Space o` opens Organize Imports; press Enter to apply it. `Space R` prompts for a new name. The `:v-*` commands remain available, and [customization](docs/customization.md#key-bindings) explains how to override any shortcut.
 
+Testing menus show `T` only in saved `_test.v` files containing a test and `x` after a test has run. In saved test files these actions are also directly available as `Space T` and `Space x`. Investigation shows `V` for tracked Git files. LSP actions require LSP enabled in a named buffer; without it, `f` uses `v fmt`. Read-only views hide editing actions. New-view and update actions depend on the active window backend and managed launcher. Task-error keys appear after a V task has produced an output buffer.
 
-## Customizing Colors
-Colors are called faces in Kakoune. The predefined faces can be looked up in [the /share/kak/colors directory](https://github.com/mawww/kakoune/blob/master/colors/default.kak).
-Changing colors is pretty easy if you can dig through all the regex in `vlang.kak`.</br>Search for `# Highlighters` and below that you can - for example - go to `## TYPES` and change the color for all the types to yellow by changing `0:type` to `0:yellow`. Take a look at the [`<regex> <capture_id>:<face>`](https://github.com/mawww/kakoune/blob/master/doc/pages/highlighters.asciidoc#general-highlighters) function.
+In V task output, `Space r` reruns that exact task, `Space x` reruns the last test, `Space Enter` opens the location on the current line, `Space [` / `]` navigate errors, and `Space q` returns to the original source and cursor. The project tree offers its open/preview/expand/collapse/hidden/refresh/return actions under Space as well as direct keys. Documentation offers `Space q`, direct `q`, and Escape to return to the original source selection. Symbol/diagnostic result lists offer `Space n` / `N`, `Space Enter`, and `Space q` alongside their existing direct controls.
 
-## Code Completion
-Although this is completely separate from vlang.kak, I can still tell you how to set it up. *Who could stop me?*
-*Nobody can stop you with all that raw code editing power at your fingertips!*</br>
+Set `v_context_keys false` to show all actions within the source submenus. See the [customization guide](docs/customization.md#key-bindings) for personal overrides.
 
-The goal is to get [v-analyzer](https://github.com/v-analyzer/v-analyzer/) to work with Kakoune's [kak-lsp](https://github.com/mawww/kakoune-lsp#installation) and get the [full list of capabilities](https://github.com/v-analyzer/v-analyzer/#v-analyzer).</br>
-Install `kak-lsp` -> put start command in `kakrc` -> install `v-analyzer` -> configure `kak-lsp` -> ggnore.
+## Debugging
 
-First install the [Kakoune language server protocol client](https://github.com/mawww/kakoune-lsp#installation).</br>
-**Note**: Get the most current download URL for your system from the [releases](https://github.com/kak-lsp/kak-lsp/releases).
+Install GDB with DAP support and open a saved V source file. `Space B`
+opens the debugging submenu: `!` toggles a breakpoint and `B` builds and
+launches. Without breakpoints it keeps running; V panics, assertion failures
+and native runtime faults stop for inspection.
 
-After`kak-lsp` is found in `$PATH`, you can add the start command to your Kakoune configuration file.
-```bash
-eval %sh{kak-lsp --kakoune -s $kak_session}
-```
-**Note**: The [kak-lsp toml config file path](https://github.com/mawww/kakoune-lsp#configuration) can be configured with `--config`.
+At a stop, use `Space O` to step over, `Space I` to step into,
+`Space A` to step out, and `Space E` to continue. Move to a saved executable
+line and use **`Space G` to run to cursor** with a one-time breakpoint.
+`Space M` opens stack frames, `Space L` shows locals and watches, and
+`Space Q` opens output. These actions are directly under Space throughout an
+active session. Enter selects a frame or expands a variable; `q` returns to
+source from a debugger panel. `Space Z` stops.
 
-Then install the v-analyzer as [described here](https://github.com/v-analyzer/v-analyzer/#installation) or build from source, as I've done.
-```bash
-# Replace the `workspace` directory with wherever you want to store it
-cd ~/workspace
-git clone --recurse-submodules https://github.com/v-analyzer/v-analyzer/
-cd v-analyzer
-# Update v itself
-v up
-# Check the v.mod file for dependencies and take care of them
-v install
-# Build the actual thing
-v build.vsh release
-```
-In any case, afterwards you'll also need to put the `v-analyzer/bin` directory into your PATH variable, so that kak-lsp can execute it. For example with bash you could add this to your `~/.bashrc` or look up how to do it for your system.
-```bash
-export PATH="$HOME/PATH_TO_WHERE_YOU_STORED_IT/v-analyzer/bin:$PATH"
-```
+Launching opens the output buffer. While running, press **Enter** there to
+enter a line of program input and Enter again to send it. Escape cancels the
+prompt. From source, `Space J` sends input and `Space K` pauses execution.
+Menus follow debugger state. The verified backend is local Linux GDB;
+[debugging](docs/debugging.md) covers prerequisites, tests, expressions,
+conditional breakpoints, custom builds, prebuilt executables and all settings.
+Use `v_debug_enabled false` to hide debugger launch/breakpoint entries. Stop
+debugging before an in-editor update or restart.
 
-Now you can restart your terminal to load the new bash configuration.
-Test that v-analyzer is found in PATH, e.g. `v-analyzer --help` should print some helpful information.
+## Investigation loop
 
-Finally `kak-lsp` can be configured to run v-analyzer whenever kakoune recognizes a V language file.
-Use this in your [configuration toml file](https://github.com/mawww/kakoune-lsp#configuration).
-```toml
-[language.v]
-# The filetype variable is set in kakrc for .v, .vsh, .vv, .c.v under the name "v"
-filetypes = ["v"]
-roots = ["v.mod"]
-command = "v-analyzer"
-```
-**NOTE**: Assuming `v.mod` is present in any V project, otherwise add more roots as needed, e.g. `roots = ["v.mod", ".git/", "my_notes.txt"]`.
+The user menu includes `H` for a documentation scratch buffer, `(` for function signature help, `g` for a definition peek, `P` for a project-file picker, `V` for file history, `w` for another Kakoune client, and `q` to close the current client. The commands are `:v-doc`, `:v-signature`, `:v-peek-definition`, `:v-project-files`, `:v-history`, `:v-new-view`, and `:v-close-view`. In a tree or definition peek pane, press `q` to close it; other extra views use `Space q` or `:v-close-view`. `:v-doc` shows the installed VLS hover response; upstream VLS at commit `436058d` returns the declaration and doc comment together when the cursor is inside the function name. `:v-signature` shows the function signature and active parameter inside a call. `:v-hover` (`Space h`) remains the small inline info box. These LSP commands show what the installed VLS provides; signature and documentation requests need the corresponding server capability.
 
-Start your Kakoune on a V file and type `:lsp-enable` to check if all the lsp-commands are defined and finish up your `kakrc`. Here I've added a custom path to the kak-lsp config and set hooks to enable and disable lsp.
-```bash
-eval %sh{ kak-lsp --kakoune --config $HOME/PATH_TO_YOUR_CONFIG_TOML/kak-lsp/config.toml -s $kak_session }
-# Enable kak-lsp for V files
-hook global WinSetOption filetype=v %{ lsp-enable-window }
+In a saved `_test.v` file, `:v-test-nearest` (`Space T`) runs the `test_` function at or above the cursor; before the first test, it runs that first test. `:v-repeat-test` (`Space x`) reruns the last `:v-test-nearest` or project `:v-test` command, even after switching files. Both use Kakoune's `*make*` output buffer. Save edits before running a test at the cursor; the command selects from the saved file.
 
-# Close kak-lsp when kakoune is closed
-hook global KakEnd .* lsp-exit
-```
-You can start typing and switch through the autocomplete suggestions with [CTRL+N] or [CTRL+P].
-![V autocompletion](https://i.imgur.com/H1XOSqV.png)
+`Space s` opens a persistent document-symbol list. Tab/Shift-Tab browse, Enter opens the selected symbol, and `q` or Escape returns to the original file and cursor. `Space S` asks for a project-symbol query; Enter submits it and opens the same kind of list. References, calls, and diagnostics also show these controls in their modeline. You can use `/` to search within a result list.
 
-Don't forget to check out the [suggested key mappings from kak-lsp](https://github.com/kakoune-lsp/kakoune-lsp/blob/master/README.asciidoc#configure-key-mappings).
-After adding these mappings to your `kakrc` you can press [SPACE+L] to get a nice list of things you can do with your newly acquired V language server.
-```bash
-# Something like this. Check the original docu here https://github.com/kakoune-lsp/kakoune-lsp/blob/master/README.asciidoc
-map global user l %{:enter-user-mode lsp<ret>} -docstring "LSP mode"
-map global insert <tab> '<a-;>:try lsp-snippets-select-next-placeholders catch %{ execute-keys -with-hooks <lt>tab> }<ret>' -docstring 'Select next snippet placeholder'
-map global object a '<a-semicolon>lsp-object<ret>' -docstring 'LSP any symbol'
-map global object <a-a> '<a-semicolon>lsp-object<ret>' -docstring 'LSP any symbol'
-map global object e '<a-semicolon>lsp-object Function Method<ret>' -docstring 'LSP function or method'
-map global object k '<a-semicolon>lsp-object Class Interface Struct<ret>' -docstring 'LSP class interface or struct'
-map global object d '<a-semicolon>lsp-diagnostic-object --include-warnings<ret>' -docstring 'LSP errors and warnings'
-map global object D '<a-semicolon>lsp-diagnostic-object<ret>' -docstring 'LSP errors'
-```
+After a V task, `:v-next-task-error` (`Space ]`) and `:v-previous-task-error` (`Space [`) jump between compiler errors and failed test assertions in `*make*`. Press `<ret>` on a failure line in that buffer to jump directly. These task errors are separate from VLS diagnostics (`Space n` and `Space N`).
 
-**BONUS POINTS**: Since v-analyzer supports [semantic tokens](https://github.com/kak-lsp/kak-lsp#semantic-tokens), we can use `:lsp-semantic-tokens` to get syntax highlighting. Simply add it to the v filetype hook in your `kakrc`. Mine looks like this:
-```bash
-# NOTE: The .v extension might be assigned to other filetypes.
-#       Please put these 2 hooks in your kakrc as well.
-#       kakrc is loaded last and ensures filetype=v.
-hook global BufCreate .*\.(v|vsh|vv|c\.v)$ %{
-  set-option buffer filetype v
-}
+The project picker uses Kakoune's fuzzy command completion. It searches from the nearest `v.mod` or Git root, using `rg --files` when available, then Git or `find` as fallback. `:v-project-path` (`Space F`) opens the built-in interactive tree: Enter opens a file or expands a folder, `p` previews, `.` toggles hidden entries, and `q` returns to the source. When a supported pane host is active, the tree opens beside the source and Enter opens files in the original client; `q` closes the tree pane. The tree header shows the appropriate `q` action. Open a file from anywhere with `:v-files`. `:v-search` (`Space /`) previews matches while you type; Enter opens all project results in Kakoune's navigable `*grep*` buffer. For advanced searches, use `:grep [OPTIONS] PATTERN [PATH...]` directly. `:v-symbols` and `:v-workspace-symbols` navigate functions and other symbols.
 
-hook global BufCreate .+v\.mod$ %{
-  set-option buffer filetype json
-}
+The tree and live search are enabled by default. Setup accepts `--no-explorer` and `--no-live-search` to turn them off, or `--explorer` and `--live-search` to turn them back on. The same choices can be changed inside Kakoune with `:set-option global v_explorer_enabled false` and `:set-option global v_live_search_enabled false`. With the tree off, `:v-project-path` uses Kakoune's path completion; project search remains available without live previews. Add settings to `vlang-user.kak` to keep them across updates.
 
-# key mappings, options and hooks for V language files
-hook global WinSetOption filetype=v %§
-  require-module v
-  map -docstring "Format and save current file"	window normal <F5> ":v-fmt<ret>"
-  map -docstring 'Run v in v.mod directory'	window normal <F6> ":v-run<ret>"
-  map -docstring 'Switch to debug buffer'	window normal <F7> ":buffer *debug*<ret>"
-  map -docstring 'Switch to previous buffer'	global normal <F8> ":buffer-previous;delete-buffer *debug*<ret>"
-  set-option buffer v_output_to_info_box	true
-  set-option buffer v_output_to_debug_buffer	true
+Pane mode defaults to `auto`: the current client's tmux, Zellij, WezTerm, or kitty environment is detected when a command runs. GNU Screen and Kakoune's native desktop terminal support are also available. `:v-peek-definition` (`Space g`) opens the definition in a second client while preserving the source cursor; without a pane host, it shows `:v-doc`. `:v-window-status` reports the detected backend. Set `v_pane_mode` to `off` for a single-client UI or `always` to report an error when a pane cannot open. Set `v_window_backend` to a specific provider to override detection. Setup accepts `--pane-mode` and `--window-backend`; updates preserve both choices. See the [customization guide](docs/customization.md#window-and-pane-management).
 
-  # Add semantic tokens highlighting
-  hook window -group semantic-tokens BufReload .* lsp-semantic-tokens
-  hook window -group semantic-tokens NormalIdle .* lsp-semantic-tokens
-  hook window -group semantic-tokens InsertIdle .* lsp-semantic-tokens
-  hook -once -always window WinSetOption filetype=.* %{
-    remove-hooks window semantic-tokens
-  }
-§
-```
+`:v-history` lists recent commits for the current file. `:v-history-file HEAD~1` opens that revision in a read-only V scratch buffer while leaving the working file untouched. Kakoune's `:git diff -- path/to/file.v` shows uncommitted changes, while `:git diff HEAD~1 HEAD -- path/to/file.v` compares two revisions. The [investigation guide](docs/customization.md#investigation-workflows) includes a two-view workflow. Kakoune uses multiple clients on one session for side-by-side editing: use `:v-new-view` (`Space w`), then select the live file or a historical buffer in each client with `:buffer`.
 
-The rest is trivial and left to the reader.
+## Commands and options
+
+v-definition, v-declaration, v-type-definition, v-references, v-highlight-references, v-select-syntax, v-implementation, v-rename, v-rename-to, v-code-actions, v-organize-imports, v-hover, v-doc, v-signature, v-symbols, v-workspace-symbols, v-diagnostics, v-incoming-calls, v-outgoing-calls, v-code-lens, v-format, and v-next-diagnostic/v-previous-diagnostic use VLS through kak-lsp. v-inlay-hints-enable and v-inlay-hints-disable control inline hints. Kak-lsp supplies automatic completion and inline diagnostics after it connects to VLS.
+
+v-files opens Kakoune's file completion prompt. v-project-files lists project files through fuzzy completion; v-project-path opens the project tree by default, with path completion available when the tree is disabled. v-find searches the current buffer. v-search previews project matches as you type, then opens navigable *grep* results on Enter. v-check-file, v-build, v-run-project, v-test, v-test-nearest, v-repeat-test, and v-vet run asynchronously in Kakoune's navigable *make* buffer. They choose the nearest v.mod or Git root when forming the command; rerun uses the original command and root. v-check-file appends the current file's absolute path to `v_check_command` (default `v -check`). The other defaults are `v .`, `v -keepc -cg run .`, `v test .`, `v test -run-only NAME FILE`, and `v vet .`.
+
+The original v-run shows output in the info box and *debug* buffer. v-fmt formats through the V compiler and saves only after successful formatting. v_fmt_command must read from standard input and write formatted code to standard output; its default is v fmt. To change a V option for a session:
+
+~~~kak
+set-option buffer v_test_command 'v test ./tests'
+~~~
+
+V files (.v, .vsh, .vv, .c.v) are recognized automatically. v.mod uses JSON highlighting. :alt switches between a .v file and its _test.v counterpart. :v-enable-indenting and :v-disable-indenting control the editor's V indentation hooks.
+
+## Other installation methods
+
+For syntax and editing support without the managed setup, use [plug.kak](https://github.com/andreyorst/plug.kak):
+
+~~~kak
+plug "antono2/vlang.kak"
+~~~
+
+You can also clone the repository under Kakoune's autoload directory or source the absolute path to rc/vlang.kak from your kakrc. To add VLS features yourself, put vls on PATH and start kak-lsp in your kakrc:
+
+~~~kak
+eval %sh{kak-lsp}
+set-option global lsp_cmd 'kak-lsp --session "$kak_session"'
+~~~
+
+The plugin configures kak-lsp's V server when a V buffer opens.
 
 ## Testing
 
-The integration suite requires Kakoune, V, Python 3, and the `timeout` command. It starts isolated Kakoune sessions and exercises rendered syntax highlighting, filetype detection, formatting, running V, alternate files, editing hooks, and a compiling modern-V corpus.
+The [automated acceptance checks](docs/release-candidate.md) exercise the complete
+IDE workflow; users are not required to perform manual testing.
+The [weekly update process](docs/release.md#weekly-kakoune-master-updates) tests
+Kakoune master and proposes verified tool-pin updates.
 
-```bash
+Run `python3 tests/debugger.py /path/to/kak` for real GDB/editor debugging
+coverage. The managed release gate includes this check. See
+[debugging](docs/debugging.md) for prerequisites and the tested scope.
+
+The integration suite covers settings preservation, failed updates, editor commands, user-key bindings, test selection and rerun, task failure navigation, file history, filetype detection, rendered syntax highlighting, formatting, editing hooks, and a compiling V sample. It runs with the distribution Kakoune and the current tagged release in CI.
+
+~~~sh
 ./tests/run.sh
-```
 
-To test a Kakoune build that is not installed globally, provide its executable and runtime directory:
-
-```bash
+# Test an uninstalled Kakoune build:
 KAK=/path/to/kakoune/src/kak \
 KAKOUNE_RUNTIME=/path/to/kakoune/share/kak \
 ./tests/run.sh
-```
+~~~
+
+The standalone scripts accept --help. Run scripts/check.sh after setup to see which executables and configuration links are in use.
+
+For persistent command, server, search, key, syntax, and installation settings, see the [customization guide](docs/customization.md).
+
+Release support, tested tool versions, experimental pane adapters, recovery, and removal instructions are in the [release guide](docs/release.md). The full managed-installation gate is `./tests/release.sh /absolute/artifact-directory`; CI runs it with real VLS and tmux. The release gate includes local GDB debugging, program input and V value inspection.
