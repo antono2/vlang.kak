@@ -1,0 +1,44 @@
+name: Bug report
+description: Report an installation, editing, navigation, testing or debugging problem.
+labels: [bug]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include the expected result and the actual result.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include the command or key sequence and a small V example when possible.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Versions and environment
+      description: Include your OS, vlang.kak tag or commit, Kakoune, V, VLS and kak-lsp versions. For debugging include GDB; for panes include the host and its version.
+      placeholder: |
+        OS:
+        vlang.kak:
+        kak -version:
+        v version:
+        VLS version or revision:
+        kak-lsp --version:
+        Installation: managed kak-v / regular Kakoune / other
+        Pane backend (:v-window-status):
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Relevant output or logs
+      description: Include errors from *debug*, *make* or the debugger output. Remove private paths, tokens and program data before sharing logs. Screenshots are optional.
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Relevant custom settings
+      description: Include settings or hooks related to the problem, and whether it also happens in an isolated managed session.

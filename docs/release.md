@@ -53,13 +53,23 @@ replace that check. Version 1.1.0 is the first full IDE release.
 | Single-client navigation and live VLS | Automated editor interaction checks, including symbols, empty results, cancellation, rename, and diagnostics |
 | Local GDB 15.1 | Real editor tests: conditional V breakpoints, source jumps, stepping, stack/variables, expandable V values/watches, run to cursor, pause, input/output, relaunch, prebuilt executable and failure cleanup |
 | tmux | Automated real clients: repeated tree/peek/view opening and closing, independent same-file cursors, and preserved source position |
-| Zellij and WezTerm | Detection and launch-argument tests; interactive verification pending |
-| kitty and GNU Screen | Detection tests; interactive verification pending |
+| Zellij 0.45.1 | Automated real clients: tree file opening, closing, peeking, independent views, unsaved edits and repeated use |
+| WezTerm 20240203-110809-5046fc22 | Automated real mux clients with a separate socket: the same pane workflows and unsaved-edit checks |
+| kitty 0.49.2 | Automated real clients under Xvfb with socket remote control: the same pane workflows and unsaved-edit checks |
+| GNU Screen | Detection tests; interactive verification pending |
 | Native terminal windows | Adapter implemented; interactive verification pending |
 
-The unverified pane adapters are experimental. Use `v_pane_mode off` for the
-single-client interface, or select `v_window_backend tmux` for the tested pane
-workflow. No pane host is required for editing or VLS navigation.
+GNU Screen and native terminal windows remain experimental. No pane host is
+required for editing or VLS navigation; `v_pane_mode off` selects the single-client
+interface. The additional host versions and archive checksums are pinned in
+`tests/pane-hosts.env`. These results cover the tested Linux configurations;
+custom host keymaps, plugins and other versions can affect behavior.
+
+The CI managed-installation job also runs `tests/pane_hosts.py` for each pinned
+host. Zellij uses an attached terminal on a private tmux socket; WezTerm uses
+a private mux server; kitty uses an isolated Xvfb display. Logs and pane captures
+are included in the release-verification artifact. No user terminal configuration
+or active session is changed.
 
 Promoting another adapter to verified support requires automated real-client
 coverage for tree opening, source-client file opening, definition peeking,
@@ -81,6 +91,10 @@ enabled. Under Settings → Actions → General → Workflow permissions, allow
 GitHub Actions to create pull requests. GitHub may require a maintainer to
 approve CI on bot-created PRs; this is repository administration, not a manual
 IDE test requirement. The schedule uses UTC and GitHub can delay scheduled runs.
+If the PR reports no checks, look for an approval-required Test run in Actions
+and choose **Approve and run** after reviewing the pin change. A separate
+workflow-dispatch run can verify the branch, but its checks do not satisfy
+GitHub's required PR checks. See [GitHub's status-check guidance](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks). Do not bypass the merge rules.
 Use Run workflow with `kakoune_master` selected to exercise the same process
 on demand. The schedule is active once this workflow is on the default branch.
 

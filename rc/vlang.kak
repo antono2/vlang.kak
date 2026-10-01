@@ -704,7 +704,7 @@ define-command -hidden -params 2 v-tree-pane-init %{
 define-command v-window-status -docstring 'Show the active client window backend' %{
   evaluate-commands %sh{
     : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
-      "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
+      "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
       "${kak_client_env_STY:-}" "${kak_client_env_ITERM_SESSION_ID:-}" \
       "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
     source=$(readlink -f "$kak_opt_v_plugin_source")
@@ -716,7 +716,7 @@ define-command v-window-status -docstring 'Show the active client window backend
 define-command v-tree-pane -docstring 'Open the project explorer in another view when supported' %{
   evaluate-commands %sh{
     : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
-      "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
+      "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
       "${kak_client_env_STY:-}" "${kak_client_env_ITERM_SESSION_ID:-}" \
       "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
     mode=$kak_opt_v_pane_mode
@@ -759,7 +759,7 @@ define-command -hidden -params 3 v-peek-definition-init %{
 define-command v-peek-definition -docstring 'Peek at a definition in another view; without pane support show documentation' %{
   evaluate-commands %sh{
     : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
-      "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
+      "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
       "${kak_client_env_STY:-}" "${kak_client_env_ITERM_SESSION_ID:-}" \
       "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
     mode=$kak_opt_v_pane_mode
@@ -823,7 +823,7 @@ define-command v-project-path -docstring 'Open the project explorer, or a projec
 define-command v-new-view -docstring 'Open another view of the current file in the same session' %{
   evaluate-commands %sh{
     : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
-      "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
+      "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
       "${kak_client_env_STY:-}" "${kak_client_env_ITERM_SESSION_ID:-}" \
       "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
     source=$(readlink -f "$kak_opt_v_plugin_source")
@@ -1713,7 +1713,7 @@ define-command v-refresh-keys -docstring 'Refresh context-aware V user-menu bind
     backend=none
     if [ "$context" = v ]; then
       : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
-        "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
+        "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
         "${kak_client_env_STY:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
       source=$(readlink -f "$kak_opt_v_plugin_source")
       helper=${source%/rc/vlang.kak}/scripts/windowing.sh

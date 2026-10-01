@@ -2,9 +2,14 @@
 
 [![Test](https://github.com/antono2/vlang.kak/actions/workflows/test.yml/badge.svg)](https://github.com/antono2/vlang.kak/actions/workflows/test.yml)
 
-A V development environment for [Kakoune](https://github.com/mawww/kakoune). It combines V syntax and editing support with [VLS](https://github.com/vlang/vls) through [kak-lsp](https://github.com/kakoune-lsp/kakoune-lsp), project tasks, search, diagnostics, and Kakoune user-mode shortcuts.
+A V development environment for [Kakoune](https://github.com/mawww/kakoune). It combines V syntax and editing support with [VLS](https://github.com/vlang/vls) through [kak-lsp](https://github.com/kakoune-lsp/kakoune-lsp), project tasks, search, diagnostics, local GDB debugging, and Kakoune user-mode shortcuts.
 
 The plugin still provides syntax highlighting, indentation, :v-run, and :v-fmt when VLS is unavailable. Language features depend on the capabilities of the installed VLS version.
+
+![V IDE demonstration: context menus, definitions, documentation, explorer, tests and debugging](docs/assets/ide.gif)
+
+This short demonstration is recorded from a real isolated Kakoune session.
+See [the demo details](docs/demo.md) and [contribution guide](CONTRIBUTING.md).
 
 ## Quick start
 
@@ -165,6 +170,10 @@ The [automated acceptance checks](docs/release-candidate.md) exercise the comple
 IDE workflow; users are not required to perform manual testing.
 The [weekly update process](docs/release.md#weekly-kakoune-master-updates) tests
 Kakoune master and proposes verified tool-pin updates.
+
+Report reproducible problems using the [issue forms](https://github.com/antono2/vlang.kak/issues/new/choose).
+For questions, personal configurations and workflow examples, use
+[Discussions](https://github.com/antono2/vlang.kak/discussions).
 
 Run `python3 tests/debugger.py /path/to/kak` for real GDB/editor debugging
 coverage. The managed release gate includes this check. See
