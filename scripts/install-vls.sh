@@ -69,6 +69,12 @@ if [ ! -x "$release_dir/bin/vls" ]; then
   mv "$stage_dir" "$release_dir"
   stage_dir=
 fi
+if [ "${VLANG_KAK_STAGE:-0}" = 1 ]; then
+  ln -sfn "$release_dir" "$opt_root/candidate"
+  echo "Prepared $release_dir"
+  exit 0
+fi
+
 ln -sfn "releases/$commit" "$opt_root/current.next"
 mv -Tf "$opt_root/current.next" "$opt_root/current"
 ln -sfn "$opt_root/current/bin/vls" "$prefix/bin/vls"

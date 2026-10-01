@@ -244,6 +244,9 @@ assert_highlighting language_features.v "$script_dir/fixtures/language_highlight
 
 python3 "$script_dir/settings.py" "$kak"
 python3 "$script_dir/restart.py" "$kak"
+python3 "$script_dir/lifecycle.py" "$kak"
+python3 "$script_dir/lifecycle_sessions.py" "$kak"
+python3 "$script_dir/update_discovery.py"
 python3 "$script_dir/explorer.py" "$repo_dir/scripts/explorer.sh"
 sh "$script_dir/windowing.sh" "$repo_dir/scripts/windowing.sh"
 

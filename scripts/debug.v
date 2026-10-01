@@ -328,7 +328,7 @@ fn configure(dir string) ! {
 	if !os.is_abs_path(settings.program) {
 		settings.program = os.join_path(settings.cwd, settings.program)
 	}
-	settings.target = if file.ends_with('_test.v') { os.real_path(file) } else { settings.cwd }
+	settings.target = if os.getenv('kak_opt_v_project_target') != '' { os.real_path(os.getenv('kak_opt_v_project_target')) } else if file.ends_with('_test.v') { os.real_path(file) } else { settings.cwd }
 	for entry in words(os.getenv('kak_quoted_opt_v_debug_env')) {
 		pair := entry.split_nth('=', 2)
 		if pair.len != 2 {

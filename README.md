@@ -13,7 +13,7 @@ See [the demo details](docs/demo.md) and [contribution guide](CONTRIBUTING.md).
 
 ## Quick start
 
-Install a recent V compiler separately and ensure `v` is on `PATH`. Setup builds the latest upstream VLS for you. Current upstream VLS needs the newer `json2` standard library, which the V 0.5.2 release archive does not contain; see the [tested compiler revision](docs/release.md). Setup never updates your V compiler. An existing VLS binary can be supplied with `--vls /path/to/vls`.
+Setup uses a compatible V compiler from your PATH, or builds a separate managed compiler when needed for the V helpers or upstream VLS. It preserves your existing compiler. Use `--managed-v` to select the release-tested compiler or `--system-v` to require your own compiler. An existing VLS binary can be supplied with `--vls /path/to/vls`.
 
 ~~~sh
 git clone https://github.com/antono2/vlang.kak.git
@@ -45,7 +45,7 @@ cd vlang.kak
 ./scripts/check.sh --live-lsp
 ~~~
 
-Update fast-forwards a clean plugin checkout, installs the newest tagged Kakoune and kak-lsp releases, and builds the latest upstream VLS commit. If the checkout has local changes, it leaves them in place and still updates the managed tools. It preserves `vlang-user.kak`. Rerunning setup or update with the same versions is safe; previous versioned tool installs remain available. An externally linked VLS is preserved on update; pass `--vls-upstream` to switch it to the managed upstream build or `--vls PATH` to relink another build. Update V separately.
+Update fast-forwards a clean plugin checkout, installs the newest tagged Kakoune and kak-lsp releases, and builds the latest upstream VLS commit. If the checkout has local changes, it leaves them in place and still updates the managed tools. It preserves `vlang-user.kak`. Rerunning setup or update with the same versions is safe; previous versioned tool installs remain available. An externally linked VLS is preserved on update; pass `--vls-upstream` to switch it to the managed upstream build or `--vls PATH` to relink another build. A managed V compiler follows the release-tested pin; an external V compiler is kept.
 
 Run `scripts/setup.sh` once after upgrading an older installation to refresh its `kak-v` launcher. From a session started by that launcher, run `:v-update` (`Space U u`) to update inside Kakoune, including managed VLS. The command shows progress in `*make*`, then restarts Kakoune and reopens disk-backed buffers at the previous active file and cursor. It accepts the same update options except `--prefix`; for example, `:v-update --vls-ref COMMIT` selects an upstream VLS revision. Save your edits before updating. If unsaved edits prevent the automatic restart, save them and run `:v-restart`. The restart requires a single Kakoune client; reopen scratch buffers and other clients afterwards. See the [update workflow](docs/customization.md#installation-and-updates) for details.
 
@@ -66,7 +66,7 @@ In a V buffer, press `Space` to open Kakoune's user mode. The menu shows actions
 | `Space p`, `P`, `F`, `/`, `w`, `q` | Open by path, find project file, project explorer, project text search, another view of this file, close view |
 | `Space t` → `t`, `T`, `x`, `C`, `v` | Testing: project tests, test at cursor, repeat test, check file, vet |
 | `Space i` → `c`, `D`, `i`, `m`, `z`, `j`, `k`, `l`, `V` | Investigation: declaration, type definition, implementation, reference highlighting, syntax selection, caller/callee searches, code-lens actions, file at a Git revision |
-| `Space U` → `u`, `r`, `w` | Maintenance: update/restart, restart, window backend status |
+| `Space U` | Maintenance: updates, settings, health, recovery, rollback and cleanup |
 | `Space B` | Debugging setup submenu before launch (available actions only) |
 | `Space E`, `O`, `I`, `A`, `G`, `M`, `L`, `!` | Continue, step over/into/out, run to cursor, stack, variables/watches, breakpoint (while paused) |
 | `Space ?`, `W`, `-`, `:` | Evaluate, add/remove watch, native GDB command (while paused) |
@@ -189,6 +189,8 @@ KAK=/path/to/kakoune/src/kak \
 KAKOUNE_RUNTIME=/path/to/kakoune/share/kak \
 ./tests/run.sh
 ~~~
+
+See [setup and maintenance automation](docs/automation.md) for dependency preparation, ownership-based removal, staged updates/rollback, health and repair, persistent settings, project arguments, recovery snapshots and optional release notifications.
 
 The standalone scripts accept --help. Run scripts/check.sh after setup to see which executables and configuration links are in use.
 

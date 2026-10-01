@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Add dependency preflight, an optional system-package recipe, and a managed compatible V compiler fallback.
+- Stage complete setup builds, verify VLS initialization, retain rollback snapshots and record file ownership.
+- Add previewable safe removal, repair, diagnostics, unused-release/cache cleanup and published-release updates.
+- Add persistent settings and project run/debug arguments, working directories and target discovery.
+- Add private buffer/client recovery snapshots and confirmed restart with multiple views.
+- Add optional weekly release discovery without unattended installation.
+- Fix shell quoting for task/update paths and arguments containing apostrophes.
+
+
 All notable changes to `vlang.kak` will be documented in this file.
 
 ## 1.1.1 - 2026-10-02

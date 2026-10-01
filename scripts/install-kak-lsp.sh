@@ -70,6 +70,12 @@ if [ ! -x "$release_dir/bin/kak-lsp" ]; then
   printf '%s\n' "$version" > "$stage_dir/.vlang-version"
   mv "$stage_dir" "$release_dir"
 fi
+if [ "${VLANG_KAK_STAGE:-0}" = 1 ]; then
+  ln -sfn "$release_dir" "$opt_root/candidate"
+  echo "Prepared $release_dir"
+  exit 0
+fi
+
 ln -sfn "releases/$version" "$opt_root/current.next"
 mv -Tf "$opt_root/current.next" "$opt_root/current"
 "$opt_root/current/bin/kak-lsp" --version
