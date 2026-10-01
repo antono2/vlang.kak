@@ -141,7 +141,8 @@ def main():
     kak = str(prefix / 'bin/kak')
     env = dict(os.environ)
     for key in ['TMUX', 'TMUX_PANE', 'ZELLIJ', 'ZELLIJ_SESSION_NAME', 'ZELLIJ_PANE_ID',
-                'WEZTERM_PANE', 'WEZTERM_UNIX_SOCKET', 'KITTY_WINDOW_ID', 'KITTY_LISTEN_ON', 'STY']:
+                'WEZTERM_PANE', 'WEZTERM_UNIX_SOCKET', 'KITTY_WINDOW_ID', 'KITTY_LISTEN_ON', 'STY',
+                'WAYLAND_DISPLAY', 'DISPLAY', 'ITERM_SESSION_ID']:
         env.pop(key, None)
     env['PATH'] = str(prefix / 'opt/vlang-kak-lsp/current/bin') + os.pathsep + str(prefix / 'bin') + os.pathsep + env['PATH']
     env['XDG_CONFIG_HOME'] = str(root / 'config')
