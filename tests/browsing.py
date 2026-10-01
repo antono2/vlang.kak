@@ -83,6 +83,28 @@ with tempfile.TemporaryDirectory(prefix='vlang-browsing-') as directory:
                 rows = json.loads(state_path.read_text())['rows']
                 return next(i + 1 for i, row in enumerate(rows) if row and row['path'] == str(path))
 
+            # Missing and failed helpers must fail before touching the source buffer.
+            broken = root / 'broken/scripts'
+            broken.mkdir(parents=True)
+            helper = broken / 'explorer.sh'
+            helper.write_text('#!/bin/sh\nexit 1\n')
+            helper.chmod(0o755)
+            (root / 'broken/rc').mkdir()
+            remote(f'set-option global v_plugin_source {quote(root / "broken/rc/vlang.kak")}')
+            remote("try %{ v-tree } catch %{ nop }")
+            assert value('%val{buffile}') == str(main)
+            assert value('%opt{readonly}') == 'false'
+            saved = root / 'source-after-failed-helper'
+            remote(f'write -force {quote(saved)}')
+            assert saved.read_text() == main.read_text()
+            remote(f'set-option global v_plugin_source {quote(root / "missing/rc/vlang.kak")}')
+            remote("try %{ v-tree } catch %{ nop }")
+            assert value('%val{buffile}') == str(main)
+            assert value('%opt{readonly}') == 'false'
+            saved = root / 'source-after-failed-tree'
+            remote(f'write -force {quote(saved)}')
+            assert saved.read_text() == main.read_text()
+            remote(f'set-option global v_plugin_source {quote(repo / "rc/vlang.kak")}')
             keys('<space>F')
             wait_for(lambda: value('%val{bufname}').startswith('*v-tree-'), 'tree opens with Space F')
             offset = output.stat().st_size

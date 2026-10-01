@@ -605,7 +605,11 @@ define-command -hidden -params 1 v-tree-start %{
     script=${source%/rc/vlang.kak}/scripts/explorer.sh
     [ -f "$script" ] || { echo "fail 'Project explorer helper is missing'"; exit; }
     state=$(mktemp "${TMPDIR:-/tmp}/vlang-kak-tree.XXXXXXXX.json") || exit
-    "$script" init "$state" "$1" || exit
+    "$script" init "$state" "$1" || {
+      rm -f "$state"
+      echo "fail 'Project explorer could not start; check V on PATH and *debug*'"
+      exit
+    }
     kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
     printf 'edit -scratch %s\nset-option buffer v_tree_state %s\nset-option buffer v_tree_origin %s\n' \
       "$(kak_quote "*v-tree-$kak_client*")" "$(kak_quote "$state")" "$(kak_quote "$1")"
@@ -634,12 +638,16 @@ define-command v-tree -docstring 'Open the interactive project explorer' %{
   v-tree-refresh
 }
 define-command -hidden v-tree-refresh %{
-  set-option buffer readonly false
-  set-register v %sh{
+  evaluate-commands %sh{
     source=$(readlink -f "$kak_opt_v_plugin_source")
     script=${source%/rc/vlang.kak}/scripts/explorer.sh
-    "$script" render "$kak_opt_v_tree_state" "$kak_opt_v_tree_origin" "$kak_opt_v_tree_is_pane"
+    content=$("$script" render "$kak_opt_v_tree_state" "$kak_opt_v_tree_origin" "$kak_opt_v_tree_is_pane") || {
+      echo "fail 'Project explorer could not render; check *debug*'"
+      exit
+    }
+    printf "set-register v '%s'\n" "$(printf %s "$content" | sed "s/'/''/g")"
   }
+  set-option buffer readonly false
   execute-keys <percent>
   execute-keys c<c-r>v<esc>
   set-option buffer readonly true
