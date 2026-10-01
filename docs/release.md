@@ -94,7 +94,7 @@ IDE test requirement. The schedule uses UTC and GitHub can delay scheduled runs.
 If the PR reports no checks, look for an approval-required Test run in Actions
 and choose **Approve and run** after reviewing the pin change. A separate
 workflow-dispatch run can verify the branch, but its checks do not satisfy
-GitHub's required PR checks. Do not bypass the merge rules.
+GitHub's required PR checks. See [GitHub's status-check guidance](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks). Do not bypass the merge rules.
 Use Run workflow with `kakoune_master` selected to exercise the same process
 on demand. The schedule is active once this workflow is on the default branch.
 
