@@ -1,6 +1,7 @@
 #!/bin/sh
 # Emit a buffer checkpoint and append its restoration commands.
 set -eu
+case ${1:-} in --help|-h) echo 'Usage: session-buffer.sh (called by Kakoune with buffer checkpoint environment)'; exit 0 ;; esac
 umask 077
 [ "$kak_bufname" != "*debug*" ] || exit 0
 directory=$kak_opt_v_session_checkpoint

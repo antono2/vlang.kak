@@ -1,6 +1,7 @@
 #!/bin/sh
 # A bounded LSP initialization check without a runtime Python dependency.
 set -eu
+case ${1:-} in --help|-h) echo 'Usage: probe-vls.sh VLS_EXECUTABLE'; exit 0 ;; esac
 server=$1
 root=$(mktemp -d)
 pid=

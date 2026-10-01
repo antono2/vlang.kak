@@ -1,6 +1,7 @@
 #!/bin/sh
 # Ownership records and snapshots. No manifest entry is executed as shell code.
 set -eu
+case ${1:-} in --help|-h) echo 'Usage: managed-state.sh record PREFIX CONFIG_HOME | snapshot PREFIX DIRECTORY | restore PREFIX DIRECTORY | repair-links PREFIX'; exit 0 ;; esac
 operation=${1:-help}
 prefix=${2:-${VLANG_KAK_PREFIX:-$HOME/.local}}
 case "$prefix" in /*) ;; *) echo 'Use an absolute prefix.' >&2; exit 2 ;; esac

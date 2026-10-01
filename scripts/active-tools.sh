@@ -1,6 +1,7 @@
 #!/bin/sh
 # List executable paths under the prefix and live managed environments.
 set -eu
+case ${1:-} in --help|-h) echo 'Usage: active-tools.sh PREFIX'; exit 0 ;; esac
 prefix=$1
 for process in /proc/[0-9]*; do
   executable=$(readlink "$process/exe" 2>/dev/null || true)

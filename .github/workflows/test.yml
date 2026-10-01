@@ -67,13 +67,17 @@ jobs:
           echo "KAK=$RUNNER_TEMP/kakoune/src/kak" >> "$GITHUB_ENV"
           echo "KAKOUNE_RUNTIME=$RUNNER_TEMP/kakoune/share/kak" >> "$GITHUB_ENV"
 
+      - name: Install client-test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes tmux
+
       - name: Run integration tests
         run: ./tests/run.sh
 
       - name: Check setup and update scripts
         run: |
-          sh -n scripts/*.sh
-          for script in scripts/*.sh; do "$script" --help > /dev/null; done
+          for script in scripts/*.sh; do sh -n "$script"; "$script" --help > /dev/null; done
 
   release:
     name: Managed installation and live VLS

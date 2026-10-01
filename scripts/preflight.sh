@@ -1,6 +1,7 @@
 #!/bin/sh
 # Read-only dependency checks before download/build work.
 set -eu
+case ${1:-} in --help|-h) echo 'Usage: preflight.sh [setup options]'; exit 0 ;; esac
 build=true; lsp=true; vls=true; explorer=true; managed_v=false
 for option do
   case "$option" in --no-build) build=false ;; --no-lsp) lsp=false ;; --no-vls|--vls) vls=false ;; --no-explorer) explorer=false ;; --managed-v) managed_v=true ;; esac
