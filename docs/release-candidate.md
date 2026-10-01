@@ -28,7 +28,7 @@ required. The fresh installation also needs network and C/C++ build tools.
 | Context and tasks | Space menus, saved test-file gating, task rerun, error navigation and source return |
 | Language server | Documentation/signature, definition, references, symbols, diagnostics, rename, formatting, result acceptance and cancellation |
 | Browsing | Tree expand/preview/open with quoted paths; live search preview, results, source jump, cancellation and no matches; historical file content |
-| Multiple views | Real tmux tree/peek/view opening and closing, repeated use, independent same-file cursors and preserved source position |
+| Multiple views | Real tmux tree/peek/view opening and closing, repeated use, independent same-file cursors and preserved source position; release CI also tests Zellij, WezTerm and kitty, including unsaved edits and quoted paths |
 | Debugging | Setup/direct context menus, launch, conditional breakpoints, stepping, selected stack frames, Run to Cursor and invalid targets |
 | Values | Strings, expandable arrays/structs/watches, watch removal, breakpoint source jumps/removal, printer opt-out and custom modeline preservation |
 | Program lifecycle | Input submission and Escape cancellation, pause/resume, normal exit, panic/assertion/native fault, stop/relaunch and build failure cleanup |
@@ -40,8 +40,8 @@ returns a nonzero exit status. CI runs this same acceptance command as part of
 the release gate and retains its logs.
 
 Automation verifies behavior and terminal interaction, not subjective appearance
-on every terminal. tmux is the verified pane backend; other adapters remain
-experimental as described in [release support](release.md). Those limits do not
+on every terminal. Tested host versions and experimental adapters are listed
+in [release support](release.md). Those limits do not
 create a manual testing requirement for users.
 
 Publication requires green CI for the release commit. A successful local pass

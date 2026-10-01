@@ -9,6 +9,7 @@ for name in tmux zellij wezterm kitty screen; do
   cat > "$temporary/$name" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$@" > "$VLANG_WINDOWING_TEST_LOG"
+printf '%s\n' "${WEZTERM_UNIX_SOCKET:-}" > "$VLANG_WINDOWING_TEST_LOG.socket"
 EOF
   chmod +x "$temporary/$name"
 done
@@ -34,8 +35,11 @@ grep -qx -- 'new-pane' "$VLANG_WINDOWING_TEST_LOG"
 grep -qx -- 'left' "$VLANG_WINDOWING_TEST_LOG"
 grep -qx -- '--close-on-exit' "$VLANG_WINDOWING_TEST_LOG"
 grep -qx -- 'v-tree' "$VLANG_WINDOWING_TEST_LOG"
-kak_client_env_WEZTERM_PANE=7 "$helper" open wezterm right test-session 'v-definition' >/dev/null
+kak_client_env_WEZTERM_PANE=7 kak_client_env_WEZTERM_UNIX_SOCKET='/tmp/socket with spaces' \
+  "$helper" open wezterm right test-session 'v-definition' >/dev/null
 grep -qx -- 'split-pane' "$VLANG_WINDOWING_TEST_LOG"
+grep -qx -- '--no-auto-start' "$VLANG_WINDOWING_TEST_LOG"
+grep -qx -- '/tmp/socket with spaces' "$VLANG_WINDOWING_TEST_LOG.socket"
 grep -qx -- '--right' "$VLANG_WINDOWING_TEST_LOG"
 grep -qx -- 'v-definition' "$VLANG_WINDOWING_TEST_LOG"
 

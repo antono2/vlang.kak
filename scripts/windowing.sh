@@ -71,7 +71,8 @@ case "${1:-}" in
           kak -c "$session" -e "$initial" >/dev/null
         ;;
       wezterm)
-        wezterm cli split-pane --"$side" --pane-id "$kak_client_env_WEZTERM_PANE" --cwd "$PWD" -- \
+        WEZTERM_UNIX_SOCKET=${kak_client_env_WEZTERM_UNIX_SOCKET:-${WEZTERM_UNIX_SOCKET:-}} \
+          wezterm cli --no-auto-start split-pane --"$side" --pane-id "$kak_client_env_WEZTERM_PANE" --cwd "$PWD" -- \
           kak -c "$session" -e "$initial" >/dev/null
         ;;
       kitty)

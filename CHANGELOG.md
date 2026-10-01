@@ -2,6 +2,17 @@
 
 All notable changes to `vlang.kak` will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- Real-client CI coverage for Zellij, WezTerm and kitty, including quoted file paths, unsaved edits, independent cursors, closing and repeated use.
+- A reproducible IDE demonstration, issue forms, a pull request template and contribution guidance.
+
+### Fixed
+
+- WezTerm pane commands forward the current client's mux socket and avoid starting an unintended server when that connection fails.
+
 ## 1.1.0 - 2026-10-01
 
 ### Added

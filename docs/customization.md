@@ -339,6 +339,20 @@ or `native`. An explicit backend is used only when that host is active.
 Updates preserve both setup choices. `:v-tree` always opens the tree in the
 current client, and `:v-tree-pane` requests the side view.
 
+The WezTerm adapter forwards the current client's `WEZTERM_UNIX_SOCKET`, so
+clients attached to different mux servers keep opening views in their own host.
+It does not start a new mux server when that connection fails.
+
+For kitty, the tested configuration uses a remote-control socket. You can try an
+isolated terminal without editing `kitty.conf`:
+
+```sh
+kitty -o allow_remote_control=socket-only --listen-on unix:/tmp/my-v-ide-kitty.sock kak-v path/to/main.v
+```
+
+Choose a socket name that is not already in use. See [release support](release.md)
+for the host versions and configurations covered by automated tests.
+
 ### Optional file and search interfaces
 
 The built-in explorer and search work without another plugin. If you prefer a larger

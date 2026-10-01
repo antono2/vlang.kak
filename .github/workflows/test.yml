@@ -88,7 +88,9 @@ jobs:
       - name: Install build and terminal dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes build-essential git curl unzip tmux python3 gdb
+          sudo apt-get install --yes build-essential git curl unzip tmux python3 gdb \
+            xvfb xauth libegl1 libgl1-mesa-dri libopengl0 libfontconfig1 \
+            libxcursor1 libxrandr2 libxi6 libxinerama1 libxkbcommon0
 
       - name: Build the pinned V compiler
         run: |
@@ -123,6 +125,20 @@ jobs:
         run: |
           ./tests/release.sh "$RUNNER_TEMP/vlang-release" 2>&1 | tee "$RUNNER_TEMP/vlang-release.log"
 
+      - name: Install pinned pane hosts for real-client checks
+        run: |
+          ./tests/install-pane-hosts.sh "$RUNNER_TEMP/vlang-pane-tools"
+          echo "$RUNNER_TEMP/vlang-pane-tools/zellij" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/vlang-pane-tools/wezterm/wezterm/usr/bin" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/vlang-pane-tools/kitty/bin" >> "$GITHUB_PATH"
+
+      - name: Test real Zellij, WezTerm and kitty clients
+        run: |
+          for backend in zellij wezterm kitty; do
+            python3 tests/pane_hosts.py "$RUNNER_TEMP/vlang-release/prefix" "$backend" \
+              --artifacts "$RUNNER_TEMP/vlang-release/pane-hosts/$backend"
+          done
+
       - name: Save release and acceptance logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -138,6 +154,10 @@ jobs:
             ${{ runner.temp }}/vlang-release/acceptance/lsp/**/kak-stderr
             ${{ runner.temp }}/vlang-release/acceptance/**/*.log
             ${{ runner.temp }}/vlang-release/acceptance/results.txt
+            ${{ runner.temp }}/vlang-release/pane-hosts/**/host.log
+            ${{ runner.temp }}/vlang-release/pane-hosts/**/kak-debug
+            ${{ runner.temp }}/vlang-release/pane-hosts/**/panes.json
+            ${{ runner.temp }}/vlang-release/pane-hosts/**/pane-*.txt
           if-no-files-found: ignore
 
   kakoune-update:

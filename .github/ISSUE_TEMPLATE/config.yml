@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and configuration examples
+    url: https://github.com/antono2/vlang.kak/discussions
+    about: Ask for help or share a development workflow in Discussions.
