@@ -45,9 +45,11 @@ with tempfile.TemporaryDirectory(prefix='vlang-lock-') as directory:
                               'test', str(repo), str(prefix)])
     try:
         deadline = time.monotonic() + 5
-        while not owner.exists() and time.monotonic() < deadline:
+        def ready():
+            return owner.exists() and owner.read_text().strip().endswith(' interrupted')
+        while not ready() and time.monotonic() < deadline:
             time.sleep(.01)
-        assert owner.exists(), 'child did not acquire its lock'
+        assert ready(), 'child did not finish recording its lock owner'
         child.kill()
         child.wait(timeout=5)
         assert 'stale interrupted' in run(3)
