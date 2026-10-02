@@ -117,10 +117,16 @@ master commit may not have passed yet.
 
 Stop debugging before updating or restarting.
 
-In-editor restart currently requires one client and saved buffers. It restores
+Normal in-editor update/restart requires one client and saved buffers. It restores
 disk-backed files and the active main cursor. Scratch buffers, other selections,
 and additional clients are not restored. Runtime-only option and key changes
 are not serialized; save settings in `vlang-user.kak` before restarting.
+Use `:v-session-save` for a private checkpoint and `:v-restart-recover` for a
+confirmed restart that restores unsaved text, scratch buffers, complete selections
+and multiple client views. Multiple views require a supported pane host; pane
+geometry, running tasks and runtime-only customizations are not restored.
+Auxiliary views return as closeable text snapshots. See
+[session recovery](automation.md#session-recovery) for storage and recovery commands.
 A failed update leaves the editor
 running. Setup stages all builds and verifies VLS before activating the tool stack.
 Failure restores the previous managed activation; `:v-rollback` restores the
@@ -160,6 +166,7 @@ one setup run to record ownership. See [ownership and safe removal](automation.m
 - All intended source, scripts, fixtures, and documentation are included in the commit; generated Python caches are excluded.
 - The changelog describes the IDE additions and the direct Space bindings.
 - Fast tests and the managed release job pass for the release commit.
+- The automated v1.1.1 upgrade checks preserve personal settings and external tools, and cover rollback and safe removal.
 - Backend support claims match the table above.
 - Release notes state the restart limitations and tool versions.
 - Choose the release version, create its tag, and publish the release only after reviewing those results.

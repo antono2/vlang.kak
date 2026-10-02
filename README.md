@@ -51,6 +51,10 @@ Run `scripts/setup.sh` once after upgrading an older installation to refresh its
 
 `./scripts/check.sh --live-lsp` runs a VLS protocol check and opens a temporary Kakoune session through the managed launcher. It checks documentation hover, call signature help, references, call hierarchy, syntax selection, definition, rename, import organization, unsaved diagnostics, and formatting without changing your project files. Run it after updating the IDE. For a custom prefix, set `VLANG_KAK_PREFIX` first.
 
+Use `./scripts/update.sh --release` or `:v-update-release` (`Space U v`) to select a published release and its tested tool versions. This requires a clean checkout and selects managed VLS; use the ordinary update path to keep an external VLS. Local changes and a development checkout already ahead of the latest release are preserved.
+
+For unsaved text, scratch buffers and multiple views, use `:v-session-save` and the confirmed `:v-restart-recover` (`Space U S` / `Space U R`). Recovery restart restores buffers and selections through a supported pane host; it does not restore pane geometry or running tasks. See [session recovery](docs/automation.md#session-recovery). The normal automatic update restart retains its single-client, saved-buffer requirement.
+
 To select a particular release, use --kakoune-version vYYYY.MM.DD and --lsp-version vMAJOR.MINOR.PATCH with either setup or update. Use `--vls-ref TAG_OR_COMMIT` for a specific upstream VLS revision. These options can also switch back to an earlier installed release. scripts/build-kakoune.sh, scripts/install-kak-lsp.sh, and scripts/install-vls.sh can be run separately.
 
 ## Key bindings
