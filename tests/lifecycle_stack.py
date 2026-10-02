@@ -87,15 +87,16 @@ with tempfile.TemporaryDirectory(prefix='vlang-stack-') as directory:
         personal.write_text(personal.read_text()+'# edited after interruption\n')
         kakrc_target.write_text(kakrc_target.read_text()+'# kakrc edited after interruption\n')
         run([str(repo/'scripts/rollback.sh'),'--prefix',str(prefix),'--recover',str(pending[0])],False)
+        run([str(repo/'scripts/lock.sh'),'--prefix',str(prefix),'--clear-stale'])
         invalid=root/'pending.foreign';invalid.mkdir(exist_ok=True)
         run([str(repo/'scripts/rollback.sh'),'--prefix',str(prefix),'--recover',str(invalid)],False)
         alias=prefix/'opt/vlang-state/pending.alias';alias.symlink_to(pending[0])
         run([str(repo/'scripts/rollback.sh'),'--prefix',str(prefix),'--recover',str(alias)],False)
         assert alias.is_symlink();alias.unlink()
-        incomplete=prefix/'opt/vlang-state/pending.incomplete';incomplete.mkdir()
+        incomplete=prefix/'opt/vlang-state/pending.incomplete'
+        shutil.copytree(pending[0],incomplete,symlinks=True);(incomplete/'ready').unlink()
         run([str(repo/'scripts/rollback.sh'),'--prefix',str(prefix),'--recover',str(incomplete)],False)
-        assert incomplete.exists();incomplete.rmdir()
-        run([str(repo/'scripts/lock.sh'),'--prefix',str(prefix),'--clear-stale'])
+        assert incomplete.exists();shutil.rmtree(incomplete)
         run([str(interrupted_repo/'scripts/rollback.sh'),'--prefix',str(prefix),'--recover',str(pending[0])])
         assert git('rev-parse','HEAD').strip()==old_revision
         assert links=={tool:os.readlink(prefix/'opt'/tool/'current') for tool in links}

@@ -57,7 +57,7 @@ kak_opt_termcmd= kak_client_env_WAYLAND_DISPLAY=wayland-test \
   kak_client_env_XDG_RUNTIME_DIR='/tmp/runtime with spaces' \
   "$helper" open native right test-session 'edit "quoted path"' >/dev/null
 tries=0
-while [ ! -f "$VLANG_WINDOWING_TEST_LOG.session" ]; do
+while ! grep -qx -- test-session "$VLANG_WINDOWING_TEST_LOG.session" 2>/dev/null; do
   tries=$((tries + 1)); [ "$tries" -lt 50 ]; sleep .1
 done
 grep -qx -- 'wayland-test' "$VLANG_WINDOWING_TEST_LOG.runtime"
