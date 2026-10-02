@@ -87,4 +87,4 @@ with tempfile.TemporaryDirectory(prefix='vlang-upgrade-') as directory:
     assert (config / 'kakrc').is_symlink() and kakrc.read_text() == '# original personal configuration\n'
     assert unrelated.is_symlink() and (config / 'vlang-user.kak').is_symlink()
     assert personal.read_text() == 'declare-option str upgrade_personal_setting preserved\n'
-print('ok - v1.1.1 upgrade, external tools and symlinked settings, failed update, rollback and safe removal')
+print(f'ok - {base_ref} upgrade, external tools and symlinked settings, failed update, rollback and safe removal')
