@@ -28,13 +28,13 @@ required. The fresh installation also needs network and C/C++ build tools.
 | Context and tasks | Space menus, saved test-file gating, task rerun, error navigation and source return |
 | Language server | Documentation/signature, definition, references, symbols, diagnostics, rename, formatting, result acceptance and cancellation |
 | Browsing | Tree expand/preview/open with quoted paths; live search preview, results, source jump, cancellation and no matches; historical file content |
-| Multiple views | Real tmux tree/peek/view opening and closing, repeated use, independent same-file cursors and preserved source position; release CI also tests Zellij, WezTerm and kitty, including unsaved edits and quoted paths |
+| Multiple views | Real tmux tree/peek/view opening and closing, repeated use, independent same-file cursors and preserved source position; release CI also tests Zellij, WezTerm, kitty, Screen, Xterm and Wayland Foot, including unsaved edits and quoted paths |
 | Debugging | Setup/direct context menus, launch, conditional breakpoints, stepping, selected stack frames, Run to Cursor and invalid targets |
 | Values | Strings, expandable arrays/structs/watches, watch removal, breakpoint source jumps/removal, printer opt-out and custom modeline preservation |
 | Program lifecycle | Input submission and Escape cancellation, pause/resume, normal exit, panic/assertion/native fault, stop/relaunch and build failure cleanup |
 | Updates | Managed restart/update, restored disk buffers/cursor, preserved personal settings, rejection of unsaved edits and active debugging |
-| Upgrade and maintenance | Actual v1.1.1 installation upgraded to the candidate, external tools and symlinked personal settings preserved, failed-update restoration, rollback and safe removal |
-| Recovery | Private checkpoints, unsaved source and scratch restoration, closeable auxiliary snapshots and real multi-client recovery restart |
+| Upgrade and maintenance | Actual v1.1.1 installation upgraded to the candidate, external tools and symlinked personal settings preserved, failed-update restoration, SIGKILL before/during activation, explicit pending-snapshot recovery, rollback and safe removal |
+| Recovery | Private checkpoints, unsaved source and scratch restoration, closeable auxiliary snapshots and real multi-client recovery restart following an interrupted update |
 
 `results.txt` records each suite's pass/fail status. Separate suite logs, tool versions, editor UI traces and
 GDB traces are retained in the supplied artifact directory. A failing suite

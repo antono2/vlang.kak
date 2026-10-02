@@ -95,15 +95,20 @@ case "${1:-}" in
           kak -c "$session" -e "$initial"
         ;;
       native)
-        if [ -n "${kak_client_env_DISPLAY:-}" ] && [ -n "${kak_opt_termcmd:-}" ]; then
+        termcmd=${kak_opt_termcmd:-}
+        if [ -z "$termcmd" ] && [ -n "${kak_client_env_WAYLAND_DISPLAY:-}" ] && command -v foot >/dev/null 2>&1; then
+          termcmd='foot sh -c'
+        fi
+        if [ -n "${kak_client_env_DISPLAY:-}${kak_client_env_WAYLAND_DISPLAY:-}" ] && [ -n "$termcmd" ]; then
           # Use Kakoune's configured terminal command with the requesting
-          # client's display, including when the daemon is outside X11.
-          DISPLAY=$kak_client_env_DISPLAY
+          # client's display/runtime, including a headless daemon.
+          if [ -n "${kak_client_env_DISPLAY:-}" ]; then export DISPLAY="$kak_client_env_DISPLAY"; else unset DISPLAY; fi
+          [ -z "${kak_client_env_XDG_RUNTIME_DIR:-}" ] || export XDG_RUNTIME_DIR="$kak_client_env_XDG_RUNTIME_DIR"
           if [ -n "${kak_client_env_XAUTHORITY:-}" ]; then export XAUTHORITY="$kak_client_env_XAUTHORITY"; else unset XAUTHORITY; fi
           if [ -n "${kak_client_env_WAYLAND_DISPLAY:-}" ]; then export WAYLAND_DISPLAY="$kak_client_env_WAYLAND_DISPLAY"; else unset WAYLAND_DISPLAY; fi
           VLANG_VIEW_SESSION=$session VLANG_VIEW_COMMAND=$initial
-          export DISPLAY VLANG_VIEW_SESSION VLANG_VIEW_COMMAND
-          setsid sh -c 'exec '"$kak_opt_termcmd"' "$1"' vlang-terminal \
+          export VLANG_VIEW_SESSION VLANG_VIEW_COMMAND
+          setsid sh -c 'exec '"$termcmd"' "$1"' vlang-terminal \
             'exec kak -c "$VLANG_VIEW_SESSION" -e "$VLANG_VIEW_COMMAND"' \
             < /dev/null > /dev/null 2>&1 &
         else

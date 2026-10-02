@@ -26,7 +26,7 @@ if [ "$release" = true ]; then
   set -- "$@" --kakoune-version "$KAKOUNE_VERSION" --lsp-version "$LSP_VERSION" --vls-ref "$VLS_REF"
   count=$#
   while [ "$count" -gt 0 ]; do argument=$1; shift; count=$((count - 1)); [ "$argument" = --release ] || set -- "$@" "$argument"; done
-  VLANG_KAK_SKIP_PULL=1 "$repo_dir/scripts/setup.sh" --update "$@" || {
+  VLANG_KAK_PREVIOUS_PLUGIN_REVISION=$old VLANG_KAK_SKIP_PULL=1 "$repo_dir/scripts/setup.sh" --update "$@" || {
     git -C "$repo_dir" checkout --detach "$old"; exit 1;
   }
   state=$prefix/opt/vlang-state
