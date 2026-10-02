@@ -1,6 +1,7 @@
 #!/bin/sh
 # Compare the installed plugin with the latest published release; never installs.
 set -eu
+case ${1:-} in --help|-h) echo 'Usage: check-updates.sh [--background]'; exit 0 ;; esac
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo=$script_dir/..
 prefix=${VLANG_KAK_PREFIX:-$HOME/.local}

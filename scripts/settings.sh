@@ -1,6 +1,7 @@
 #!/bin/sh
 # Persist only explicitly selected IDE settings in their own marked block.
 set -eu
+case ${1:-} in --help|-h) echo 'Usage: settings.sh SETTING VALUE'; exit 0 ;; esac
 case ${1:-} in --help|-h) echo 'Usage: settings.sh OPTION VALUE (persist a supported IDE setting)'; exit 0 ;; esac
 name=${1:-}; value=${2:-}
 case "$name:$value" in
