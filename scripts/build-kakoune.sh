@@ -98,6 +98,12 @@ if [ ! -x "$release_dir/bin/kak" ] || [ ! -d "$release_dir/share/kak/rc" ]; then
   mv "$stage_dir" "$release_dir"
 fi
 
+if [ "${VLANG_KAK_STAGE:-0}" = 1 ]; then
+  ln -sfn "$release_dir" "$opt_root/candidate"
+  echo "Prepared $release_dir"
+  exit 0
+fi
+
 ln -sfn "releases/$version" "$opt_root/current.next"
 mv -Tf "$opt_root/current.next" "$opt_root/current"
 cat > "$launcher.tmp" <<EOF

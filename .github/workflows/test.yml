@@ -67,13 +67,17 @@ jobs:
           echo "KAK=$RUNNER_TEMP/kakoune/src/kak" >> "$GITHUB_ENV"
           echo "KAKOUNE_RUNTIME=$RUNNER_TEMP/kakoune/share/kak" >> "$GITHUB_ENV"
 
+      - name: Install client-test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes tmux
+
       - name: Run integration tests
         run: ./tests/run.sh
 
       - name: Check setup and update scripts
         run: |
-          sh -n scripts/*.sh
-          for script in scripts/*.sh; do "$script" --help > /dev/null; done
+          for script in scripts/*.sh; do sh -n "$script"; "$script" --help > /dev/null; done
 
   release:
     name: Managed installation and live VLS
@@ -95,23 +99,9 @@ jobs:
 
       - name: Build the pinned V compiler
         run: |
-          . tests/release.env
-          git init "$RUNNER_TEMP/v"
-          git -C "$RUNNER_TEMP/v" fetch --depth 1 https://github.com/vlang/v.git "$V_REF"
-          git -C "$RUNNER_TEMP/v" checkout --detach FETCH_HEAD
-          git init "$RUNNER_TEMP/v/vc"
-          git -C "$RUNNER_TEMP/v/vc" fetch --depth 1 https://github.com/vlang/vc.git "$VC_REF"
-          git -C "$RUNNER_TEMP/v/vc" checkout --detach FETCH_HEAD
-          cd "$RUNNER_TEMP/v"
-          mkdir -p thirdparty/tcc/lib
-          gcc -O2 -fPIC -DGC_THREADS=1 -DTHREAD_LOCAL_ALLOC=1 \
-            -DGC_BUILTIN_ATOMIC=1 -DALL_INTERIOR_POINTERS=1 \
-            -I thirdparty/libgc/include -c thirdparty/libgc/gc.c \
-            -o thirdparty/tcc/lib/gc.o
-          ar rcs thirdparty/tcc/lib/libgc.a thirdparty/tcc/lib/gc.o
-          make -C "$RUNNER_TEMP/v" local=1 CC=gcc VFLAGS='-cc gcc'
-          echo "$RUNNER_TEMP/v" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/v/v" version
+          ./scripts/install-v.sh "$RUNNER_TEMP/v-toolchain"
+          echo "$RUNNER_TEMP/v-toolchain/opt/vlang-v/current" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/v-toolchain/opt/vlang-v/current/v" version
 
       - name: Resolve the weekly Kakoune master revision
         id: kakoune-master

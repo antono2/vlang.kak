@@ -453,3 +453,12 @@ stays in `*make*` and the current session remains open. The default in-editor
 update refreshes Kakoune, kak-lsp, and managed upstream VLS.
 
 See the [release guide](release.md) for backend verification, update recovery, and removal instructions.
+
+## Maintenance automation
+
+`:v-settings` provides persistent choices without manually editing the file, and
+`:v-settings-file` opens it for all other customization. Project arguments,
+targets and working directories can be remembered through `:v-project-arguments`,
+`:v-project-target` and `:v-project-directory`. See [automation](automation.md) for
+ownership/removal, health/repair, compiler choices, rollback, release updates,
+session recovery, optional notifications and cleanup.

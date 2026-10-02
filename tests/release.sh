@@ -24,6 +24,7 @@ printf 'Release test artifacts: %s\n' "$root"
 PATH="$prefix/bin:$PATH"
 export PATH
 "$repo_dir/scripts/check.sh" --live-lsp
+python3 "$repo_dir/tests/lifecycle_stack.py" "$prefix"
 "$repo_dir/tests/acceptance.sh" "$prefix" "$root/acceptance"
 "$repo_dir/scripts/update.sh" --prefix "$prefix" \
   --kakoune-version "$KAKOUNE_VERSION" --lsp-version "$LSP_VERSION" --vls-ref "$VLS_REF"

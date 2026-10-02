@@ -17,9 +17,9 @@ covered by the pinned release results.
 The V 0.5.2 release archive lacks the `json2` standard library required by this
 VLS revision. The fast plugin tests still cover V 0.5.2. The release job builds
 the newer V revision separately using VC bootstrap commit
-`21490f7811a2dd366c3daa39bef8e53c1e3e5727`. Setup does not change your V
-installation: put a compatible compiler on PATH or supply a prebuilt VLS with
-`--vls /path/to/vls`.
+`21490f7811a2dd366c3daa39bef8e53c1e3e5727`. Setup preserves your existing V installation. It can build the tested compiler
+in its own prefix when needed; `--system-v` requires your own compatible compiler.
+A prebuilt VLS can be supplied with `--vls /path/to/vls`.
 
 Setup leaves regular Kakoune settings untouched unless `--integrate` is explicitly
 requested (or an existing managed integration is being maintained). Personal
@@ -122,8 +122,10 @@ disk-backed files and the active main cursor. Scratch buffers, other selections,
 and additional clients are not restored. Runtime-only option and key changes
 are not serialized; save settings in `vlang-user.kak` before restarting.
 A failed update leaves the editor
-running. Tool installation is atomic per tool, not a transaction across the
-whole stack: a failed VLS build can follow a successful Kakoune update.
+running. Setup stages all builds and verifies VLS before activating the tool stack.
+Failure restores the previous managed activation; `:v-rollback` restores the
+previous successful snapshot. See [automation and recovery](automation.md) for
+power-loss limits and the standalone installers.
 
 To recover, keep the current session open, inspect `*make*`, and rerun the update
 from a regular shell after fixing the reported problem. Select known versions
@@ -147,21 +149,11 @@ setup stops and asks for an external setup run with the original XDG path.
 
 ## Removing a managed installation
 
-Close the managed editor sessions first. Regular Kakoune needs no cleanup for a
-default isolated installation. If you opted into integration, in the original `$XDG_CONFIG_HOME/kak`
-(default `~/.config/kak`), remove only the block between the two `vlang.kak managed`
-markers in kakrc, and the `autoload/vlang.kak` and `autoload/vlang-site-runtime`
-links if they still point to this installation. If this leaves a custom autoload
-directory, ensure your other configuration still loads Kakoune's system runtime.
-Keep `vlang-user.kak` if you may reinstall.
-
-Under your chosen prefix (default `~/.local`), remove the `bin/kak` and
-`bin/kak-v` scripts only if their headers identify them as vlang.kak managed
-launchers, and `bin/vls` only if it is this installer's symlink. Remove the
-`opt/vlang-kakoune`, `opt/vlang-kak-lsp`, and `opt/vlang-vls` directories if no
-other configuration uses them. The explorer cache is under
-`${XDG_CACHE_HOME:-~/.cache}/vlang.kak`. The external V compiler and an externally
-linked VLS executable belong to their original installations.
+Preview removal with `scripts/uninstall.sh --prefix /absolute/prefix`. Close
+managed sessions, review the paths, then repeat with `--apply`. It removes only
+unchanged recorded files and integration blocks, preserving modified files,
+personal settings, external tools and shared runtimes. Older installations need
+one setup run to record ownership. See [ownership and safe removal](automation.md#ownership-and-safe-removal).
 
 ## Publishing checklist
 

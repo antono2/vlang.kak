@@ -912,7 +912,7 @@ define-command -params .. v-update -docstring 'Update the managed V IDE, then re
   set-option global v_update_resume_line %val{cursor_line}
   set-option global v_update_resume_column %val{cursor_column}
   evaluate-commands %sh{
-    shell_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/'\\''/g")"; }
+    shell_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/'\\\\''/g")"; }
     kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
     command=$(shell_quote "$VLANG_KAK_REPO/scripts/update-session.sh")
     for value in "$VLANG_KAK_PREFIX" "$kak_session" "$kak_client" "$kak_client_pid" "$@"; do
@@ -1047,7 +1047,8 @@ define-command v-task-return -docstring 'Return to the source of this V task' %{
 
 define-command -params 1 v-task -docstring 'Run a V check, build, run, test, or vet task' %{
   evaluate-commands %sh{
-    case "$1" in
+    task=$1
+    case "$task" in
       build) command=$kak_opt_v_build_command ;;
       check) command=$kak_opt_v_check_command ;;
       run) command=$kak_opt_v_run_command ;;
@@ -1075,14 +1076,19 @@ define-command -params 1 v-task -docstring 'Run a V check, build, run, test, or 
       [ "$parent" != "$current" ] || break
       current=$parent
     done
-    quoted_root=$(printf %s "$root" | sed "s/'/'\\\\''/g")
-    if [ "$1" = check ]; then
-      quoted_file=$(printf %s "$file" | sed "s/'/'\\\\''/g")
-      command="$command '$quoted_file'"
+    shell_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/'\\\\''/g")"; }
+    if [ "$task" = check ]; then command="$command $(shell_quote "$file")"; fi
+    if [ "$task" = run ]; then
+      if [ -n "$kak_opt_v_project_cwd" ]; then root=$kak_opt_v_project_cwd; fi
+      if [ -n "$kak_opt_v_project_target" ]; then
+        case "$command" in *' .') command=${command% .}; command="$command $(shell_quote "$kak_opt_v_project_target")" ;; esac
+      fi
+      eval "set -- $kak_quoted_opt_v_project_args"
+      for argument do command="$command $(shell_quote "$argument")"; done
     fi
-    shell_command="cd '$quoted_root' && printf 'V task output\\n' && $command"
+    shell_command="cd $(shell_quote "$root") && printf 'V task output\\n' && $command"
     kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    if [ "$1" = test ]; then
+    if [ "$task" = test ]; then
       printf 'set-option global v_last_test_command %s\n' "$(kak_quote "$shell_command")"
     fi
     printf 'v-make-command %s\n' "$(kak_quote "$shell_command")"
@@ -1220,11 +1226,27 @@ define-command -hidden v-default-source-keys %{
   map window v-maintenance u ':v-update<ret>' -docstring 'Update and restart V IDE'
   map window v-maintenance r ':v-restart<ret>' -docstring 'Restart V IDE'
   map window v-maintenance w ':v-window-status<ret>' -docstring 'Show pane backend'
+  map window v-maintenance S ':v-session-save<ret>' -docstring 'Save recovery checkpoint'
+  map window v-maintenance R ':v-restart-recover<ret>' -docstring 'Restart with buffer/view recovery…'
+  map window v-maintenance C ':v-cleanup-apply<ret>' -docstring 'Remove unused tools…'
+  map window v-maintenance h ':v-health<ret>' -docstring 'IDE health'
+  map window v-maintenance s ':v-settings<ret>' -docstring 'IDE settings…'
+  map window v-maintenance p ':v-project-settings<ret>' -docstring 'Project run/debug settings'
+  map window v-maintenance t ':v-project-targets<ret>' -docstring 'Choose runnable V target…'
+  map window v-maintenance c ':v-cleanup<ret>' -docstring 'Preview unused tool cleanup'
+  map window v-maintenance x ':v-removal-preview<ret>' -docstring 'Preview IDE removal'
+  map window v-maintenance b ':v-rollback<ret>' -docstring 'Restore previous tool stack'
+  map window v-maintenance f ':v-repair<ret>' -docstring 'Repair managed installation'
+  map window v-maintenance n ':v-check-updates<ret>' -docstring 'Check for a release'
+  map window v-maintenance v ':v-update-release<ret>' -docstring 'Update to verified release'
+  map window v-maintenance d ':v-diagnostic-report<ret>' -docstring 'Prepare diagnostic report'
   map window v-investigation V ':v-history<ret>' -docstring 'View file at Git revision…'
   map window user / ':v-search<ret>' -docstring 'Search project text…'
 }
 
 define-command -hidden v-unbind-keys %{
+  try %{ unmap window normal q ':v-recovery-close<ret>' }
+  try %{ unmap window user q ':v-recovery-close<ret>' }
   try %{ unmap window normal q ':v-doc-return<ret>' }
   try %{ unmap window normal <esc> ':v-doc-return<ret>' }
   try %{ unmap window user q ':v-doc-return<ret>' }
@@ -1253,6 +1275,20 @@ define-command -hidden v-unbind-keys %{
   try %{ unmap window v-maintenance u ':v-update<ret>' }
   try %{ unmap window v-maintenance r ':v-restart<ret>' }
   try %{ unmap window v-maintenance w ':v-window-status<ret>' }
+  try %{ unmap window v-maintenance S ':v-session-save<ret>' }
+  try %{ unmap window v-maintenance R ':v-restart-recover<ret>' }
+  try %{ unmap window v-maintenance C ':v-cleanup-apply<ret>' }
+  try %{ unmap window v-maintenance h ':v-health<ret>' }
+  try %{ unmap window v-maintenance s ':v-settings<ret>' }
+  try %{ unmap window v-maintenance p ':v-project-settings<ret>' }
+  try %{ unmap window v-maintenance t ':v-project-targets<ret>' }
+  try %{ unmap window v-maintenance c ':v-cleanup<ret>' }
+  try %{ unmap window v-maintenance x ':v-removal-preview<ret>' }
+  try %{ unmap window v-maintenance b ':v-rollback<ret>' }
+  try %{ unmap window v-maintenance f ':v-repair<ret>' }
+  try %{ unmap window v-maintenance n ':v-check-updates<ret>' }
+  try %{ unmap window v-maintenance v ':v-update-release<ret>' }
+  try %{ unmap window v-maintenance d ':v-diagnostic-report<ret>' }
   try %{ unmap window user t ':v-testing-menu<ret>' }
   try %{ unmap window user i ':v-investigation-menu<ret>' }
   try %{ unmap window user U ':v-maintenance-menu<ret>' }
@@ -1345,7 +1381,7 @@ define-command -hidden -params 1.. v-debug-call %{
     : "$kak_buffile" "$kak_modified" "$kak_client" "$kak_opt_v_debug_adapter" \
       "$kak_quoted_opt_v_debug_adapter_args" "$kak_opt_v_debug_build_command" \
       "$kak_opt_v_debug_pretty_print" "$kak_opt_v_debug_build" "$kak_opt_v_debug_program" "$kak_opt_v_debug_cwd" \
-      "$kak_quoted_opt_v_debug_args" "$kak_quoted_opt_v_debug_env" "$kak_opt_v_debug_entry" "$kak_opt_v_debug_break_on_failure"
+      "$kak_opt_v_project_target" "$kak_quoted_opt_v_debug_args" "$kak_quoted_opt_v_debug_env" "$kak_opt_v_debug_entry" "$kak_opt_v_debug_break_on_failure"
     source=$(readlink -f "$kak_opt_v_plugin_source")
     helper=${source%/rc/vlang.kak}/scripts/debug.sh
     directory=$kak_opt_v_debug_directory
@@ -1690,7 +1726,7 @@ define-command v-refresh-keys -docstring 'Refresh context-aware V user-menu bind
     context=$kak_opt_filetype
     if [ "$kak_bufname" = '*hover*' ] && [ -n "$kak_opt_v_doc_origin" ]; then context=v-doc; fi
     case "$context" in
-      v|v-tree|v-doc|v-debug-stack|v-debug-variables|v-debug-output|v-debug-breakpoints) ;;
+      v|v-tree|v-doc|v-recovery|v-debug-stack|v-debug-variables|v-debug-output|v-debug-breakpoints) ;;
       make) if [ "$kak_opt_v_task_output" != true ]; then
         echo "v-unbind-keys; set-option window v_keys_context ''"
         exit
@@ -1772,6 +1808,10 @@ define-command v-refresh-keys -docstring 'Refresh context-aware V user-menu bind
       [ "$repeat" = true ] || echo 'try %{ unmap window v-testing x }'
       [ "$history" = true ] || echo 'try %{ unmap window v-investigation V }'
       [ "$update" = 1 ] || echo 'try %{ unmap window v-maintenance u }; try %{ unmap window v-maintenance r }'
+      [ "$update" = 1 ] || echo 'try %{ unmap window v-maintenance v }'
+      if [ -z "${VLANG_KAK_PREFIX:-}" ]; then
+        for key in b f c C x R; do printf 'try %%{ unmap window v-maintenance %s }\n' "$key"; done
+      fi
 
     elif [ "$context" = v-tree ]; then
       map_key '<ret>' 'v-tree-action open' 'Open file or toggle directory'
@@ -1783,6 +1823,9 @@ define-command v-refresh-keys -docstring 'Refresh context-aware V user-menu bind
       label='Return to source'
       [ "$kak_opt_v_tree_is_pane" != true ] || label='Close tree pane'
       map_key q v-tree-close "$label"
+    elif [ "$context" = v-recovery ]; then
+      map_key q v-recovery-close 'Close recovered output buffer'
+      echo "map window normal q ':v-recovery-close<ret>' -docstring 'Close recovered output buffer'"
     elif [ "$context" = v-doc ]; then
       map_key q v-doc-return 'Return to source'
       echo "map window normal q ':v-doc-return<ret>' -docstring 'Return to source'"
@@ -1851,4 +1894,248 @@ hook -group v-ide global WinSetOption filetype=v %{
     v-unbind-keys
     remove-hooks window v-ide-semantic
   }
+}
+
+# Managed lifecycle and project preferences.
+declare-option bool v_update_check_enabled false
+declare-option str-list v_project_args
+declare-option str v_project_cwd
+declare-option str v_project_target
+
+define-command -hidden -params 1.. v-maintenance-task %{
+  evaluate-commands %sh{
+    : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
+      "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
+      "${kak_client_env_STY:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}" "$kak_opt_v_window_backend"
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    script=${source%/rc/vlang.kak}/scripts/$1.sh
+    shift
+    shell_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/'\\\\''/g")"; }
+    command=$(shell_quote "$script")
+    for argument do command="$command $(shell_quote "$argument")"; done
+    printf "v-make-command '%s'\n" "$(printf %s "$command" | sed "s/'/''/g")"
+  }
+}
+define-command v-health -docstring 'Check IDE tools and configuration' %{ v-maintenance-task health }
+define-command v-diagnostic-report -docstring 'Prepare a report to review before sharing' %{ v-maintenance-task health --report }
+define-command v-repair -docstring 'Repair managed links and launchers using installed tools' %{ v-debug-require-inactive; v-maintenance-task health --repair }
+define-command v-rollback -docstring 'Restore the previous managed tool stack' %{ v-debug-require-inactive; v-maintenance-task rollback }
+define-command v-cleanup -docstring 'Preview unused managed tool releases' %{ v-maintenance-task cleanup }
+define-command v-cleanup-apply -docstring 'Remove unchanged unused tool releases' %{
+  prompt 'Remove the releases listed by v-cleanup? Type yes: ' %{ evaluate-commands %sh{
+    [ "$kak_text" != yes ] || echo 'v-maintenance-task cleanup --apply'
+  } }
+}
+define-command v-removal-preview -docstring 'Preview removal of this managed installation' %{ v-maintenance-task uninstall }
+define-command v-check-updates -docstring 'Check for a published V IDE release' %{ v-maintenance-task check-updates }
+define-command v-update-release -docstring 'Update to the latest published, release-tested tool combination' %{ v-update --release }
+define-command v-settings-file -docstring 'Open personal V IDE customization' %{
+  evaluate-commands %sh{
+    config=${VLANG_KAK_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}}/kak/vlang-user.kak
+    printf "edit -existing '%s'\n" "$(printf %s "$config" | sed "s/'/''/g")"
+  }
+}
+define-command -params 2 v-setting -docstring 'Persist an IDE setting and apply it now' %{
+  evaluate-commands %sh{
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/settings.sh" "$@" || echo "fail 'Setting could not be saved; inspect the error in *debug*'"
+  }
+}
+define-command v-settings -docstring 'Customize IDE behavior and open personal settings' %{
+  evaluate-commands %sh{
+    toggle() { if [ "$1" = true ]; then echo false; else echo true; fi; }
+    printf 'menu '
+    printf "'Explorer: %s (toggle)' 'v-setting v_explorer_enabled %s' " "$kak_opt_v_explorer_enabled" "$(toggle "$kak_opt_v_explorer_enabled")"
+    printf "'Live search: %s (toggle)' 'v-setting v_live_search_enabled %s' " "$kak_opt_v_live_search_enabled" "$(toggle "$kak_opt_v_live_search_enabled")"
+    printf "'Weekly release check: %s (toggle)' 'v-setting v_update_check_enabled %s' " "$kak_opt_v_update_check_enabled" "$(toggle "$kak_opt_v_update_check_enabled")"
+    for value in auto always off; do printf "'Pane mode: %s (current: %s)' 'v-setting v_pane_mode %s' " "$value" "$kak_opt_v_pane_mode" "$value"; done
+    printf "'Edit all personal settings' 'v-settings-file' 'Project run/debug settings' 'v-project-settings'\n"
+  }
+}
+define-command -hidden -params 1.. v-project-preference %{
+  require-module v
+  evaluate-commands %sh{
+    [ -n "$kak_buffile" ] || { echo "fail 'Open a project file first'"; exit; }
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    command=$1; shift
+    "${source%/rc/vlang.kak}/scripts/preferences.sh" "$command" "$kak_buffile" "$@"
+  }
+}
+define-command -params .. v-project-arguments -docstring 'Remember run/debug arguments for this project' %{ v-project-preference args %arg{@} }
+define-command -params 1 -file-completion v-project-directory -docstring 'Remember the project working directory' %{ v-project-preference cwd %arg{1} }
+define-command -params 1 -file-completion v-project-target -docstring 'Remember the V file or directory to run/debug' %{ v-project-preference target %arg{1} }
+define-command v-project-reset -docstring 'Clear stored run/debug preferences for this project' %{ v-project-preference reset }
+define-command v-project-settings -docstring 'Show project run/debug preferences and how to change them' %{
+  evaluate-commands %sh{
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    script=${source%/rc/vlang.kak}/scripts/preferences.sh
+    quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/'\\\\''/g")"; }
+    command="$(quote "$script") show $(quote "$kak_buffile")"
+    printf "v-make-command '%s'\n" "$(printf %s "$command" | sed "s/'/''/g")"
+  }
+}
+define-command v-project-targets -docstring 'List runnable V entry points for this project' %{
+  evaluate-commands %sh{
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    helper=${source%/rc/vlang.kak}/scripts/preferences.sh
+    printf 'menu '
+    "$helper" targets "$kak_buffile" | while IFS= read -r path; do
+      label=$(printf %s "$path" | sed "s/'/''/g")
+      command=$(printf "v-project-target '%s'" "$label" | sed "s/'/''/g")
+      printf "'%s' '%s' " "$label" "$command"
+    done
+    printf "'Choose another V target…' 'prompt -file-completion Target: %{ v-project-target %%val{text} }'\n"
+  }
+}
+hook -group v-project-preferences global WinDisplay .* %{ try %{ evaluate-commands %sh{
+  [ "$kak_opt_filetype" = v ] && [ -n "$kak_buffile" ] || exit
+  command -v v >/dev/null 2>&1 || exit
+  source=$(readlink -f "$kak_opt_v_plugin_source")
+  "${source%/rc/vlang.kak}/scripts/preferences.sh" load "$kak_buffile"
+} } }
+
+# Recovery snapshots contain buffers and each client's selections. Files on disk
+# are never saved by this mechanism; private copies remain available afterward.
+declare-option -hidden str v_session_checkpoint
+declare-option -hidden int v_session_client_count 0
+
+define-command -hidden -params 1 v-session-save-buffer %{
+  evaluate-commands -buffer %arg{1} %{
+    evaluate-commands %sh{
+      source=$(readlink -f "$kak_opt_v_plugin_source")
+      : "$kak_bufname" "$kak_buffile" "$kak_modified" "$kak_opt_filetype" "$kak_opt_readonly" "$kak_opt_v_session_checkpoint"
+      "${source%/rc/vlang.kak}/scripts/session-buffer.sh"
+    }
+  }
+}
+define-command -hidden -params .. v-session-save-buffers %{
+  evaluate-commands %sh{
+    for name do printf "v-session-save-buffer '%s'\n" "$(printf %s "$name" | sed "s/'/''/g")"; done
+  }
+}
+define-command -hidden -params 1 v-session-save-client %{
+  evaluate-commands -client %arg{1} %{
+    evaluate-commands %sh{
+      quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
+      identity=$(printf %s "$kak_client" | sha256sum | cut -d ' ' -f 1)
+      printf 'rename-client %s\nbuffer %s\nselect %s\n' "$(quote "$kak_client")" "$(quote "$kak_bufname")" "$kak_selections_desc" > "$kak_opt_v_session_checkpoint/client-$identity.kak"
+      printf '%s\n' "$identity" >> "$kak_opt_v_session_checkpoint/clients"
+    }
+  }
+}
+define-command -hidden -params .. v-session-save-clients %{
+  evaluate-commands %sh{
+    for client do printf "v-session-save-client '%s'\n" "$(printf %s "$client" | sed "s/'/''/g")"; done
+  }
+}
+define-command v-session-save -docstring 'Checkpoint buffers and client positions without saving project files' %{
+  v-debug-require-inactive
+  evaluate-commands %sh{
+    umask 077
+    root=${XDG_CACHE_HOME:-$HOME/.cache}/vlang.kak/sessions
+    mkdir -p "$root"
+    directory=$(mktemp -d "$root/checkpoint.XXXXXXXX") || exit
+    printf "set-option global v_session_checkpoint '%s'\n" "$(printf %s "$directory" | sed "s/'/''/g")"
+  }
+  v-session-save-buffers %val{buflist}
+  v-session-save-clients %val{client_list}
+  evaluate-commands %sh{
+    identity=$(printf %s "$kak_client" | sha256sum | cut -d ' ' -f 1)
+    printf '%s\n' "$identity" > "$kak_opt_v_session_checkpoint/main-client"
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    helper=${source%/rc/vlang.kak}/scripts/windowing.sh
+    : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
+      "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
+      "${kak_client_env_STY:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
+    "$helper" detect "$kak_opt_v_window_backend" > "$kak_opt_v_session_checkpoint/backend"
+    ln -sfn "$kak_opt_v_session_checkpoint" "${XDG_CACHE_HOME:-$HOME/.cache}/vlang.kak/sessions/latest"
+    echo 'echo -debug "Session checkpoint saved; v-session-restore reopens it"'
+  }
+}
+define-command -hidden -params .. v-session-require-clean %{
+  evaluate-commands %sh{
+    for name do
+      printf "evaluate-commands -buffer '%s' %%{ evaluate-commands %%sh{ [ \"\$kak_modified\" != true ] || [ \"\$kak_bufname\" = '*debug*' ] || echo \"fail 'Restore in a fresh session or save/checkpoint existing edits first'\" } }\n" "$(printf %s "$name" | sed "s/'/''/g")"
+    done
+  }
+}
+define-command -params 0..1 -file-completion v-session-restore -docstring 'Restore the last recovery checkpoint, including scratch and unsaved buffers' %{
+  v-session-require-clean %val{buflist}
+  evaluate-commands %sh{
+    directory=${1:-${XDG_CACHE_HOME:-$HOME/.cache}/vlang.kak/sessions/latest}
+    [ -f "$directory/buffers.kak" ] || { echo "fail 'No session checkpoint found'"; exit; }
+    # Restore into a fresh session to avoid replacing newer edits.
+    printf "source '%s'\n" "$(printf %s "$directory/buffers.kak" | sed "s/'/''/g")"
+    identity=$(cat "$directory/main-client")
+    printf "source '%s'\n" "$(printf %s "$directory/client-$identity.kak" | sed "s/'/''/g")"
+  }
+}
+define-command -hidden v-restart-recover-now %{
+  v-debug-require-inactive
+  evaluate-commands %sh{
+    [ "${VLANG_KAK_RESTART_ALLOWED:-0}" = 1 ] || echo "fail 'Recovery restart requires the owning kak-v client'"
+  }
+  v-session-save
+  evaluate-commands %sh{
+    quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
+    directory=$kak_opt_v_session_checkpoint
+    identity=$(cat "$directory/main-client")
+    backend=$(cat "$directory/backend")
+    count=$(wc -l < "$directory/clients")
+    if [ "$count" -gt 1 ] && [ "$backend" = none ]; then echo "fail 'Restoring extra views requires a supported pane host; checkpoint saved'"; exit; fi
+    printf 'source %s\nsource %s\n' "$(quote "$directory/buffers.kak")" "$(quote "$directory/client-$identity.kak")" > "$VLANG_KAK_RESTART_STATE"
+    while IFS= read -r other; do
+      [ "$other" != "$identity" ] || continue
+      printf 'v-session-open-client %s %s\n' "$(quote "$directory/client-$other.kak")" "$(quote "$backend")" >> "$VLANG_KAK_RESTART_STATE"
+    done < "$directory/clients"
+    eval "set -- $kak_quoted_client_list"
+    for client do
+      [ "$client" != "$kak_client" ] || continue
+      printf 'evaluate-commands -client %s %%{ quit! }\n' "$(quote "$client")"
+    done
+  }
+  quit! 75
+}
+define-command -hidden -params 2 v-session-open-client %{
+  evaluate-commands %sh{
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    helper=${source%/rc/vlang.kak}/scripts/windowing.sh
+    : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
+      "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
+      "${kak_client_env_STY:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
+    initial="source '$(printf %s "$1" | sed "s/'/''/g")'"
+    "$helper" open "$2" right "$kak_session" "$initial" || echo "echo -debug 'A view could not reopen; its checkpoint remains available'"
+  }
+}
+define-command v-restart-recover -docstring 'Restart with recovery copies and recreate additional views' %{
+  prompt 'Restart with recovery copies and recreate views? Type yes: ' %{ evaluate-commands %sh{
+    [ "$kak_text" != yes ] || echo v-restart-recover-now
+  } }
+}
+
+define-command -hidden v-update-check-background %{
+  evaluate-commands %sh{
+    [ "$kak_opt_v_update_check_enabled" = true ] && [ -n "${VLANG_KAK_PREFIX:-}" ] || exit
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    helper=${source%/rc/vlang.kak}/scripts/check-updates.sh
+    (
+      "$helper" --background > /dev/null 2>&1 || exit
+      state=$VLANG_KAK_PREFIX/opt/vlang-state
+      [ -f "$state/update-status" ] || exit
+      grep -q '^Release available:' "$state/update-status" || exit
+      cmp -s "$state/update-status" "$state/update-notified" && exit
+      text=$(cat "$state/update-status" | sed "s/'/''/g")
+      client=$(printf %s "$kak_client" | sed "s/'/''/g")
+      printf "evaluate-commands -client '%s' %%{ echo '%s' }\n" "$client" "$text" | kak -p "$kak_session" || exit
+      cp "$state/update-status" "$state/update-notified"
+    ) > /dev/null 2>&1 < /dev/null &
+  }
+}
+hook -group v-update-check global ClientCreate .* %{ v-update-check-background }
+
+define-command v-recovery-close -docstring 'Close recovered auxiliary output; checkpoint stays available' %{
+  evaluate-commands %sh{
+    case "$kak_buffile" in /*) echo "fail 'Only recovered scratch output can be closed here'" ;; esac
+  }
+  delete-buffer!
 }

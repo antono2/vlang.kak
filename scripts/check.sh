@@ -15,6 +15,12 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_dir=$(dirname -- "$script_dir")
 prefix=${VLANG_KAK_PREFIX:-$HOME/.local}
 config_home=${VLANG_KAK_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}}
+compiler_mode=system
+settings=$prefix/opt/vlang-kakoune/ide-config/kak/kakrc
+if [ -f "$settings" ] && grep -q '^# vlang.kak compiler: managed$' "$settings"; then compiler_mode=managed; fi
+if [ "$compiler_mode" = managed ]; then PATH="$prefix/opt/vlang-v/current:$PATH"; fi
+PATH="$prefix/bin:$PATH"
+export PATH
 status=0
 
 report_command() {
