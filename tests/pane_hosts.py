@@ -302,7 +302,7 @@ def main():
             host.send(tree, ' q' if iteration == 0 else 'q')
             wait_for(lambda: len(host.panes()) == 1, 'tree closes')
             remote('source', f'edit -existing {quote(source)}; select 9.14,9.14')
-            assert 'unsaved pane check' in host.capture(original)
+            wait_for(lambda: 'unsaved pane check' in host.capture(original), 'source window redraw after closing tree')
             contents = root / 'buffer-contents'
             remote('source', f"evaluate-commands -draft %{{ execute-keys '%'; echo -to-file {quote(contents)} %val{{selection}} }}")
             assert 'unsaved pane check' in contents.read_text()

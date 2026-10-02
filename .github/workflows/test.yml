@@ -107,7 +107,8 @@ jobs:
           echo "gcc=$(gcc -dumpfullversion)" >> "$GITHUB_OUTPUT"
 
       - name: Restore pinned compiler source and build
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        id: compiler-restore
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: /home/runner/.cache/vlang-kak-ci/v-toolchain/opt/vlang-v/releases
           key: v-ubuntu24-${{ runner.arch }}-${{ steps.compiler-cache.outputs.gcc }}-${{ steps.compiler-cache.outputs.pins }}-${{ hashFiles('scripts/install-v.sh') }}
@@ -117,6 +118,13 @@ jobs:
           ./scripts/install-v.sh "/home/runner/.cache/vlang-kak-ci/v-toolchain"
           echo "/home/runner/.cache/vlang-kak-ci/v-toolchain/opt/vlang-v/current" >> "$GITHUB_PATH"
           "/home/runner/.cache/vlang-kak-ci/v-toolchain/opt/vlang-v/current/v" version
+
+      - name: Save the completed compiler build
+        if: steps.compiler-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /home/runner/.cache/vlang-kak-ci/v-toolchain/opt/vlang-v/releases
+          key: ${{ steps.compiler-restore.outputs.cache-primary-key }}
 
       - name: Resolve the weekly Kakoune master revision
         id: kakoune-master
@@ -132,7 +140,8 @@ jobs:
           ./tests/release.sh "$RUNNER_TEMP/vlang-release" 2>&1 | tee "$RUNNER_TEMP/vlang-release.log"
 
       - name: Restore verified pane-host download archives
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        id: pane-restore
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ${{ runner.temp }}/vlang-pane-tools/zellij.tar.gz
@@ -146,6 +155,16 @@ jobs:
           echo "$RUNNER_TEMP/vlang-pane-tools/zellij" >> "$GITHUB_PATH"
           echo "$RUNNER_TEMP/vlang-pane-tools/wezterm/wezterm/usr/bin" >> "$GITHUB_PATH"
           echo "$RUNNER_TEMP/vlang-pane-tools/kitty/bin" >> "$GITHUB_PATH"
+
+      - name: Save verified pane-host archives
+        if: steps.pane-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ${{ runner.temp }}/vlang-pane-tools/zellij.tar.gz
+            ${{ runner.temp }}/vlang-pane-tools/wezterm.tar.xz
+            ${{ runner.temp }}/vlang-pane-tools/kitty.txz
+          key: ${{ steps.pane-restore.outputs.cache-primary-key }}
 
       - name: Test real Zellij, WezTerm, kitty, Screen and Xterm clients
         run: |
