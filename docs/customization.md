@@ -339,6 +339,21 @@ or `native`. An explicit backend is used only when that host is active.
 Updates preserve both setup choices. `:v-tree` always opens the tree in the
 current client, and `:v-tree-pane` requests the side view.
 
+Screen opens separate windows in the requesting client's session; exiting the
+extra Kakoune client closes its Screen window. A custom `SCREENDIR` is forwarded.
+X11 windows use Kakoune's `termcmd` option and the requesting client's `DISPLAY`
+and `XAUTHORITY`. To choose a terminal in `vlang-user.kak`:
+
+```kak
+require-module x11
+set-option global termcmd 'xterm -e sh -c'
+```
+
+The terminal command must accept one shell command string as its final argument.
+For a headless daemon, declare `termcmd` with `try %{ declare-option str termcmd }`
+instead of requiring X11, then set it as above. Other native window adapters use
+Kakoune's loaded windowing module; their verification status is in [release support](release.md).
+
 The WezTerm adapter forwards the current client's `WEZTERM_UNIX_SOCKET`, so
 clients attached to different mux servers keep opening views in their own host.
 It does not start a new mux server when that connection fails.

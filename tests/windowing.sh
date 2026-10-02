@@ -43,4 +43,11 @@ grep -qx -- '/tmp/socket with spaces' "$VLANG_WINDOWING_TEST_LOG.socket"
 grep -qx -- '--right' "$VLANG_WINDOWING_TEST_LOG"
 grep -qx -- 'v-definition' "$VLANG_WINDOWING_TEST_LOG"
 
+kak_client_env_STY='123.session name' kak_client_env_WINDOW=2 \
+  "$helper" open screen right test-session 'edit "quoted path"' >/dev/null
+grep -qx -- '123.session name' "$VLANG_WINDOWING_TEST_LOG"
+grep -qx -- '2' "$VLANG_WINDOWING_TEST_LOG"
+grep -qx -- 'test-session' "$VLANG_WINDOWING_TEST_LOG"
+grep -qx -- 'edit "quoted path"' "$VLANG_WINDOWING_TEST_LOG"
+
 echo 'ok - pane host detection and client launch arguments'

@@ -56,10 +56,10 @@ replace that check. Version 1.1.0 is the first full IDE release.
 | Zellij 0.45.1 | Automated real clients: tree file opening, closing, peeking, independent views, unsaved edits and repeated use |
 | WezTerm 20240203-110809-5046fc22 | Automated real mux clients with a separate socket: the same pane workflows and unsaved-edit checks |
 | kitty 0.49.2 | Automated real clients under Xvfb with socket remote control: the same pane workflows and unsaved-edit checks |
-| GNU Screen | Detection tests; interactive verification pending |
-| Native terminal windows | Adapter implemented; interactive verification pending |
+| GNU Screen 4.9.1 | Automated real clients in separate Screen windows: tree/open/close, peek, independent cursors, unsaved edits and repeated use |
+| X11 / Xterm 390 | Automated real terminal windows under a private Xvfb display, with the daemon outside X11: the same workflows and unsaved-edit checks |
 
-GNU Screen and native terminal windows remain experimental. No pane host is
+Other native terminals, Wayland and macOS window adapters remain experimental. Screen and Xterm create separate windows rather than split panes. No pane host is
 required for editing or VLS navigation; `v_pane_mode off` selects the single-client
 interface. The additional host versions and archive checksums are pinned in
 `tests/pane-hosts.env`. These results cover the tested Linux configurations;
@@ -67,9 +67,15 @@ custom host keymaps, plugins and other versions can affect behavior.
 
 The CI managed-installation job also runs `tests/pane_hosts.py` for each pinned
 host. Zellij uses an attached terminal on a private tmux socket; WezTerm uses
-a private mux server; kitty uses an isolated Xvfb display. Logs and pane captures
+a private mux server; Screen uses a private socket directory and attached terminal; kitty and Xterm use isolated Xvfb displays. Logs and pane captures
 are included in the release-verification artifact. No user terminal configuration
 or active session is changed.
+
+CI caches the pinned V compiler at its permanent source path (V embeds those
+paths), with keys covering both source pins, compiler installer, runner architecture
+and GCC version. Terminal archives are cached by their pins and verified against
+SHA-256 on every use before fresh extraction. Managed installation, ownership,
+upgrade and live acceptance checks still run against fresh installation prefixes.
 
 Promoting another adapter to verified support requires automated real-client
 coverage for tree opening, source-client file opening, definition peeking,

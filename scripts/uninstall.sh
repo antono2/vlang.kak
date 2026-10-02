@@ -1,6 +1,8 @@
 #!/bin/sh
 # Remove only unchanged files recorded by this installation.
 set -eu
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$script_dir/install-lock.inc"
 prefix=${VLANG_KAK_PREFIX:-$HOME/.local}
 apply=false
 verbose=false
@@ -18,10 +20,11 @@ prefix=$(readlink -m "$prefix")
 state=$prefix/opt/vlang-state
 manifest=$state/manifest.tsv
 plan=$(mktemp)
-cleanup() { rm -f "$plan"; [ "$locked" != true ] || rmdir "$state/lock" 2>/dev/null || true; }
-trap cleanup EXIT HUP INT TERM
+cleanup() { rm -f "$plan"; [ "$locked" != true ] || lock_release || true; }
+trap cleanup EXIT
+trap 'exit 130' HUP INT TERM
 [ -f "$manifest" ] || { echo 'No ownership manifest. Rerun setup to record this installation before removal.' >&2; exit 1; }
-[ ! -d "$state/lock" ] || { echo 'An installation operation is active.' >&2; exit 1; }
+if [ -d "$state/lock" ]; then lock_status >&2 || true; exit 1; fi
 if [ "$apply" = true ]; then
   script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
   # This uninstall process may inherit the prefix variable from a regular shell;
@@ -37,7 +40,7 @@ if [ "$apply" = true ]; then
     if kill -0 "$owner" 2>/dev/null; then echo 'Close managed Kakoune sessions before removal.' >&2; exit 1; fi
     echo "Ignoring stale session marker: $restart"
   done
-  mkdir "$state/lock"
+  lock_acquire uninstall
   locked=true
 fi
 config=$(cat "$state/config-home")

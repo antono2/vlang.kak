@@ -8,9 +8,11 @@ while [ "$#" -gt 0 ]; do case "$1" in --cache) cache_cleanup=true; shift ;; --pr
 prefix=$(readlink -m "$prefix")
 state=$prefix/opt/vlang-state
 [ -f "$state/manifest.tsv" ] || { echo 'Run setup to record ownership first.' >&2; exit 1; }
-mkdir "$state/lock" 2>/dev/null || { echo 'Another installation operation is active.' >&2; exit 1; }
-trap 'rmdir "$state/lock"' EXIT HUP INT TERM
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$script_dir/install-lock.inc"
+lock_acquire cleanup
+trap lock_release EXIT
+trap 'exit 130' HUP INT TERM
 active_executables=$("$script_dir/active-tools.sh" "$prefix" | sed '/^managed-process:/d')
 for tool in kakoune kak-lsp vls v; do
   root=$prefix/opt/vlang-$tool

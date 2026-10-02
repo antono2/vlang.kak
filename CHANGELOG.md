@@ -2,6 +2,19 @@
 
 All notable changes to `vlang.kak` will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- Verify real GNU Screen and Xterm clients automatically, including closing temporary views, independent cursors and unsaved edits.
+- Cache the pinned CI compiler and verified terminal downloads while keeping fresh installation and upgrade coverage.
+- Report active/stale installation locks and interrupted setup snapshots; explicitly recover known stale locks without removing unknown contents.
+
+### Fixed
+
+- Target the requesting Screen client's session/window and X11 client's display when the editor daemon runs outside their terminal environment.
+- Report failed restoration and unreachable update/restart sessions accurately.
+
 ## 1.2.0 - 2026-10-02
 
 ### Added

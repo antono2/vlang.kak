@@ -95,15 +95,36 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes build-essential git curl unzip tmux python3 gdb \
-            xvfb xauth libegl1 libgl1-mesa-dri libopengl0 libfontconfig1 \
+            xvfb xauth screen xterm xdotool libegl1 libgl1-mesa-dri libopengl0 libfontconfig1 \
             libxcursor1 libxrandr2 libxi6 libxinerama1 libxkbcommon0 \
             libxkbcommon-x11-0 libxcb-xkb1
 
-      - name: Build the pinned V compiler
+      - name: Identify compiler cache
+        id: compiler-cache
         run: |
-          ./scripts/install-v.sh "$RUNNER_TEMP/v-toolchain"
-          echo "$RUNNER_TEMP/v-toolchain/opt/vlang-v/current" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/v-toolchain/opt/vlang-v/current/v" version
+          . tests/release.env
+          echo "pins=$V_REF-$VC_REF" >> "$GITHUB_OUTPUT"
+          echo "gcc=$(gcc -dumpfullversion)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore pinned compiler source and build
+        id: compiler-restore
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /home/runner/.cache/vlang-kak-ci/v-toolchain/opt/vlang-v/releases
+          key: v-ubuntu24-${{ runner.arch }}-${{ steps.compiler-cache.outputs.gcc }}-${{ steps.compiler-cache.outputs.pins }}-${{ hashFiles('scripts/install-v.sh') }}
+
+      - name: Build or reuse the pinned V compiler
+        run: |
+          ./scripts/install-v.sh "/home/runner/.cache/vlang-kak-ci/v-toolchain"
+          echo "/home/runner/.cache/vlang-kak-ci/v-toolchain/opt/vlang-v/current" >> "$GITHUB_PATH"
+          "/home/runner/.cache/vlang-kak-ci/v-toolchain/opt/vlang-v/current/v" version
+
+      - name: Save the completed compiler build
+        if: steps.compiler-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /home/runner/.cache/vlang-kak-ci/v-toolchain/opt/vlang-v/releases
+          key: ${{ steps.compiler-restore.outputs.cache-primary-key }}
 
       - name: Resolve the weekly Kakoune master revision
         id: kakoune-master
@@ -118,6 +139,16 @@ jobs:
         run: |
           ./tests/release.sh "$RUNNER_TEMP/vlang-release" 2>&1 | tee "$RUNNER_TEMP/vlang-release.log"
 
+      - name: Restore verified pane-host download archives
+        id: pane-restore
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ${{ runner.temp }}/vlang-pane-tools/zellij.tar.gz
+            ${{ runner.temp }}/vlang-pane-tools/wezterm.tar.xz
+            ${{ runner.temp }}/vlang-pane-tools/kitty.txz
+          key: pane-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tests/pane-hosts.env') }}
+
       - name: Install pinned pane hosts for real-client checks
         run: |
           ./tests/install-pane-hosts.sh "$RUNNER_TEMP/vlang-pane-tools"
@@ -125,9 +156,21 @@ jobs:
           echo "$RUNNER_TEMP/vlang-pane-tools/wezterm/wezterm/usr/bin" >> "$GITHUB_PATH"
           echo "$RUNNER_TEMP/vlang-pane-tools/kitty/bin" >> "$GITHUB_PATH"
 
-      - name: Test real Zellij, WezTerm and kitty clients
+      - name: Save verified pane-host archives
+        if: steps.pane-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ${{ runner.temp }}/vlang-pane-tools/zellij.tar.gz
+            ${{ runner.temp }}/vlang-pane-tools/wezterm.tar.xz
+            ${{ runner.temp }}/vlang-pane-tools/kitty.txz
+          key: ${{ steps.pane-restore.outputs.cache-primary-key }}
+
+      - name: Test real Zellij, WezTerm, kitty, Screen and Xterm clients
         run: |
-          for backend in zellij wezterm kitty; do
+          screen --version
+          xterm -version
+          for backend in zellij wezterm kitty screen native; do
             python3 tests/pane_hosts.py "$RUNNER_TEMP/vlang-release/prefix" "$backend" \
               --artifacts "$RUNNER_TEMP/vlang-release/pane-hosts/$backend"
           done
@@ -151,6 +194,8 @@ jobs:
             ${{ runner.temp }}/vlang-release/pane-hosts/**/kak-debug
             ${{ runner.temp }}/vlang-release/pane-hosts/**/panes.json
             ${{ runner.temp }}/vlang-release/pane-hosts/**/pane-*.txt
+            ${{ runner.temp }}/vlang-release/pane-hosts/**/terminal-*.log
+            ${{ runner.temp }}/vlang-release/pane-hosts/**/screen-terminal.txt
           if-no-files-found: ignore
 
   kakoune-update:

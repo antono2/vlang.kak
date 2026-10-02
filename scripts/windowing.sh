@@ -86,9 +86,30 @@ case "${1:-}" in
           "--match=id:$kak_client_env_KITTY_WINDOW_ID" kak -c "$session" -e "$initial"
         KITTY_LISTEN_ON=${kak_client_env_KITTY_LISTEN_ON:-} "$kitty_cmd" "$@" >/dev/null
         ;;
-      screen|native)
-        # Kakoune's loaded windowing module handles these hosts.
-        printf 'new %s\n' "$(kak_quote "$initial")"
+      screen)
+        [ -n "${kak_client_env_STY:-}" ] || { echo 'Cannot identify the current Screen session.' >&2; exit 1; }
+        # Screen windows close when their client exits. Target the requesting
+        # client's session/window even when the Kakoune daemon is outside Screen.
+        if [ -n "${kak_client_env_SCREENDIR:-}" ]; then export SCREENDIR="$kak_client_env_SCREENDIR"; else unset SCREENDIR; fi
+        screen -S "$kak_client_env_STY" -p "${kak_client_env_WINDOW:-0}" -X screen \
+          kak -c "$session" -e "$initial"
+        ;;
+      native)
+        if [ -n "${kak_client_env_DISPLAY:-}" ] && [ -n "${kak_opt_termcmd:-}" ]; then
+          # Use Kakoune's configured terminal command with the requesting
+          # client's display, including when the daemon is outside X11.
+          DISPLAY=$kak_client_env_DISPLAY
+          if [ -n "${kak_client_env_XAUTHORITY:-}" ]; then export XAUTHORITY="$kak_client_env_XAUTHORITY"; else unset XAUTHORITY; fi
+          if [ -n "${kak_client_env_WAYLAND_DISPLAY:-}" ]; then export WAYLAND_DISPLAY="$kak_client_env_WAYLAND_DISPLAY"; else unset WAYLAND_DISPLAY; fi
+          VLANG_VIEW_SESSION=$session VLANG_VIEW_COMMAND=$initial
+          export DISPLAY VLANG_VIEW_SESSION VLANG_VIEW_COMMAND
+          setsid sh -c 'exec '"$kak_opt_termcmd"' "$1"' vlang-terminal \
+            'exec kak -c "$VLANG_VIEW_SESSION" -e "$VLANG_VIEW_COMMAND"' \
+            < /dev/null > /dev/null 2>&1 &
+        else
+          # Other native hosts use Kakoune's loaded windowing module.
+          printf 'new %s\n' "$(kak_quote "$initial")"
+        fi
         ;;
       *) echo "Unknown window backend: $provider" >&2; exit 2 ;;
     esac

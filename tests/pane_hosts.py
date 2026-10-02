@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real Zellij, WezTerm and kitty clients; isolated sessions/configuration only."""
+"""Real terminal host clients; isolated sessions/configuration only."""
 import argparse
 import json
 import os
@@ -9,6 +9,9 @@ import subprocess
 import tempfile
 import time
 import uuid
+import re
+import select
+import shutil
 
 
 def quote(value):
@@ -29,20 +32,56 @@ class Host:
     def __init__(self, backend, root, name, env):
         self.backend, self.root, self.name, self.env = backend, root, name, env
         self.process = None
+        self.display = None
+        self.screen_sockets = None
         self.log = (root / 'host.log').open('w')
 
     def run(self, *args):
         return subprocess.check_output(args, text=True, env=self.env, stderr=self.log, timeout=15)
 
     def cli(self, *args):
+        if self.backend == 'screen':
+            return self.run('screen', '-S', self.name, *args)
         if self.backend == 'zellij':
             return self.run('zellij', '--session', self.name, 'action', *args)
         if self.backend == 'wezterm':
             return self.run('wezterm', '--config-file', str(self.root / 'wezterm.lua'), 'cli', '--no-auto-start', *args)
         return self.run('kitten', '@', '--to', 'unix:' + str(self.root / 'kitty.sock'), *args)
 
+    def prepare(self):
+        if self.backend == 'screen':
+            sockets = Path(tempfile.mkdtemp(prefix='vlang-screen-'))
+            self.screen_sockets = sockets
+            self.env['SCREENDIR'] = str(sockets)
+        if self.backend != 'native':
+            return
+        read, write = os.pipe()
+        self.display = subprocess.Popen(['Xvfb', '-displayfd', str(write), '-screen', '0', '1600x1200x24'],
+                                        pass_fds=(write,), stdout=self.log, stderr=self.log)
+        os.close(write)
+        try:
+            assert select.select([read], [], [], 10)[0], 'Xvfb did not start'
+            self.env['DISPLAY'] = ':' + os.read(read, 32).decode().strip()
+        finally:
+            os.close(read)
+        terminal = self.root / 'terminal'
+        terminal.write_text('#!/bin/sh\nexec xterm -class ' + shlex.quote(self.name) +
+                            ' -geometry 140x40 -l -lf ' + shlex.quote(str(self.root / 'terminal-')) +
+                            '$$.log -e "$@"\n')
+        terminal.chmod(0o755)
+
     def start(self, command):
-        if self.backend == 'zellij':
+        if self.backend == 'screen':
+            config = self.root / 'screenrc'
+            config.write_text('startup_message off\ndefscrollback 2000\n')
+            attach = shlex.join(['env', '-u', 'TMUX', '-u', 'TMUX_PANE', 'screen', '-c', str(config),
+                                 '-S', self.name, '-t', 'source', *command])
+            self.run('tmux', '-L', self.name, '-f', '/dev/null', 'new-session', '-d', '-s', 'host',
+                     '-x', '140', '-y', '40', attach)
+        elif self.backend == 'native':
+            self.process = subprocess.Popen([str(self.root / 'terminal'), *command],
+                                            env=self.env, stdout=self.log, stderr=self.log)
+        elif self.backend == 'zellij':
             config = self.root / 'zellij.kdl'
             config.write_text('session_serialization false\nshow_release_notes false\nshow_startup_tips false\n')
             self.run('zellij', '--config', str(config), 'attach', '--create-background', self.name,
@@ -75,6 +114,15 @@ class Host:
             wait_for((self.root / 'kitty.sock').exists, 'kitty socket')
 
     def panes(self):
+        if self.backend == 'native':
+            result = subprocess.run(['xdotool', 'search', '--class', '^' + self.name + '$'],
+                                    text=True, capture_output=True, env=self.env)
+            return result.stdout.splitlines()
+        if self.backend == 'screen':
+            try:
+                return re.findall(r'(?:^|\s)(\d+)[*$!@-]*\s', self.cli('-p', '0', '-Q', 'windows'))
+            except subprocess.CalledProcessError:
+                return []
         raw = (self.cli('list-panes', '--json') if self.backend == 'zellij' else
                           self.cli('list', '--format', 'json') if self.backend == 'wezterm' else self.cli('ls'))
         (self.root / 'panes.json').write_text(raw)
@@ -88,7 +136,16 @@ class Host:
         return [str(p['id']) for window in data for tab in window['tabs'] for p in tab['windows']]
 
     def send(self, pane, text):
-        if self.backend == 'zellij':
+        if self.backend == 'native':
+            self.run('xdotool', 'windowfocus', '--sync', pane)
+            for i, part in enumerate(text.split('\r')):
+                if i:
+                    self.run('xdotool', 'key', '--clearmodifiers', 'Return')
+                if part:
+                    self.run('xdotool', 'type', '--clearmodifiers', '--delay', '80', part)
+        elif self.backend == 'screen':
+            self.cli('-p', pane, '-X', 'stuff', text)
+        elif self.backend == 'zellij':
             data = json.loads(self.cli('list-panes', '--json'))
             if not any('terminal_' + str(p['id']) == pane and p['is_focused'] for p in data):
                 self.cli('focus-pane-id', pane)
@@ -103,6 +160,19 @@ class Host:
             self.cli('send-text', '--match', 'id:' + pane, text.replace('\\', '\\\\').replace('\r', '\\r'))
 
     def capture(self, pane):
+        if self.backend == 'native':
+            # Xterm logs its real terminal stream. The wrapper execs Xterm,
+            # keeping its PID equal to the unique log file's identity.
+            pid = self.run('xdotool', 'getwindowpid', pane).strip()
+            path = self.root / ('terminal-' + pid + '.log')
+            wait_for(path.exists, 'Xterm screen capture')
+            return re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', path.read_text(errors='replace'))
+        if self.backend == 'screen':
+            path = self.root / ('screen-' + pane + '.txt')
+            path.unlink(missing_ok=True)
+            self.cli('-p', pane, '-X', 'hardcopy', str(path))
+            wait_for(path.exists, 'Screen capture')
+            return path.read_text(errors='replace')
         if self.backend == 'zellij':
             return self.cli('dump-screen', '--pane-id', pane)
         if self.backend == 'wezterm':
@@ -110,6 +180,15 @@ class Host:
         return self.cli('get-text', '--match', 'id:' + pane)
 
     def stop(self):
+        if self.backend == 'screen':
+            try:
+                (self.root / 'screen-terminal.txt').write_text(self.run('tmux', '-L', self.name, 'capture-pane', '-p'))
+            except subprocess.SubprocessError:
+                pass
+            subprocess.run(['screen', '-S', self.name, '-X', 'quit'], env=self.env, stdout=self.log, stderr=self.log)
+            subprocess.run(['tmux', '-L', self.name, 'kill-server'], env=self.env, stdout=self.log, stderr=self.log)
+        if self.screen_sockets:
+            shutil.rmtree(self.screen_sockets)
         if self.backend == 'zellij':
             subprocess.run(['zellij', 'delete-session', '--force', self.name], env=self.env,
                            stdout=self.log, stderr=self.log)
@@ -123,13 +202,16 @@ class Host:
             else:
                 self.process.terminate()
             self.process.wait(timeout=15)
+        if self.display and self.display.poll() is None:
+            self.display.terminate()
+            self.display.wait(timeout=10)
         self.log.close()
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('prefix', type=Path)
-    parser.add_argument('backend', choices=['zellij', 'wezterm', 'kitty'])
+    parser.add_argument('backend', choices=['zellij', 'wezterm', 'kitty', 'screen', 'native'])
     parser.add_argument('--artifacts', type=Path)
     args = parser.parse_args()
     name = 'vlang-host-' + uuid.uuid4().hex[:12]
@@ -161,8 +243,15 @@ def main():
     (project / 'v.mod').write_text("Module { name: 'pane_test' }\n")
     target = project / "it's.v"
     target.write_text('module main\nfn other() {}\n')
-    server = subprocess.Popen([kak, '-d', '-s', name, str(source)], env=env)
     host = Host(args.backend, root, name, env)
+    host.prepare()
+    if args.backend == 'native':
+        with (config / 'kakrc').open('a') as stream:
+            stream.write('try %{ declare-option str termcmd }\nset-option global termcmd ' + quote(shlex.quote(str(root / 'terminal')) + ' sh -c') + '\n')
+    server_env = dict(env)
+    if args.backend == 'native':
+        server_env.pop('DISPLAY', None)
+    server = subprocess.Popen([kak, '-d', '-s', name, str(source)], env=server_env)
     ready = root / 'client'
 
     def value(client, expression):
@@ -190,7 +279,7 @@ def main():
         host.start([kak, '-c', name, '-e', f'edit -existing {quote(source)}; rename-client source; echo -to-file {quote(ready)} ready'])
         wait_for(ready.exists, 'first client')
         original = wait_for(lambda: host.panes()[0] if len(host.panes()) == 1 else None, 'initial pane')
-        actual = value('source', f'%sh{{: "$kak_client_env_ZELLIJ" "$kak_client_env_ZELLIJ_SESSION_NAME" "$kak_client_env_WEZTERM_PANE" "$kak_client_env_KITTY_WINDOW_ID"; source=$(readlink -f "$kak_opt_v_plugin_source"); "${{source%/rc/vlang.kak}}/scripts/windowing.sh" detect auto}}')
+        actual = value('source', f'%sh{{: "$kak_client_env_ZELLIJ" "$kak_client_env_ZELLIJ_SESSION_NAME" "$kak_client_env_WEZTERM_PANE" "$kak_client_env_KITTY_WINDOW_ID" "$kak_client_env_STY" "$kak_client_env_DISPLAY"; source=$(readlink -f "$kak_opt_v_plugin_source"); "${{source%/rc/vlang.kak}}/scripts/windowing.sh" detect auto}}')
         if actual != args.backend:
             print('Plugin source:', value('source', '%opt{v_plugin_source}'))
             print('Client environment:', value('source', '%val{client_env_ZELLIJ} %val{client_env_ZELLIJ_SESSION_NAME}'))
@@ -213,7 +302,10 @@ def main():
             host.send(tree, ' q' if iteration == 0 else 'q')
             wait_for(lambda: len(host.panes()) == 1, 'tree closes')
             remote('source', f'edit -existing {quote(source)}; select 9.14,9.14')
-            assert 'unsaved pane check' in host.capture(original)
+            wait_for(lambda: 'unsaved pane check' in host.capture(original), 'source window redraw after closing tree')
+            contents = root / 'buffer-contents'
+            remote('source', f"evaluate-commands -draft %{{ execute-keys '%'; echo -to-file {quote(contents)} %val{{selection}} }}")
+            assert 'unsaved pane check' in contents.read_text()
             assert 'unsaved pane check' not in source.read_text()
             host.send(original, ' g')
             wait_for(lambda: len(host.panes()) == 2, 'definition peek')
@@ -240,7 +332,7 @@ def main():
         try:
             for pane in host.panes():
                 (root / ('pane-' + pane + '.txt')).write_text(host.capture(pane))
-        except (subprocess.SubprocessError, ValueError):
+        except (subprocess.SubprocessError, ValueError, RuntimeError):
             pass
         subprocess.run([kak, '-p', name], input=f'evaluate-commands -draft -buffer *debug* %{{ write -force {quote(root / "kak-debug")} }}\n', env=env, text=True, capture_output=True)
         time.sleep(.1)

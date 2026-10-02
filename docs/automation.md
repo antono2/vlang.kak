@@ -49,8 +49,21 @@ Only new releases built by managed setup gain full file ownership. Custom files
 in the isolated configuration are never included in the ownership record.
 
 Setup, rollback, cleanup and removal use an installation lock. A process killed
-with SIGKILL can leave `PREFIX/opt/vlang-state/lock`; check that no operation is
-running before removing that empty lock directory. Malformed ownership data,
+with SIGKILL can leave `PREFIX/opt/vlang-state/lock`. `:v-health` reports its owner,
+whether that process is still running, interrupted setup snapshots and rollback
+availability. To inspect or explicitly clear a known stale lock:
+
+```sh
+scripts/lock.sh --prefix "$HOME/.local"
+scripts/lock.sh --prefix "$HOME/.local" --clear-stale
+```
+
+PID start times prevent a reused PID from being mistaken for the original owner.
+Active locks, unknown/legacy owners and unexpected lock contents are preserved.
+For an empty legacy lock, inspect running setup/removal processes before using
+`rmdir` on that exact directory. Keep reported `pending.*` snapshots until recovery
+is complete; repair regenerates managed launchers, and rollback restores the
+previous completed installation. Malformed ownership data,
 redirected managed paths and unknown ownership are not grounds for deletion.
 
 ## Updates, rollback and repair
