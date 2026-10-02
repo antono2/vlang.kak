@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory(prefix='vlang-upgrade-') as directory:
     old_config = (prefix / 'opt/vlang-kakoune/ide-config/kak/kakrc').read_bytes()
     note = prefix / 'my-notes.txt'
     note.write_text('unrecorded personal file\n')
-    inherited = prefix / 'opt/vlang-kak-lsp/current/my-notes.txt'
+    inherited = (prefix / 'opt/vlang-kak-lsp/current').resolve() / 'my-notes.txt'
     inherited.write_text('personal file in an inherited tool release\n')
     isolated_note = prefix / 'opt/vlang-kakoune/ide-config/kak/autoload/custom.kak'
     isolated_note.write_text('# personal isolated autoload\n')
