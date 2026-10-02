@@ -427,7 +427,10 @@ builds the latest upstream VLS. `--vls-ref` selects a tag or commit, and
 accepts the same flags and refreshes managed Kakoune, kak-lsp, and VLS builds. It
 fast forwards this plugin's checkout only when it is clean, and keeps
 `vlang-user.kak`. An externally linked VLS is preserved
-unless you pass `--vls-upstream`. Update the V compiler separately. `scripts/check.sh` reports the paths
+unless you pass `--vls-upstream`. Setup can build a compatible managed V compiler
+without changing the external compiler; a managed compiler follows the tested
+pin on later updates. Use `--managed-v` or `--system-v` to persist your selection.
+`scripts/check.sh` reports the paths
 and versions that the setup currently uses; set `VLANG_KAK_PREFIX` first if
 you used a nondefault prefix.
 
@@ -441,7 +444,7 @@ such as `:v-update --vls /absolute/path/to/vls` or
 `:v-update --kakoune-version v2026.05.21`. It keeps the launcher's prefix, so
 pass `--prefix` only to the external setup or update scripts.
 
-The managed launcher restores open files backed by disk and the active file's
+The normal managed update/restart restores open files backed by disk and the active file's
 main cursor. Scratch buffers, selections other than the main cursor, and other
 clients need to be reopened. Run the update from a session started by `kak-v`
 with one client; an attached `kak-v -c` client cannot restart its server.
@@ -451,6 +454,20 @@ Kakoune keeps unsaved edits open instead of discarding them; save those edits
 and run `:v-restart` to finish the restart. If the update fails, its output
 stays in `*make*` and the current session remains open. The default in-editor
 update refreshes Kakoune, kak-lsp, and managed upstream VLS.
+
+`:v-update-release` (`Space U v`) selects a published release and its verified
+tool pins, including managed VLS. Use ordinary update to preserve an external
+VLS. Release selection keeps local edits and a development revision already
+ahead of the latest release. A detached release checkout stays on that update
+path on subsequent updates.
+
+`:v-session-save` (`Space U S`) creates a private checkpoint without writing
+project files. `:v-restart-recover` (`Space U R`) asks before restarting and
+restores unsaved source, scratch text, complete selections and multiple client
+views through a supported pane host. Auxiliary views become closeable text
+snapshots. Pane geometry, running tasks and runtime-only customizations are not
+serialized. `:v-session-restore` reopens the checkpoint in a fresh session if
+needed. See [session recovery](automation.md#session-recovery).
 
 See the [release guide](release.md) for backend verification, update recovery, and removal instructions.
 
