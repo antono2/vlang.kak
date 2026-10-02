@@ -5,11 +5,13 @@ helper=$1
 temporary=$(mktemp -d "${TMPDIR:-/tmp}/vlang-kak-windowing.XXXXXXXX")
 trap 'rm -rf -- "$temporary"' EXIT HUP INT TERM
 
-for name in tmux zellij wezterm kitty screen; do
+for name in tmux zellij wezterm kitty screen foot; do
   cat > "$temporary/$name" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$@" > "$VLANG_WINDOWING_TEST_LOG"
 printf '%s\n' "${WEZTERM_UNIX_SOCKET:-}" > "$VLANG_WINDOWING_TEST_LOG.socket"
+printf '%s\n' "${WAYLAND_DISPLAY:-}" "${XDG_RUNTIME_DIR:-}" > "$VLANG_WINDOWING_TEST_LOG.runtime"
+printf '%s\n' "${VLANG_VIEW_SESSION:-}" > "$VLANG_WINDOWING_TEST_LOG.session"
 EOF
   chmod +x "$temporary/$name"
 done
@@ -49,5 +51,18 @@ grep -qx -- '123.session name' "$VLANG_WINDOWING_TEST_LOG"
 grep -qx -- '2' "$VLANG_WINDOWING_TEST_LOG"
 grep -qx -- 'test-session' "$VLANG_WINDOWING_TEST_LOG"
 grep -qx -- 'edit "quoted path"' "$VLANG_WINDOWING_TEST_LOG"
+
+rm -f "$VLANG_WINDOWING_TEST_LOG" "$VLANG_WINDOWING_TEST_LOG.session"
+kak_opt_termcmd= kak_client_env_WAYLAND_DISPLAY=wayland-test \
+  kak_client_env_XDG_RUNTIME_DIR='/tmp/runtime with spaces' \
+  "$helper" open native right test-session 'edit "quoted path"' >/dev/null
+tries=0
+while ! grep -qx -- test-session "$VLANG_WINDOWING_TEST_LOG.session" 2>/dev/null; do
+  tries=$((tries + 1)); [ "$tries" -lt 50 ]; sleep .1
+done
+grep -qx -- 'wayland-test' "$VLANG_WINDOWING_TEST_LOG.runtime"
+grep -qx -- '/tmp/runtime with spaces' "$VLANG_WINDOWING_TEST_LOG.runtime"
+grep -qx -- 'test-session' "$VLANG_WINDOWING_TEST_LOG.session"
+grep -qx -- 'sh' "$VLANG_WINDOWING_TEST_LOG"
 
 echo 'ok - pane host detection and client launch arguments'

@@ -95,7 +95,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes build-essential git curl unzip tmux python3 gdb \
-            xvfb xauth screen xterm xdotool libegl1 libgl1-mesa-dri libopengl0 libfontconfig1 \
+            xvfb xauth screen xterm xdotool sway foot wtype libegl1 libgl1-mesa-dri libopengl0 libfontconfig1 \
             libxcursor1 libxrandr2 libxi6 libxinerama1 libxkbcommon0 \
             libxkbcommon-x11-0 libxcb-xkb1
 
@@ -114,10 +114,16 @@ jobs:
           key: v-ubuntu24-${{ runner.arch }}-${{ steps.compiler-cache.outputs.gcc }}-${{ steps.compiler-cache.outputs.pins }}-${{ hashFiles('scripts/install-v.sh') }}
 
       - name: Build or reuse the pinned V compiler
+        env:
+          COMPILER_CACHE_HIT: ${{ steps.compiler-restore.outputs.cache-hit }}
         run: |
+          build_started=$(date +%s)
           ./scripts/install-v.sh "/home/runner/.cache/vlang-kak-ci/v-toolchain"
           echo "/home/runner/.cache/vlang-kak-ci/v-toolchain/opt/vlang-v/current" >> "$GITHUB_PATH"
           "/home/runner/.cache/vlang-kak-ci/v-toolchain/opt/vlang-v/current/v" version
+          elapsed=$(( $(date +%s) - build_started ))
+          if [ "$COMPILER_CACHE_HIT" = true ]; then cache_status=hit; else cache_status=miss; fi
+          printf 'V compiler cache: %s; build/reuse: %s seconds\n' "$cache_status" "$elapsed" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Save the completed compiler build
         if: steps.compiler-restore.outputs.cache-hit != 'true'
@@ -166,11 +172,13 @@ jobs:
             ${{ runner.temp }}/vlang-pane-tools/kitty.txz
           key: ${{ steps.pane-restore.outputs.cache-primary-key }}
 
-      - name: Test real Zellij, WezTerm, kitty, Screen and Xterm clients
+      - name: Test real Zellij, WezTerm, kitty, Screen, Xterm and Wayland Foot clients
         run: |
           screen --version
           xterm -version
-          for backend in zellij wezterm kitty screen native; do
+          foot --version
+          sway --version
+          for backend in zellij wezterm kitty screen native wayland; do
             python3 tests/pane_hosts.py "$RUNNER_TEMP/vlang-release/prefix" "$backend" \
               --artifacts "$RUNNER_TEMP/vlang-release/pane-hosts/$backend"
           done

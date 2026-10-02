@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Real owning launcher plus tmux views survive a recovery restart."""
-import os, shlex, subprocess, sys, tempfile, uuid
+import os, shlex, subprocess, sys, tempfile, uuid, shutil, signal, time
 from pathlib import Path
 from panes import wait_for, quote
 
@@ -33,6 +33,34 @@ with tempfile.TemporaryDirectory(prefix='vlang-recovery-') as directory:
         wait_for(lambda:len(tmux('list-panes','-F','#{pane_id}').splitlines())==2,'extra view')
         wait_for(lambda:value('client0','clients','%val{client_list}')=='client0 client1','second client')
         remote('client1',f'edit {quote(second)}; select 1.2,1.4')
+        # Interrupt an actual update after launchers/configuration change while
+        # both live clients still contain unsaved text and independent selections.
+        private=root/'update-source'
+        shutil.copytree(repo,private,ignore=shutil.ignore_patterns('.git','__pycache__'))
+        implementation=private/'scripts/setup-impl.sh'
+        text=implementation.read_text()
+        barrier=root/'update-barrier'
+        before='"$script_dir/managed-state.sh" record "$prefix" "$config_home" "$vls_mode"'
+        assert text.count(before)==1
+        implementation.write_text(text.replace(before, 'touch '+str(barrier)+'\nwhile :; do sleep 1; done\n'+before))
+        update=subprocess.Popen([str(private/'scripts/update.sh'),'--prefix',str(prefix),'--no-build','--no-lsp',
+                                 '--no-vls','--no-explorer','--pane-mode','off'],env=env,start_new_session=True,
+                                stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        try:
+            wait_for(lambda:barrier.exists() or update.poll() is not None,'update reaches interrupted activation')
+            assert barrier.exists(),'update failed before the interruption barrier'
+            os.killpg(update.pid,signal.SIGKILL);update.wait(timeout=10)
+        finally:
+            if update.poll() is None:
+                os.killpg(update.pid,signal.SIGKILL);update.wait(timeout=10)
+        snapshot=next((prefix/'opt/vlang-state').glob('pending.*'))
+        for command in [
+            [str(repo/'scripts/lock.sh'),'--prefix',str(prefix),'--clear-stale'],
+            [str(repo/'scripts/rollback.sh'),'--prefix',str(prefix),'--recover',str(snapshot)]]:
+            result=subprocess.run(command,env=env,text=True,capture_output=True)
+            assert result.returncode==0,result.stdout+result.stderr
+        assert 'v_pane_mode auto' in (prefix/'opt/vlang-kakoune/ide-config/kak/kakrc').read_text()
+        assert value('client0','still-open','%val{client_list}')=='client0 client1'
         old=value('client0','oldpid','%val{client_pid}')
         (root/'ready').unlink()
         remote('client0','v-restart-recover-now')
@@ -44,7 +72,7 @@ with tempfile.TemporaryDirectory(prefix='vlang-recovery-') as directory:
         remote('client0',f'write {quote(root/"recovered")}')
         assert (root/'recovered').read_text().startswith('Unsaved') and first.read_text().startswith('first')
         assert len(tmux('list-panes','-F','#{pane_id}').splitlines())==2
-        print('ok - real recovery restart preserves unsaved source and multiple client buffers/selections')
+        print('ok - interrupted update recovery and real restart preserve unsaved source and multiple client buffers/selections')
     except Exception:
         try:
             for pane in tmux('list-panes','-F','#{pane_id}').splitlines(): print(tmux('capture-pane','-p','-t',pane))

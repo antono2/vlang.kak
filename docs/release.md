@@ -58,8 +58,9 @@ replace that check. Version 1.1.0 is the first full IDE release.
 | kitty 0.49.2 | Automated real clients under Xvfb with socket remote control: the same pane workflows and unsaved-edit checks |
 | GNU Screen 4.9.1 | Automated real clients in separate Screen windows: tree/open/close, peek, independent cursors, unsaved edits and repeated use |
 | X11 / Xterm 390 | Automated real terminal windows under a private Xvfb display, with the daemon outside X11: the same workflows and unsaved-edit checks |
+| Wayland / Foot 1.16.2 on Sway 1.9 | Automated real windows on an isolated software-rendered headless compositor: keyboard-driven browsing, peek, close, independent cursors and unsaved edits |
 
-Other native terminals, Wayland and macOS window adapters remain experimental. Screen and Xterm create separate windows rather than split panes. No pane host is
+Other native terminals, Wayland compositor combinations and macOS window adapters remain experimental. Screen and Xterm create separate windows rather than split panes. No pane host is
 required for editing or VLS navigation; `v_pane_mode off` selects the single-client
 interface. The additional host versions and archive checksums are pinned in
 `tests/pane-hosts.env`. These results cover the tested Linux configurations;
@@ -67,13 +68,14 @@ custom host keymaps, plugins and other versions can affect behavior.
 
 The CI managed-installation job also runs `tests/pane_hosts.py` for each pinned
 host. Zellij uses an attached terminal on a private tmux socket; WezTerm uses
-a private mux server; Screen uses a private socket directory and attached terminal; kitty and Xterm use isolated Xvfb displays. Logs and pane captures
+a private mux server; Screen uses a private socket directory and attached terminal; kitty and Xterm use isolated Xvfb displays; Foot uses an isolated headless Sway compositor and virtual keyboard input. Logs and pane captures
 are included in the release-verification artifact. No user terminal configuration
 or active session is changed.
 
 CI caches the pinned V compiler at its permanent source path (V embeds those
 paths), with keys covering both source pins, compiler installer, runner architecture
-and GCC version. Terminal archives are cached by their pins and verified against
+and GCC version. Completed compiler builds and verified archives are saved before
+acceptance runs, so unrelated test failures do not discard them. Terminal archives are cached by their pins and verified against
 SHA-256 on every use before fresh extraction. Managed installation, ownership,
 upgrade and live acceptance checks still run against fresh installation prefixes.
 
@@ -172,7 +174,7 @@ one setup run to record ownership. See [ownership and safe removal](automation.m
 - All intended source, scripts, fixtures, and documentation are included in the commit; generated Python caches are excluded.
 - The changelog describes the IDE additions and the direct Space bindings.
 - Fast tests and the managed release job pass for the release commit.
-- The automated v1.1.1 upgrade checks preserve personal settings and external tools, and cover rollback and safe removal.
+- The automated v1.1.1 and v1.2.0 upgrade checks preserve personal settings and external tools, and cover rollback and safe removal.
 - Backend support claims match the table above.
 - Release notes state the restart limitations and tool versions.
 - Choose the release version, create its tag, and publish the release only after reviewing those results.

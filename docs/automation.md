@@ -62,8 +62,20 @@ PID start times prevent a reused PID from being mistaken for the original owner.
 Active locks, unknown/legacy owners and unexpected lock contents are preserved.
 For an empty legacy lock, inspect running setup/removal processes before using
 `rmdir` on that exact directory. Keep reported `pending.*` snapshots until recovery
-is complete; repair regenerates managed launchers, and rollback restores the
-previous completed installation. Malformed ownership data,
+is complete. After clearing a known stale lock, restore the snapshot reported by
+health:
+
+```sh
+scripts/rollback.sh --prefix "$HOME/.local" --recover "$HOME/.local/opt/vlang-state/pending.EXAMPLE"
+```
+
+Use the actual snapshot path printed by health. Recovery requires a complete
+snapshot from that installation. It preserves personal edits, keeps the recovered
+snapshot and the partial activation for inspection, and retains the ordinary
+previous-installation rollback target. Active sessions stay open; use
+`:v-restart-recover` afterward to preserve unsaved buffers and multiple views.
+Repair regenerates managed launchers; ordinary rollback restores the previous
+completed installation. Malformed ownership data,
 redirected managed paths and unknown ownership are not grounds for deletion.
 
 ## Updates, rollback and repair

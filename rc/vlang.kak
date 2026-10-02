@@ -705,7 +705,7 @@ define-command v-window-status -docstring 'Show the active client window backend
   evaluate-commands %sh{
     : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
       "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
-      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_ITERM_SESSION_ID:-}" \
+      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" \
       "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
     source=$(readlink -f "$kak_opt_v_plugin_source")
     helper=${source%/rc/vlang.kak}/scripts/windowing.sh
@@ -717,7 +717,7 @@ define-command v-tree-pane -docstring 'Open the project explorer in another view
   evaluate-commands %sh{
     : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
       "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
-      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_ITERM_SESSION_ID:-}" \
+      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" \
       "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
     mode=$kak_opt_v_pane_mode
     case "$mode" in
@@ -760,7 +760,7 @@ define-command v-peek-definition -docstring 'Peek at a definition in another vie
   evaluate-commands %sh{
     : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
       "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
-      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_ITERM_SESSION_ID:-}" \
+      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" \
       "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
     mode=$kak_opt_v_pane_mode
     case "$mode" in
@@ -824,7 +824,7 @@ define-command v-new-view -docstring 'Open another view of the current file in t
   evaluate-commands %sh{
     : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
       "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
-      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_ITERM_SESSION_ID:-}" \
+      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" \
       "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
     source=$(readlink -f "$kak_opt_v_plugin_source")
     helper=${source%/rc/vlang.kak}/scripts/windowing.sh
@@ -1750,7 +1750,7 @@ define-command v-refresh-keys -docstring 'Refresh context-aware V user-menu bind
     if [ "$context" = v ]; then
       : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
         "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
-        "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
+        "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
       source=$(readlink -f "$kak_opt_v_plugin_source")
       helper=${source%/rc/vlang.kak}/scripts/windowing.sh
       if [ -x "$helper" ]; then backend=$("$helper" detect "$kak_opt_v_window_backend"); fi
@@ -1906,7 +1906,7 @@ define-command -hidden -params 1.. v-maintenance-task %{
   evaluate-commands %sh{
     : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
       "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
-      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}" "$kak_opt_v_window_backend"
+      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}" "$kak_opt_v_window_backend"
     source=$(readlink -f "$kak_opt_v_plugin_source")
     script=${source%/rc/vlang.kak}/scripts/$1.sh
     shift
@@ -2046,7 +2046,7 @@ define-command v-session-save -docstring 'Checkpoint buffers and client position
     helper=${source%/rc/vlang.kak}/scripts/windowing.sh
     : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
       "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
-      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
+      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
     "$helper" detect "$kak_opt_v_window_backend" > "$kak_opt_v_session_checkpoint/backend"
     ln -sfn "$kak_opt_v_session_checkpoint" "${XDG_CACHE_HOME:-$HOME/.cache}/vlang.kak/sessions/latest"
     echo 'echo -debug "Session checkpoint saved; v-session-restore reopens it"'
@@ -2102,7 +2102,7 @@ define-command -hidden -params 2 v-session-open-client %{
     helper=${source%/rc/vlang.kak}/scripts/windowing.sh
     : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
       "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
-      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
+      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
     initial="source '$(printf %s "$1" | sed "s/'/''/g")'"
     "$helper" open "$2" right "$kak_session" "$initial" || echo "echo -debug 'A view could not reopen; its checkpoint remains available'"
   }

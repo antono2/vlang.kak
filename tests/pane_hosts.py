@@ -34,6 +34,7 @@ class Host:
         self.process = None
         self.display = None
         self.screen_sockets = None
+        self.wayland_runtime = None
         self.log = (root / 'host.log').open('w')
 
     def run(self, *args):
@@ -53,6 +54,34 @@ class Host:
             sockets = Path(tempfile.mkdtemp(prefix='vlang-screen-'))
             self.screen_sockets = sockets
             self.env['SCREENDIR'] = str(sockets)
+        if self.backend == 'wayland':
+            self.wayland_runtime = Path(tempfile.mkdtemp(prefix='vlang-wayland-'))
+            self.env.update(XDG_RUNTIME_DIR=str(self.wayland_runtime), WLR_BACKENDS='headless',
+                            WLR_LIBINPUT_NO_DEVICES='1', WLR_RENDERER='pixman')
+            config = self.root / 'sway.conf'
+            config.write_text('xwayland disable\noutput * resolution 1600x1200\nseat seat0 fallback true\ndefault_border none\n')
+            self.display = subprocess.Popen(['sway', '--unsupported-gpu', '-c', str(config)], env=self.env,
+                                            stdout=self.log, stderr=self.log)
+            socket = wait_for(lambda: next(self.wayland_runtime.glob('sway-ipc*.sock'), None), 'Sway socket')
+            self.env['SWAYSOCK'] = str(socket)
+            wayland = wait_for(lambda: next((p for p in self.wayland_runtime.glob('wayland-*') if p.is_socket()), None), 'Wayland socket')
+            self.env['WAYLAND_DISPLAY'] = wayland.name
+            foot = shutil.which('foot', path=self.env['PATH'])
+            assert foot, 'Foot must be installed for Wayland tests'
+            terminal = self.root / 'terminal'
+            terminal.write_text('#!/usr/bin/env python3\nimport os, shlex, sys\n' +
+                                'os.execv(' + repr(foot) + ', ["foot", "--app-id", ' + repr(self.name) +
+                                ', "--term=xterm-256color", "--window-size-chars", "140x40", ' +
+                                '"script", "-q", "-f", "-c", shlex.join(sys.argv[1:]), ' +
+                                repr(str(self.root / 'terminal-')) + ' + str(os.getpid()) + ".log"])\n')
+            terminal.chmod(0o755)
+            # Wrap the real Foot executable only in this fixture's PATH, so
+            # the plugin's default Wayland terminal retains capturable output.
+            shim = self.root / 'bin'
+            shim.mkdir()
+            (shim / 'foot').symlink_to(terminal)
+            self.env['PATH'] = str(shim) + os.pathsep + self.env['PATH']
+            return
         if self.backend != 'native':
             return
         read, write = os.pipe()
@@ -78,7 +107,7 @@ class Host:
                                  '-S', self.name, '-t', 'source', *command])
             self.run('tmux', '-L', self.name, '-f', '/dev/null', 'new-session', '-d', '-s', 'host',
                      '-x', '140', '-y', '40', attach)
-        elif self.backend == 'native':
+        elif self.backend in ('native', 'wayland'):
             self.process = subprocess.Popen([str(self.root / 'terminal'), *command],
                                             env=self.env, stdout=self.log, stderr=self.log)
         elif self.backend == 'zellij':
@@ -114,6 +143,8 @@ class Host:
             wait_for((self.root / 'kitty.sock').exists, 'kitty socket')
 
     def panes(self):
+        if self.backend == 'wayland':
+            return [str(node['id']) for node in self.wayland_nodes()]
         if self.backend == 'native':
             result = subprocess.run(['xdotool', 'search', '--class', '^' + self.name + '$'],
                                     text=True, capture_output=True, env=self.env)
@@ -135,8 +166,23 @@ class Host:
             return [str(p['pane_id']) for p in data]
         return [str(p['id']) for window in data for tab in window['tabs'] for p in tab['windows']]
 
+    def wayland_nodes(self):
+        tree = json.loads(self.run('swaymsg', '-r', '-t', 'get_tree'))
+        def walk(node):
+            yield node
+            for child in node.get('nodes', []) + node.get('floating_nodes', []):
+                yield from walk(child)
+        return [n for n in walk(tree) if n.get('app_id') == self.name]
+
     def send(self, pane, text):
-        if self.backend == 'native':
+        if self.backend == 'wayland':
+            self.run('swaymsg', '[con_id=' + pane + ']', 'focus')
+            for i, part in enumerate(text.split('\r')):
+                if i:
+                    self.run('wtype', '-s', '150', '-k', 'Return')
+                if part:
+                    self.run('wtype', '-s', '150', '-d', '80', '--', part)
+        elif self.backend == 'native':
             self.run('xdotool', 'windowfocus', '--sync', pane)
             for i, part in enumerate(text.split('\r')):
                 if i:
@@ -160,6 +206,11 @@ class Host:
             self.cli('send-text', '--match', 'id:' + pane, text.replace('\\', '\\\\').replace('\r', '\\r'))
 
     def capture(self, pane):
+        if self.backend == 'wayland':
+            pid = next(n['pid'] for n in self.wayland_nodes() if str(n['id']) == pane)
+            path = self.root / ('terminal-' + str(pid) + '.log')
+            wait_for(path.exists, 'Foot terminal stream')
+            return re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', path.read_text(errors='replace'))
         if self.backend == 'native':
             # Xterm logs its real terminal stream. The wrapper execs Xterm,
             # keeping its PID equal to the unique log file's identity.
@@ -205,13 +256,15 @@ class Host:
         if self.display and self.display.poll() is None:
             self.display.terminate()
             self.display.wait(timeout=10)
+        if self.wayland_runtime:
+            shutil.rmtree(self.wayland_runtime)
         self.log.close()
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('prefix', type=Path)
-    parser.add_argument('backend', choices=['zellij', 'wezterm', 'kitty', 'screen', 'native'])
+    parser.add_argument('backend', choices=['zellij', 'wezterm', 'kitty', 'screen', 'native', 'wayland'])
     parser.add_argument('--artifacts', type=Path)
     args = parser.parse_args()
     name = 'vlang-host-' + uuid.uuid4().hex[:12]
@@ -224,7 +277,7 @@ def main():
     env = dict(os.environ)
     for key in ['TMUX', 'TMUX_PANE', 'ZELLIJ', 'ZELLIJ_SESSION_NAME', 'ZELLIJ_PANE_ID',
                 'WEZTERM_PANE', 'WEZTERM_UNIX_SOCKET', 'KITTY_WINDOW_ID', 'KITTY_LISTEN_ON', 'STY',
-                'WAYLAND_DISPLAY', 'DISPLAY', 'ITERM_SESSION_ID']:
+                'WAYLAND_DISPLAY', 'DISPLAY', 'ITERM_SESSION_ID', 'SWAYSOCK']:
         env.pop(key, None)
     env['PATH'] = str(prefix / 'opt/vlang-kak-lsp/current/bin') + os.pathsep + str(prefix / 'bin') + os.pathsep + env['PATH']
     env['XDG_CONFIG_HOME'] = str(root / 'config')
@@ -244,13 +297,18 @@ def main():
     target = project / "it's.v"
     target.write_text('module main\nfn other() {}\n')
     host = Host(args.backend, root, name, env)
-    host.prepare()
+    try:
+        host.prepare()
+    except Exception:
+        host.stop()
+        raise
     if args.backend == 'native':
         with (config / 'kakrc').open('a') as stream:
             stream.write('try %{ declare-option str termcmd }\nset-option global termcmd ' + quote(shlex.quote(str(root / 'terminal')) + ' sh -c') + '\n')
     server_env = dict(env)
-    if args.backend == 'native':
+    if args.backend in ('native', 'wayland'):
         server_env.pop('DISPLAY', None)
+        server_env.pop('WAYLAND_DISPLAY', None)
     server = subprocess.Popen([kak, '-d', '-s', name, str(source)], env=server_env)
     ready = root / 'client'
 
@@ -279,12 +337,13 @@ def main():
         host.start([kak, '-c', name, '-e', f'edit -existing {quote(source)}; rename-client source; echo -to-file {quote(ready)} ready'])
         wait_for(ready.exists, 'first client')
         original = wait_for(lambda: host.panes()[0] if len(host.panes()) == 1 else None, 'initial pane')
-        actual = value('source', f'%sh{{: "$kak_client_env_ZELLIJ" "$kak_client_env_ZELLIJ_SESSION_NAME" "$kak_client_env_WEZTERM_PANE" "$kak_client_env_KITTY_WINDOW_ID" "$kak_client_env_STY" "$kak_client_env_DISPLAY"; source=$(readlink -f "$kak_opt_v_plugin_source"); "${{source%/rc/vlang.kak}}/scripts/windowing.sh" detect auto}}')
-        if actual != args.backend:
+        actual = value('source', f'%sh{{: "$kak_client_env_ZELLIJ" "$kak_client_env_ZELLIJ_SESSION_NAME" "$kak_client_env_WEZTERM_PANE" "$kak_client_env_KITTY_WINDOW_ID" "$kak_client_env_STY" "$kak_client_env_DISPLAY" "$kak_client_env_WAYLAND_DISPLAY"; source=$(readlink -f "$kak_opt_v_plugin_source"); "${{source%/rc/vlang.kak}}/scripts/windowing.sh" detect auto}}')
+        expected = 'native' if args.backend == 'wayland' else args.backend
+        if actual != expected:
             print('Plugin source:', value('source', '%opt{v_plugin_source}'))
             print('Client environment:', value('source', '%val{client_env_ZELLIJ} %val{client_env_ZELLIJ_SESSION_NAME}'))
             remote('source', f'evaluate-commands -draft -buffer *debug* %{{ write -force {quote(root / "kak-debug")} }}')
-        assert actual == args.backend, (actual, args.backend)
+        assert actual == expected, (actual, args.backend)
         remote('source', "execute-keys 'gei // unsaved pane check<esc>'")
         for iteration in range(2):
             remote('source', 'select 9.14,9.14')

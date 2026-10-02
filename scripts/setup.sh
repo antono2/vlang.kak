@@ -65,7 +65,8 @@ rm "$unknown"
 "$script_dir/managed-state.sh" snapshot "$prefix" "$snapshot"
 touch "$snapshot/ready"
 if [ -d "$repo_dir/.git" ] && [ -z "$(git -C "$repo_dir" status --porcelain)" ]; then
-  git -C "$repo_dir" rev-parse HEAD > "$snapshot/plugin-revision"
+  previous_plugin=$(git -C "$repo_dir" rev-parse --verify "${VLANG_KAK_PREVIOUS_PLUGIN_REVISION:-HEAD}^{commit}")
+  printf '%s\n' "$previous_plugin" > "$snapshot/plugin-revision"
   printf '%s\n' "$repo_dir" > "$snapshot/plugin-repo"
 fi
 VLANG_KAK_STAGE=1

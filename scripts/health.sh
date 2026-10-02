@@ -35,7 +35,8 @@ for pending in "$state"/pending.*; do
   [ -d "$pending" ] || continue
   if [ -f "$pending/ready" ]; then
     if [ "$lock_state" = 1 ]; then echo "Setup snapshot (operation active): $pending"; else
-    echo "Interrupted setup snapshot: $pending (keep it until recovery is complete)."; fi
+    echo "Interrupted setup snapshot: $pending (keep it until recovery is complete)."
+    echo "Recover it: scripts/rollback.sh --prefix '$prefix' --recover '$pending'"; fi
   else echo "Incomplete setup snapshot: $pending (activation snapshot was not completed)."; fi
 done
 [ ! -f "$state/previous/paths" ] || echo 'Previous installation snapshot: available for rollback.'
