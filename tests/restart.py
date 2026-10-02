@@ -134,6 +134,8 @@ def main():
                     lambda: client_file.stat().st_mtime_ns != client_started_at,
                     "in-editor update and restart",
                 )
+                if (prefix / "opt/vlang-v").exists():
+                    raise RuntimeError("External VLS update unexpectedly installed a managed compiler")
                 if value("new-pid", "%val{client_pid}") == original_pid:
                     raise RuntimeError("The launcher did not start a new Kakoune process")
                 if value("setting-after", "%opt{release_test_setting}") != "preserved":

@@ -161,6 +161,16 @@ if [ "$update" = true ] && [ "${VLANG_KAK_SKIP_PULL:-0}" != 1 ]; then
   fi
 fi
 
+if [ "$vls_mode" = auto ]; then
+  if [ -L "$prefix/bin/vls" ] &&
+     [ "$(readlink -f "$prefix/bin/vls")" != "$(readlink -f "$prefix/opt/vlang-vls/current/bin/vls" 2>/dev/null || true)" ]; then
+    vls_mode=skip
+    echo 'Keeping externally linked VLS. Use --vls-upstream to switch to managed upstream VLS.'
+  else
+    vls_mode=upstream
+  fi
+fi
+
 # Prefer an existing compiler that can compile the helpers and current VLS.
 # A fallback lives in the managed prefix and never replaces the system compiler.
 compiler_policy=auto
@@ -223,15 +233,6 @@ if [ ! -x "$lsp_bin" ]; then
   lsp_bin=$(command -v kak-lsp || true)
 fi
 
-if [ "$vls_mode" = auto ]; then
-  if [ -L "$prefix/bin/vls" ] &&
-     [ "$(readlink -f "$prefix/bin/vls")" != "$(readlink -f "$prefix/opt/vlang-vls/current/bin/vls" 2>/dev/null || true)" ]; then
-    vls_mode=skip
-    echo 'Keeping externally linked VLS. Use --vls-upstream to switch to managed upstream VLS.'
-  else
-    vls_mode=upstream
-  fi
-fi
 if [ "$vls_mode" = upstream ]; then
   if [ -n "$vls_ref" ]; then
     "$script_dir/install-vls.sh" --ref "$vls_ref" --prefix "$prefix"
