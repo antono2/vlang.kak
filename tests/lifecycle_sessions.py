@@ -54,5 +54,18 @@ with tempfile.TemporaryDirectory(prefix='vlang-recovery-') as directory:
         except Exception as error: print('diagnostics:',error)
         raise
     finally:
+        # tmux acknowledges kill-server before its pane processes finish. Wait
+        # for our launcher/clients to exit before TemporaryDirectory removes
+        # files that their shutdown hooks may still be writing.
+        shutdown_pids=set()
+        for marker in (prefix/'opt/vlang-kakoune').glob('restart.*/owner-pid'):
+            try: shutdown_pids.add(int(marker.read_text().strip()))
+            except (OSError, ValueError): pass
+        try: shutdown_pids.update(int(pid) for pid in tmux('list-panes','-F','#{pane_pid}').splitlines())
+        except subprocess.CalledProcessError: pass
         subprocess.run([kak,'-p',name],input='kill!\n',env=env,text=True,capture_output=True)
         subprocess.run(['tmux','-L',name,'kill-server'],env=env,capture_output=True)
+        def exited(pid):
+            try: return Path(f'/proc/{pid}/stat').read_text().rsplit(') ',1)[1].split()[0] in ('Z','X')
+            except FileNotFoundError: return True
+        wait_for(lambda:all(exited(pid) for pid in shutdown_pids),'test launcher/client shutdown',timeout=10)
