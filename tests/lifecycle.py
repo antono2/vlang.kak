@@ -38,14 +38,35 @@ with tempfile.TemporaryDirectory(prefix='vlang-lifecycle-') as directory:
     autoload=config/'kak/autoload';autoload.mkdir()
     other=root/'other.kak';other.write_text('# other\n')
     (autoload/'vlang.kak').symlink_to(other)
+    isolated_custom=prefix/'opt/vlang-kakoune/ide-config/kak/autoload/custom.kak'
+    isolated_custom.write_text('# my isolated configuration\n')
     run(setup,env)
     assert str(autoload/'vlang.kak') not in (prefix/'opt/vlang-state/manifest.tsv').read_text()
+    assert str(isolated_custom) not in (prefix/'opt/vlang-state/manifest.tsv').read_text()
+    # Cleanup resolves a saved relative activation link against its original
+    # installation root, and removes only the unrelated inactive version.
+    tool=prefix/'opt/vlang-vls'
+    for version in ['old','current','unused']:
+        release=tool/'releases'/version; release.mkdir(parents=True)
+        (release/'.vlang-commit').write_text(version)
+        (release/'payload').write_text(version)
+    (tool/'current').symlink_to('releases/old')
+    run([str(repo/'scripts/managed-state.sh'),'record',str(prefix),str(config)],env)
+    previous=prefix/'opt/vlang-state/previous'
+    import shutil
+    shutil.rmtree(previous)
+    run([str(repo/'scripts/managed-state.sh'),'snapshot',str(prefix),str(previous)],env)
+    (tool/'current').unlink(); (tool/'current').symlink_to('releases/current')
+    run([str(repo/'scripts/cleanup.sh'),'--prefix',str(prefix),'--apply'],env)
+    assert (tool/'releases/old/payload').exists() and (tool/'releases/current/payload').exists()
+    assert not (tool/'releases/unused').exists()
     # Unchanged owned files are removed; a changed launcher and personal files survive.
     launcher=prefix/'bin/kak-v';launcher.write_text(launcher.read_text()+'# my edit\n')
     preview=run([str(repo/'scripts/uninstall.sh'),'--prefix',str(prefix)],env)
     assert launcher.exists() and 'Keep changed:' in preview.stdout
     run([str(repo/'scripts/uninstall.sh'),'--prefix',str(prefix),'--apply'],env)
     assert launcher.exists() and user.exists() and (autoload/'vlang.kak').resolve()==other
+    assert isolated_custom.exists()
     assert not (prefix/'opt/vlang-kakoune/ide-config/kak/kakrc').exists()
     # Project arguments stay data even when they contain shell syntax and quotes.
     project=root/"project's with spaces";project.mkdir(); (project/'v.mod').write_text('Module { name: "test" }')

@@ -19,6 +19,7 @@ All notable changes to `vlang.kak` will be documented in this file.
 - Fix shell quoting for task/update paths and arguments containing apostrophes.
 - Preserve external VLS before deciding whether a newer compiler is required.
 - Restore scratch checkpoints on older packaged Kakoune.
+- Preserve inherited tool releases without a trusted ownership baseline and custom isolated configuration during removal; retain rollback releases with relative activation links during cleanup.
 
 ## 1.1.1 - 2026-10-02
 
