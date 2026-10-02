@@ -143,6 +143,7 @@ jobs:
 
       - name: Test clean installation, live navigation, debugging, panes, and updates
         run: |
+          set -o pipefail
           ./tests/release.sh "$RUNNER_TEMP/vlang-release" 2>&1 | tee "$RUNNER_TEMP/vlang-release.log"
 
       - name: Restore verified pane-host download archives
