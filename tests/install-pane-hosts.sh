@@ -12,7 +12,11 @@ test_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 mkdir -p "$1"
 root=$(CDPATH= cd -- "$1" && pwd)
 download() {
-  curl --fail --location --retry 3 --output "$root/$1" "$2"
+  if [ ! -f "$root/$1" ] || ! printf '%s  %s\n' "$3" "$root/$1" | sha256sum --check --status; then
+    curl --fail --location --retry 3 --output "$root/$1.part" "$2"
+    printf '%s  %s\n' "$3" "$root/$1.part" | sha256sum --check
+    mv "$root/$1.part" "$root/$1"
+  fi
   printf '%s  %s\n' "$3" "$root/$1" | sha256sum --check
 }
 download zellij.tar.gz \

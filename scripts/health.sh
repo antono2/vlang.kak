@@ -26,6 +26,19 @@ done
 if [ -f "$prefix/opt/vlang-state/manifest.tsv" ]; then
   printf 'Ownership manifest: present\n'
 else echo 'Ownership manifest: missing; rerun setup before automated removal.'; fi
+state=$prefix/opt/vlang-state
+. "$script_dir/install-lock.inc"
+printf '\n'
+lock_state=0
+lock_status || lock_state=$?
+for pending in "$state"/pending.*; do
+  [ -d "$pending" ] || continue
+  if [ -f "$pending/ready" ]; then
+    if [ "$lock_state" = 1 ]; then echo "Setup snapshot (operation active): $pending"; else
+    echo "Interrupted setup snapshot: $pending (keep it until recovery is complete)."; fi
+  else echo "Incomplete setup snapshot: $pending (activation snapshot was not completed)."; fi
+done
+[ ! -f "$state/previous/paths" ] || echo 'Previous installation snapshot: available for rollback.'
 printf '\nRepair: :v-repair or scripts/health.sh --repair\nRollback: :v-rollback or scripts/rollback.sh\n'
 printf 'Missing system dependencies: install through your package manager, then rerun setup.\n'
 if [ "${1:-}" = --report ]; then

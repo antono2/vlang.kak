@@ -6,8 +6,10 @@ case ${1:-} in --prefix) prefix=$2 ;; --help|-h) echo 'Usage: rollback.sh [--pre
 prefix=$(readlink -m "$prefix")
 state=$prefix/opt/vlang-state
 [ -f "$state/previous/paths" ] || { echo 'No previous installation snapshot.' >&2; exit 1; }
-mkdir "$state/lock" 2>/dev/null || { echo 'Another installation operation is active.' >&2; exit 1; }
-trap 'rmdir "$state/lock"' EXIT HUP INT TERM
+. "$script_dir/install-lock.inc"
+lock_acquire rollback
+trap lock_release EXIT
+trap 'exit 130' HUP INT TERM
 next=$(mktemp -d "$state/rollback.XXXXXXXX")
 "$script_dir/managed-state.sh" snapshot "$prefix" "$next"
 "$script_dir/managed-state.sh" restore "$prefix" "$state/previous"

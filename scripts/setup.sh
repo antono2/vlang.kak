@@ -2,6 +2,8 @@
 # Serialize setup and restore the previous complete activation on failure.
 set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_dir=$(dirname "$script_dir")
+. "$script_dir/install-lock.inc"
 prefix=$HOME/.local
 previous=
 for argument do
@@ -18,7 +20,7 @@ done
 "$script_dir/preflight.sh" "$@"
 state=$prefix/opt/vlang-state
 mkdir -p "$state"
-mkdir "$state/lock" 2>/dev/null || { echo 'Another setup/removal operation is active.' >&2; exit 1; }
+lock_acquire setup
 snapshot=$(mktemp -d "$state/pending.XXXXXXXX")
 cleanup() {
   status=$?
@@ -33,14 +35,14 @@ cleanup() {
       old=$(cat "$snapshot/plugin-revision")
       [ "$old" = "$(git -C "$repo_dir" rev-parse HEAD)" ] || git -C "$repo_dir" checkout --detach "$old"
     fi
-    echo 'Setup failed. Previous managed tool activation restored.' >&2
+    if [ "$restored" = true ]; then echo 'Setup failed. Previous managed tool activation restored.' >&2; fi
     [ "$restored" = false ] || rm -rf "$snapshot"
   else
     rm -rf "$state/previous"
     mv "$snapshot" "$state/previous"
   fi
   for tool in kakoune kak-lsp vls v; do rm -f "$prefix/opt/vlang-$tool/candidate"; done
-  rmdir "$state/lock"
+  lock_release
   exit "$status"
 }
 trap cleanup EXIT
@@ -62,7 +64,6 @@ mv "$state/unowned-releases.next" "$state/unowned-releases"
 rm "$unknown"
 "$script_dir/managed-state.sh" snapshot "$prefix" "$snapshot"
 touch "$snapshot/ready"
-repo_dir=$(dirname "$script_dir")
 if [ -d "$repo_dir/.git" ] && [ -z "$(git -C "$repo_dir" status --porcelain)" ]; then
   git -C "$repo_dir" rev-parse HEAD > "$snapshot/plugin-revision"
   printf '%s\n' "$repo_dir" > "$snapshot/plugin-repo"

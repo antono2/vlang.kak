@@ -33,7 +33,12 @@ old_kak=$(readlink -f "/proc/$client_pid/exe")
 
 "$script_dir/update.sh" --prefix "$prefix" "$@"
 echo 'Update installed. Requesting restart.'
-echo 'If Kakoune remains open with unsaved edits, save them and run :v-restart.'
+echo 'If Kakoune remains open, check *debug* for the restart error. Save edits, close additional clients or stop debugging, then run :v-restart.'
+echo 'For unsaved buffers and multiple views, use :v-restart-recover and confirm the recovery restart.'
 quoted_client=$(printf %s "$client" | sed "s/'/''/g")
-printf "evaluate-commands -client '%s' %%{ v-restart }\n" "$quoted_client" |
-  "$old_kak" -p "$session"
+if ! printf "evaluate-commands -client '%s' %%{ v-restart }\n" "$quoted_client" |
+  "$old_kak" -p "$session"; then
+  echo 'The update succeeded, but the original session could not receive the restart request.' >&2
+  echo "Run '$prefix/bin/kak-v' to start the updated IDE; existing recovery checkpoints are kept." >&2
+  exit 1
+fi
