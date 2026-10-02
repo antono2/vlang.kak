@@ -4,6 +4,9 @@ set -eu
 case ${1:-} in --help|-h) echo 'Usage: session-buffer.sh (called by Kakoune with buffer checkpoint environment)'; exit 0 ;; esac
 umask 077
 [ "$kak_bufname" != "*debug*" ] || exit 0
+# Before Kakoune 2026.04, scratch buffers expose their name as buffile.
+# File buffers always expose an absolute path.
+case "$kak_buffile" in /*|'') ;; *) kak_buffile= ;; esac
 directory=$kak_opt_v_session_checkpoint
 identity=$(printf %s "$kak_bufname" | sha256sum | cut -d ' ' -f 1)
 copy=$directory/buffer-$identity

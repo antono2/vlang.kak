@@ -2134,6 +2134,8 @@ define-command -hidden v-update-check-background %{
 hook -group v-update-check global ClientCreate .* %{ v-update-check-background }
 
 define-command v-recovery-close -docstring 'Close recovered auxiliary output; checkpoint stays available' %{
-  evaluate-commands %sh{ [ -z "$kak_buffile" ] || echo "fail 'Only recovered scratch output can be closed here'" }
+  evaluate-commands %sh{
+    case "$kak_buffile" in /*) echo "fail 'Only recovered scratch output can be closed here'" ;; esac
+  }
   delete-buffer!
 }
