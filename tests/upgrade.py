@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upgrade an actual v1.1.1 installation, then exercise rollback and removal."""
+"""Upgrade an actual published installation, then exercise rollback and removal."""
 import os
 from pathlib import Path
 import shutil
@@ -9,6 +9,7 @@ import tempfile
 
 repo = Path(__file__).resolve().parent.parent
 tools = Path(sys.argv[1]).resolve()
+base_ref = sys.argv[2] if len(sys.argv) > 2 else 'v1.1.1'
 revision = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip()
 with tempfile.TemporaryDirectory(prefix='vlang-upgrade-') as directory:
     root = Path(directory)
@@ -47,10 +48,10 @@ with tempfile.TemporaryDirectory(prefix='vlang-upgrade-') as directory:
         return result
 
     run(['git', 'clone', '--quiet', '--no-local', str(repo), str(checkout)])
-    run(['git', '-C', str(checkout), 'checkout', '--quiet', '--detach', 'v1.1.1'])
+    run(['git', '-C', str(checkout), 'checkout', '--quiet', '--detach', base_ref])
     setup = [str(checkout / 'scripts/setup.sh'), '--prefix', str(prefix), '--integrate', '--no-build', '--no-lsp']
     run(setup + ['--vls', str(vls)])
-    assert not (prefix / 'opt/vlang-state/manifest.tsv').exists()
+    assert (prefix / 'opt/vlang-state/manifest.tsv').exists() == (base_ref != 'v1.1.1')
     old_config = (prefix / 'opt/vlang-kakoune/ide-config/kak/kakrc').read_bytes()
     note = prefix / 'my-notes.txt'
     note.write_text('unrecorded personal file\n')

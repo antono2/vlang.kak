@@ -174,7 +174,7 @@ one setup run to record ownership. See [ownership and safe removal](automation.m
 - All intended source, scripts, fixtures, and documentation are included in the commit; generated Python caches are excluded.
 - The changelog describes the IDE additions and the direct Space bindings.
 - Fast tests and the managed release job pass for the release commit.
-- The automated v1.1.1 upgrade checks preserve personal settings and external tools, and cover rollback and safe removal.
+- The automated v1.1.1 and v1.2.0 upgrade checks preserve personal settings and external tools, and cover rollback and safe removal.
 - Backend support claims match the table above.
 - Release notes state the restart limitations and tool versions.
 - Choose the release version, create its tag, and publish the release only after reviewing those results.

@@ -7,6 +7,7 @@ All notable changes to `vlang.kak` will be documented in this file.
 ### Added
 
 - Verify Wayland Foot windows using real keyboard input on headless Sway; forward the requesting client's Wayland display/runtime.
+- Verify upgrades from both v1.1.1 and v1.2.0, preserving ownership records, external tools and personal settings.
 - Recover a completed pending setup snapshot explicitly, with end-to-end SIGKILL activation and live unsaved-buffer/multiple-view restart tests.
 - Verify real GNU Screen and Xterm clients automatically, including closing temporary views, independent cursors and unsaved edits.
 - Cache the pinned CI compiler and verified terminal downloads while keeping fresh installation and upgrade coverage.
