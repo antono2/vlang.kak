@@ -30,6 +30,7 @@ case "$operation" in
       [ -d "$root" ] || continue
       # Only releases identified by the tool installer belong to us.
       for release in "$root"/releases/*; do
+        if [ -f "$state/unowned-releases" ] && grep -Fxq "$release" "$state/unowned-releases"; then continue; fi
         [ -f "$release/.vlang-version" ] || [ -f "$release/.vlang-commit" ] || [ -f "$release/.vlang-revision" ] || continue
         find "$release" -depth -print | while IFS= read -r path; do record "$path"; done
       done
@@ -37,7 +38,10 @@ case "$operation" in
     done
     isolated=$prefix/opt/vlang-kakoune/ide-config
     if [ -f "$isolated/kak/kakrc" ]; then
-      find "$isolated" -depth -print | while IFS= read -r path; do record "$path"; done
+      for relative in kak/kakrc kak/autoload/vlang.kak kak/autoload/vlang-site-runtime kak/autoload kak; do
+        record "$isolated/$relative"
+      done
+      record "$isolated"
     fi
     for launcher in kak kak-v v; do
       path=$prefix/bin/$launcher

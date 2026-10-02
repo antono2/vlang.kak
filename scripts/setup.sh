@@ -45,6 +45,21 @@ cleanup() {
 }
 trap cleanup EXIT
 trap 'exit 130' HUP INT TERM
+# Legacy/cached releases have no trustworthy per-file ownership baseline.
+# Keep them unowned rather than adopting user additions or edits on migration.
+unknown=$(mktemp "$state/unowned.XXXXXXXX")
+[ ! -f "$state/unowned-releases" ] || cat "$state/unowned-releases" > "$unknown"
+for tool in kakoune kak-lsp vls v; do
+  for release in "$prefix/opt/vlang-$tool"/releases/*; do
+    [ -d "$release" ] || continue
+    if [ ! -f "$state/manifest.tsv" ] || ! awk -F '\t' -v p="$release" '$3==p {found=1} END {exit !found}' "$state/manifest.tsv"; then
+      printf '%s\n' "$release" >> "$unknown"
+    fi
+  done
+done
+LC_ALL=C sort -u "$unknown" > "$state/unowned-releases.next"
+mv "$state/unowned-releases.next" "$state/unowned-releases"
+rm "$unknown"
 "$script_dir/managed-state.sh" snapshot "$prefix" "$snapshot"
 touch "$snapshot/ready"
 repo_dir=$(dirname "$script_dir")

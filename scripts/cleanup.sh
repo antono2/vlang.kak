@@ -15,9 +15,11 @@ active_executables=$("$script_dir/active-tools.sh" "$prefix" | sed '/^managed-pr
 for tool in kakoune kak-lsp vls v; do
   root=$prefix/opt/vlang-$tool
   current=$(readlink -f "$root/current" 2>/dev/null || true)
-  previous=$(readlink -f "$state/previous/opt/vlang-$tool/current" 2>/dev/null || true)
+  previous=$(readlink "$state/previous/opt/vlang-$tool/current" 2>/dev/null || true)
+  case "$previous" in '') ;; /*) previous=$(readlink -m "$previous") ;; *) previous=$(readlink -m "$root/$previous") ;; esac
   for release in "$root"/releases/*; do
     [ -d "$release" ] && [ ! -L "$release" ] || continue
+    if [ -f "$state/unowned-releases" ] && grep -Fxq "$release" "$state/unowned-releases"; then echo "Keep release without a trusted ownership baseline: $release"; continue; fi
     [ "$release" != "$current" ] && [ "$release" != "$previous" ] || continue
     active=false
     case "$active_executables" in *"$release/"*) active=true ;; esac

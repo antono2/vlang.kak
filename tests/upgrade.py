@@ -54,12 +54,18 @@ with tempfile.TemporaryDirectory(prefix='vlang-upgrade-') as directory:
     old_config = (prefix / 'opt/vlang-kakoune/ide-config/kak/kakrc').read_bytes()
     note = prefix / 'my-notes.txt'
     note.write_text('unrecorded personal file\n')
+    inherited = prefix / 'opt/vlang-kak-lsp/current/my-notes.txt'
+    inherited.write_text('personal file in an inherited tool release\n')
+    isolated_note = prefix / 'opt/vlang-kakoune/ide-config/kak/autoload/custom.kak'
+    isolated_note.write_text('# personal isolated autoload\n')
     run(['git', '-C', str(checkout), 'checkout', '--quiet', '--detach', revision])
     run(setup + ['--pane-mode', 'off'])
     generated = prefix / 'opt/vlang-kakoune/ide-config/kak/kakrc'
     assert 'v_pane_mode off' in generated.read_text()
     assert (prefix / 'bin/vls').resolve() == vls
     assert not (prefix / 'opt/vlang-v').exists()
+    manifest = (prefix / 'opt/vlang-state/manifest.tsv').read_text()
+    assert str(inherited.resolve()) not in manifest and str(isolated_note) not in manifest
     launcher = (prefix / 'bin/kak-v').read_bytes()
     run(setup + ['--vls', str(root / 'missing-vls')], ok=False)
     assert launcher == (prefix / 'bin/kak-v').read_bytes()
@@ -76,6 +82,7 @@ with tempfile.TemporaryDirectory(prefix='vlang-upgrade-') as directory:
     run([str(checkout / 'scripts/uninstall.sh'), '--prefix', str(prefix), '--apply'])
     assert not (prefix / 'bin/kak-v').exists()
     assert note.exists() and vls.read_bytes() == vls_before
+    assert inherited.exists() and isolated_note.exists()
     assert (config / 'kakrc').is_symlink() and kakrc.read_text() == '# original personal configuration\n'
     assert unrelated.is_symlink() and (config / 'vlang-user.kak').is_symlink()
     assert personal.read_text() == 'declare-option str upgrade_personal_setting preserved\n'

@@ -43,6 +43,10 @@ other settings remain. Modified, replaced and unrecorded files are kept.
 A runtime needed by other autoload entries is kept too. External tool targets,
 `vlang-user.kak`, recovery checkpoints and the ownership record remain.
 Older installations must run setup once to gain an ownership record.
+Pre-existing tool releases without a per-file ownership baseline are retained
+as unowned; setup does not adopt possible personal additions or modifications.
+Only new releases built by managed setup gain full file ownership. Custom files
+in the isolated configuration are never included in the ownership record.
 
 Setup, rollback, cleanup and removal use an installation lock. A process killed
 with SIGKILL can leave `PREFIX/opt/vlang-state/lock`; check that no operation is
