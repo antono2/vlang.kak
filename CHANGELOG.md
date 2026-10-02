@@ -16,6 +16,7 @@ All notable changes to `vlang.kak` will be documented in this file.
 ### Fixed
 
 - Target the requesting Screen client's session/window and X11 client's display when the editor daemon runs outside their terminal environment.
+- Propagate release-test failures through the CI logging pipeline.
 - Report failed restoration and unreachable update/restart sessions accurately.
 
 ## 1.2.0 - 2026-10-02
