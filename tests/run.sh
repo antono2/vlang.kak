@@ -243,6 +243,7 @@ test "$(sed -n '1p' "$test_tmp/detected")" = json
 assert_highlighting syntax.v "$script_dir/fixtures/highlighting.tsv"
 assert_highlighting language_features.v "$script_dir/fixtures/language_highlighting.tsv"
 
+python3 "$script_dir/check_vls_transport.py" "$kak"
 python3 "$script_dir/settings.py" "$kak"
 python3 "$script_dir/restart.py" "$kak"
 python3 "$script_dir/lifecycle.py" "$kak"

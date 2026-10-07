@@ -51,6 +51,35 @@ def wait_for(predicate, description, timeout=15):
     raise RuntimeError(f"Timed out waiting for {description}")
 
 
+def send_editor_commands(kak, session, client, commands, root, *, allow_error=False, wait=True):
+    """Wait for editor execution, not just kak -p's asynchronous socket write."""
+    wrapped = f"evaluate-commands -client {client} %{{\n{commands}\n}}\n"
+    acknowledgment = root / ("command-" + uuid.uuid4().hex)
+    error_path = acknowledgment.with_suffix(".error")
+    if wait:
+        wrapped = (
+            f"try %{{\n{wrapped}}} catch %{{\n"
+            f"echo -to-file {kak_quote(error_path)} %val{{error}}\n}}\n"
+            f"echo -to-file {kak_quote(acknowledgment)} done\n"
+        )
+    try:
+        result = subprocess.run(
+            [str(kak), "-p", session], input=wrapped, text=True,
+            capture_output=True, timeout=10,
+        )
+        require(result.returncode == 0, f"Kakoune command delivery failed: {result.stderr.strip()}")
+        if wait:
+            wait_for(
+                lambda: acknowledgment.exists() and acknowledgment.read_text().strip() == "done",
+                "Kakoune command acknowledgment",
+            )
+            if error_path.exists() and not allow_error:
+                raise RuntimeError(f"Kakoune command failed: {error_path.read_text().strip()}")
+    finally:
+        acknowledgment.unlink(missing_ok=True)
+        error_path.unlink(missing_ok=True)
+
+
 class LspTransport:
     def __init__(self, process):
         self.process = process
@@ -357,17 +386,11 @@ def check_kakoune(kak, launcher, root, main_file):
         )
         client = None
 
-        def remote(commands):
+        def remote(commands, *, allow_error=False, wait=True):
             require(process.poll() is None, "Kakoune exited before the LSP check finished")
-            wrapped = f"evaluate-commands -client {client} %{{\n{commands}\n}}\n"
-            result = subprocess.run(
-                [str(kak), "-p", session],
-                input=wrapped,
-                text=True,
-                capture_output=True,
-                timeout=10,
+            send_editor_commands(
+                kak, session, client, commands, root, allow_error=allow_error, wait=wait,
             )
-            require(result.returncode == 0, f"Kakoune command failed: {result.stderr.strip()}")
 
         try:
             wait_for(lambda: client_path.exists(), "Kakoune client startup")
@@ -461,7 +484,8 @@ def check_kakoune(kak, launcher, root, main_file):
             def hover_ready():
                 remote(
                     f"buffer *hover*\nexecute-keys <percent>\n"
-                    f"echo -to-file {kak_quote(hover_path)} %val{{selection}}"
+                    f"echo -to-file {kak_quote(hover_path)} %val{{selection}}",
+                    allow_error=True,
                 )
                 return (
                     hover_path.exists()
@@ -514,7 +538,8 @@ def check_kakoune(kak, launcher, root, main_file):
             def callers_ready():
                 remote(
                     f"buffer *callers*\nexecute-keys <percent>\n"
-                    f"echo -to-file {kak_quote(callers_path)} %val{{selection}}"
+                    f"echo -to-file {kak_quote(callers_path)} %val{{selection}}",
+                    allow_error=True,
                 )
                 return callers_path.exists() and "main" in callers_path.read_text()
 
@@ -526,7 +551,8 @@ def check_kakoune(kak, launcher, root, main_file):
             def callees_ready():
                 remote(
                     f"buffer *callees*\nexecute-keys <percent>\n"
-                    f"echo -to-file {kak_quote(callees_path)} %val{{selection}}"
+                    f"echo -to-file {kak_quote(callees_path)} %val{{selection}}",
+                    allow_error=True,
                 )
                 return callees_path.exists() and "add" in callees_path.read_text()
 
@@ -591,7 +617,8 @@ def check_kakoune(kak, launcher, root, main_file):
                 remote(f"buffer {kak_quote(broken_file)}\nv-diagnostics")
                 remote(
                     f"buffer *diagnostics*\nexecute-keys <percent>\n"
-                    f"echo -to-file {kak_quote(diagnostics_path)} %val{{selection}}"
+                    f"echo -to-file {kak_quote(diagnostics_path)} %val{{selection}}",
+                    allow_error=True,
                 )
                 return diagnostics_path.exists() and "cannot use" in diagnostics_path.read_text()
 
@@ -633,7 +660,7 @@ def check_kakoune(kak, launcher, root, main_file):
         finally:
             if client and process.poll() is None:
                 try:
-                    remote("quit!")
+                    remote("quit!", wait=False)
                 except Exception:
                     pass
             if process.stdin and not process.stdin.closed:
