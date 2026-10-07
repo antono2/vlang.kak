@@ -1,4 +1,5 @@
 #!/bin/sh
+# Builds and dispatches the project-preferences helper for the active installation.
 set -eu
 case ${1:-} in --help|-h) echo 'Usage: preferences.sh --prepare | load|show|args|cwd|target|targets|reset FILE [VALUE...]'; exit 0 ;; esac
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

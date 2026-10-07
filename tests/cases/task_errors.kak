@@ -1,3 +1,4 @@
+# Checks failed-task diagnostics and editor error navigation.
 hook global RuntimeError "\d+:\d+: (.+)" %{
   echo -to-file failure "%val{hook_param_capture_1}"
   kill! 1

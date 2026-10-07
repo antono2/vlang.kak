@@ -201,3 +201,17 @@ The standalone scripts accept --help. Run scripts/check.sh after setup to see wh
 For persistent command, server, search, key, syntax, and installation settings, see the [customization guide](docs/customization.md).
 
 Release support, tested tool versions, experimental pane adapters, recovery, and removal instructions are in the [release guide](docs/release.md). The full managed-installation gate is `./tests/release.sh /absolute/artifact-directory`; CI runs it with real VLS and tmux. The release gate includes local GDB debugging, program input and V value inspection.
+
+## Contributor source map
+
+[`rc/vlang.kak`](rc/vlang.kak) wires editor commands, options and hooks to
+[`scripts/`](scripts/). The V helpers implement the debugger transport, project
+explorer and persistent per-project preferences; the shell entry points select
+and launch them. Read the setup and rollback scripts before changing ownership
+of files in a managed installation.
+
+[`tests/cases/`](tests/cases/) contains executable Kakoune scenarios.
+[`tests/fixtures/`](tests/fixtures/) intentionally preserves exact text and cursor
+positions, including malformed and unformatted V. Those inputs and expected
+outputs are exceptions to file-introduction comments: adding prose inside them
+would change the behavior under test. Document a fixture in its consuming test.

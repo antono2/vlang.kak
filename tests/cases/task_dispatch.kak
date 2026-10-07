@@ -1,3 +1,4 @@
+# Checks that V task commands open the make buffer with captured output.
 hook global RuntimeError "\d+:\d+: (.+)" %{
   echo -to-file failure "%val{hook_param_capture_1}"
   kill! 1

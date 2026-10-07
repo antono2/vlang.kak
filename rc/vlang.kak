@@ -1,3 +1,4 @@
+# Integrates V syntax, editor commands and managed helper tools into Kakoune.
 ############################################
 ###                                      ###
 ### V lang plugin for Kakoune            ###

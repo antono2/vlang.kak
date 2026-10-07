@@ -1,3 +1,4 @@
+# Checks file-history navigation and restoration against a temporary Git repository.
 hook global RuntimeError "\d+:\d+: (.+)" %{
   echo -to-file failure "%val{hook_param_capture_1}"
   kill! 1
