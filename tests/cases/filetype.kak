@@ -1,3 +1,4 @@
+# Checks V filetype detection across supported filename extensions.
 try %{
   echo -to-file detected %opt{filetype}
   quit

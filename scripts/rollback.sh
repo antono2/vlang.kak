@@ -1,4 +1,5 @@
 #!/bin/sh
+# Restores a managed installation snapshot under the installation lock; supports interrupted-update recovery.
 set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 prefix=${VLANG_KAK_PREFIX:-$HOME/.local}

@@ -1,3 +1,4 @@
+// Maintains the project-tree view and translates selections into Kakoune commands.
 module main
 
 import x.json2

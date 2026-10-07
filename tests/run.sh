@@ -1,4 +1,5 @@
 #!/bin/sh
+# Runs editor integration cases in temporary directories with the selected Kakoune executable.
 
 set -eu
 

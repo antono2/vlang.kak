@@ -1,3 +1,4 @@
+// Runs the GDB machine-interface bridge and terminal transport used by Kakoune debugging.
 module main
 
 import x.json2
