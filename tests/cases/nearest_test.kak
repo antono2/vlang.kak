@@ -1,3 +1,4 @@
+# Checks nearest-test selection and dispatch from V source positions.
 hook global RuntimeError "\d+:\d+: (.+)" %{
   echo -to-file failure "%val{hook_param_capture_1}"
   kill! 1

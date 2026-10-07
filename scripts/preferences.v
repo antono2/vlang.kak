@@ -1,3 +1,4 @@
+// Stores per-project run arguments, working directory and target with guarded updates.
 module main
 
 import os

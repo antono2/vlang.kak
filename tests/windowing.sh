@@ -1,4 +1,5 @@
 #!/bin/sh
+# Checks terminal and pane-host selection without changing the user installation.
 set -eu
 
 helper=$1
