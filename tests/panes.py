@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive real tmux clients through tree, peek, and shared-view workflows."""
+"""Drive real tmux clients through tree, peek and shared-view workflows."""
 import os
 import shlex
 import subprocess
@@ -96,7 +96,7 @@ def main():
                     raise RuntimeError('Moving the source changed the extra view cursor')
                 tmux('send-keys', '-t', extra, 'Space', 'q')
                 wait_for(lambda: len(panes()) == 1, 'extra view closes')
-            print('ok - real tmux tree, definition peek, same-file views, and closing (repeated)')
+            print('ok - real tmux tree, definition peek, same-file views and closing (repeated)')
         finally:
             subprocess.run(['tmux', '-L', name, 'kill-server'], capture_output=True, env=env)
             subprocess.run([kak, '-p', name], input='kill!\n', text=True, capture_output=True, env=env)

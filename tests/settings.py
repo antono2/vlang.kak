@@ -93,4 +93,4 @@ with tempfile.TemporaryDirectory(prefix='vlang-settings-') as directory:
     assert personal.read_text() == '# keep my settings\n'
     assert link.resolve() == repo / 'rc/vlang.kak'
 
-print('ok - setup preserves personal settings, symlinks, conflicts, and legacy update paths')
+print('ok - setup preserves personal settings, symlinks, conflicts and legacy update paths')

@@ -12,7 +12,7 @@ Usage: scripts/setup.sh [--update] [--integrate]
                         [--explorer | --no-explorer] [--live-search | --no-live-search]
                         [--pane-mode auto|always|off]
                         [--window-backend auto|tmux|zellij|wezterm|kitty|screen|native]
-Installs Kakoune, kak-lsp, and upstream VLS under $HOME/.local by default, links this plugin
+Installs Kakoune, kak-lsp and upstream VLS under $HOME/.local by default, links this plugin
 into an isolated kak-v configuration. --integrate explicitly opts into adding
 links and a marked block to your regular Kakoune configuration.
 --update also fast-forwards a clean vlang.kak checkout.

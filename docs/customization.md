@@ -36,7 +36,7 @@ hook global User VKeysApplied %{
 ```
 
 Less frequent commands live in `v-testing` (`Space t`), `v-investigation`
-(`Space i`), and `v-maintenance` (`Space U`). Customize their keys in the same
+(`Space i`) and `v-maintenance` (`Space U`). Customize their keys in the same
 `VKeysApplied` hook. For example:
 
 ```kak
@@ -47,7 +47,7 @@ hook global User VKeysApplied %{
 }
 ```
 
-Use `unmap window user t`, `i`, or `U` in that hook to hide an entire group.
+Use `unmap window user t`, `i` or `U` in that hook to hide an entire group.
 Saved test files promote test-at-cursor and repeat-test to the root menu. Test
 output and active debugging keep relevant controls directly under Space.
 
@@ -57,7 +57,7 @@ Use `User VTreeKeysApplied` for tree-menu overrides and `User VDocKeysApplied` f
 
 Use `User VTaskKeysApplied` for task-output overrides and `User VResultsKeysApplied` for result-list overrides; these run after their respective defaults.
 
-Menus refresh when a buffer is displayed, after saving or leaving insert mode, and while idle. `:v-refresh-keys` refreshes explicitly. They use local context (saved test files, read-only state, previous tasks, tracked Git files, enabled LSP, pane backend, and restart support); they do not send language-server requests to guess which actions apply to a particular symbol. Hidden actions remain available as commands.
+Menus refresh when a buffer is displayed, after saving or leaving insert mode and while idle. `:v-refresh-keys` refreshes explicitly. They use local context (saved test files, read-only state, previous tasks, tracked Git files, enabled LSP, pane backend and restart support); they do not send language-server requests to guess which actions apply to a particular symbol. Hidden actions remain available as commands.
 
 To show all actions within the source menus, add:
 
@@ -65,7 +65,7 @@ To show all actions within the source menus, add:
 set-option global v_context_keys false
 ```
 
-Task output provides `Space r` (repeat this task), `Space x` (last test, once available), `Space Enter` (open the current location), `Space [` / `]` (errors), and `Space q` (source and cursor). This applies only to V-created output; ordinary `:make` keeps its own behavior. Result lists provide `Space n` / `N` (browse), `Space Enter` (accept), and `Space q` (return), as well as their direct Tab/Enter/q controls.
+Task output provides `Space r` (repeat this task), `Space x` (last test, once available), `Space Enter` (open the current location), `Space [` / `]` (errors) and `Space q` (source and cursor). This applies only to V-created output; ordinary `:make` keeps its own behavior. Result lists provide `Space n` / `N` (browse), `Space Enter` (accept) and `Space q` (return), as well as their direct Tab/Enter/q controls.
 
 ## Debugger
 
@@ -125,7 +125,7 @@ set-option global v_fmt_command 'v fmt'
 | `:v-fmt` | `v_fmt_command` | `v fmt` | Reads the buffer on stdin and writes formatted text to stdout. |
 
 `:v-check-file`, `:v-build`, `:v-run-project`, `:v-test`,
-`:v-test-nearest`, `:v-repeat-test`, and `:v-vet` use
+`:v-test-nearest`, `:v-repeat-test` and `:v-vet` use
 Kakoune's asynchronous `*make*` buffer. You can set an option for one buffer:
 
 ```kak
@@ -175,11 +175,11 @@ set-option global v_lsp_servers %{
 
 `v_lsp_servers` is a Kakoune option containing a [kak-lsp server
 table](https://github.com/kakoune-lsp/kakoune-lsp#configuration). Add the
-server's `args`, settings, or different `root_globs` there. It is copied to
+server's `args`, settings or different `root_globs` there. It is copied to
 the buffer's `lsp_servers` option when its filetype becomes `v`; reopen a V
 buffer after changing it. The installed VLS version determines which
 completion, diagnostics, navigation, code actions, formatting, semantic
-tokens, and inlay hints are available.
+tokens and inlay hints are available.
 
 After installing or rebuilding VLS, run `./scripts/check.sh --live-lsp` to
 exercise the server and Kakoune integration with temporary V files. Set
@@ -198,11 +198,11 @@ If you maintain kak-lsp yourself, start it in your kakrc and keep `vls` on
 setup detects an existing kak-lsp startup in your kakrc and leaves it in
 place. `kak-v` uses its generated startup instead.
 
-## Search, editing, and appearance
+## Search, editing and appearance
 
 `:v-files` opens Kakoune's `:edit` path completion. `:v-find` opens the
 current buffer's `/` search. `:v-search` (`Space /`) prompts only for a
-pattern, previews up to 12 project matches as you type, and shows all matches
+pattern, previews up to 12 project matches as you type and shows all matches
 in a navigable `*grep*` buffer when you press Enter. It searches from the
 nearest `v.mod` or Git root. Ripgrep is preferred when available; otherwise
 recursive grep excludes `.git`. If you set a custom `grepcmd`, the final
@@ -239,7 +239,7 @@ The highlighters use Kakoune's named faces. Change a face globally with a
 Kakoune `face` command, such as `face global keyword rgb:ff8800`. To change
 which V text receives each face, edit the `shared/v` highlighters in
 `rc/vlang.kak` and keep that change in your clone. The V action menu, filetype
-hooks, and command definitions live in that same file.
+hooks and command definitions live in that same file.
 
 ## Investigation workflows
 
@@ -264,10 +264,10 @@ Use `:lsp-capabilities` to see which requests your installed VLS currently
 supports. `:v-symbols` (`Space s`) opens a persistent list of symbols in the
 current file. Tab and Shift-Tab move through results without leaving the list;
 Enter opens the selected location. `q` or Escape returns to the original file
-and cursor. You can also use `j`/`k`, arrow keys, or `/` to search the list.
+and cursor. You can also use `j`/`k`, arrow keys or `/` to search the list.
 `:v-workspace-symbols` (`Space S`) first asks for a query; press Enter to list
 matching project symbols, then browse and select in the same way. References,
-call lists, and diagnostics use the same browsing and return keys. The
+call lists and diagnostics use the same browsing and return keys. The
 modeline shows these controls. `:v-references` and
 `:v-incoming-calls` help trace a function's use. `:v-highlight-references`
 (`Space i m`) marks uses in the current file. `:v-select-syntax` (`Space i z`)
@@ -288,7 +288,7 @@ uses path completion, including files excluded from the project picker.
 For a tree view, use `:v-project-path` (`Space F`) or `:v-tree`. Enter opens a
 file or expands/collapses a directory. Use `j`/`k` to move, `l` to expand,
 `h` to collapse or move to the parent, `p` to preview, `.` to toggle hidden
-entries, `r` to refresh, and `q` to return to the source file. The tree starts
+entries, `r` to refresh and `q` to return to the source file. The tree starts
 at the nearest `v.mod` or Git root. Setup compiles its V helper into your user
 cache, and a newer helper is rebuilt automatically. It needs no external Kakoune plugin or terminal
 multiplexer.
@@ -311,7 +311,7 @@ the project after you press Enter.
 ### Window and pane management
 
 `v_pane_mode` defaults to `auto`. `:v-project-path` opens a side tree when the
-current Kakoune client is inside tmux, Zellij, WezTerm, or kitty. It also uses
+current Kakoune client is inside tmux, Zellij, WezTerm or kitty. It also uses
 GNU Screen or Kakoune's native desktop-terminal adapter when available. The
 tree's Enter key opens files in the original client, and `q` closes its client.
 `:v-peek-definition` (`Space g`) opens a definition in another client while
@@ -332,9 +332,9 @@ set-option global v_pane_mode auto
 set-option global v_window_backend auto
 ```
 
-`v_pane_mode` accepts `auto`, `always`, or `off`. `always` reports an error when
+`v_pane_mode` accepts `auto`, `always` or `off`. `always` reports an error when
 it cannot create a second client; `off` keeps navigation in the current client.
-`v_window_backend` accepts `auto`, `tmux`, `zellij`, `wezterm`, `kitty`, `screen`,
+`v_window_backend` accepts `auto`, `tmux`, `zellij`, `wezterm`, `kitty`, `screen`
 or `native`. An explicit backend is used only when that host is active.
 Updates preserve both setup choices. `:v-tree` always opens the tree in the
 current client, and `:v-tree-pane` requests the side view.
@@ -376,7 +376,7 @@ for the host versions and configurations covered by automated tests.
 
 The built-in explorer and search work without another plugin. If you prefer a larger
 picker, [Peneira](https://github.com/gustavo-hms/peneira) offers fuzzy files,
-recent files, lines, and symbols inside Kakoune; it requires its
+recent files, lines and symbols inside Kakoune; it requires its
 [Luar](https://github.com/gustavo-hms/luar) dependency. For terminal previews,
 live grep, buffer and project pickers, [fzf.kak](https://github.com/andreyorst/fzf.kak)
 provides an extensive interface, especially in tmux. Its author states that
@@ -393,7 +393,7 @@ configure Yazi. Keep personal plugin loading and key mappings in
 
 `:v-history` (`Space i V`) shows the current file's recent commits. Choose one
 to open a read-only scratch buffer with V syntax. `:v-history-file HEAD~1`
-opens a specific revision directly; it also accepts a branch, tag, or commit.
+opens a specific revision directly; it also accepts a branch, tag or commit.
 The working file stays unchanged. For a side-by-side comparison, run
 `:v-new-view` first, then open history in one client and the live file in the
 other with `:buffer`.
@@ -407,16 +407,16 @@ git diff HEAD~1 HEAD -- path/to/file.v
 git show HEAD~1:path/to/file.v
 ```
 
-The first shows uncommitted changes, the second compares two revisions, and
-the third shows an older file. Replace `HEAD~1` with a tag, branch, or commit.
+The first shows uncommitted changes, the second compares two revisions and
+the third shows an older file. Replace `HEAD~1` with a tag, branch or commit.
 In a `*git*` diff buffer, `<ret>` on a hunk jumps to its source. You can also
-use `:git status`, `:git log`, and `:git blame`.
+use `:git status`, `:git log` and `:git blame`.
 
 For two places in the same file, use **two Kakoune clients on one session**.
 There is one shared file buffer, so edits appear immediately in both views;
 each client keeps its own cursor and selection. In tmux, `:v-new-view` (`Space
 v w`, equivalent to `:new`) opens another client. Use `:buffer` in the new
-client to select the same file, or select a historical, `*git*`, or
+client to select the same file, or select a historical, `*git*` or
 documentation buffer to keep reference material beside the code. You can
 also start clients in
 separate terminals:
@@ -443,7 +443,7 @@ release tags; `--no-build` uses an installed Kakoune; `--no-lsp` uses an
 installed kak-lsp; `--vls` links an existing VLS executable. By default, setup
 builds the latest upstream VLS. `--vls-ref` selects a tag or commit, and
 `--no-vls` leaves VLS untouched. `scripts/update.sh`
-accepts the same flags and refreshes managed Kakoune, kak-lsp, and VLS builds. It
+accepts the same flags and refreshes managed Kakoune, kak-lsp and VLS builds. It
 fast forwards this plugin's checkout only when it is clean, and keeps
 `vlang-user.kak`. An externally linked VLS is preserved
 unless you pass `--vls-upstream`. Setup can build a compatible managed V compiler
@@ -464,7 +464,7 @@ such as `:v-update --vls /absolute/path/to/vls` or
 pass `--prefix` only to the external setup or update scripts.
 
 The normal managed update/restart restores open files backed by disk and the active file's
-main cursor. Scratch buffers, selections other than the main cursor, and other
+main cursor. Scratch buffers, selections other than the main cursor and other
 clients need to be reopened. Run the update from a session started by `kak-v`
 with one client; an attached `kak-v -c` client cannot restart its server.
 Runtime-only option and key changes are not serialized: save them in
@@ -472,7 +472,7 @@ Runtime-only option and key changes are not serialized: save them in
 Kakoune keeps unsaved edits open instead of discarding them; save those edits
 and run `:v-restart` to finish the restart. If the update fails, its output
 stays in `*make*` and the current session remains open. The default in-editor
-update refreshes Kakoune, kak-lsp, and managed upstream VLS.
+update refreshes Kakoune, kak-lsp and managed upstream VLS.
 
 `:v-update-release` (`Space U v`) selects a published release and its verified
 tool pins, including managed VLS. Use ordinary update to preserve an external
@@ -488,7 +488,7 @@ snapshots. Pane geometry, running tasks and runtime-only customizations are not
 serialized. `:v-session-restore` reopens the checkpoint in a fresh session if
 needed. See [session recovery](automation.md#session-recovery).
 
-See the [release guide](release.md) for backend verification, update recovery, and removal instructions.
+See the [release guide](release.md) for backend verification, update recovery and removal instructions.
 
 ## Maintenance automation
 

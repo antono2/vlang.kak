@@ -5,7 +5,7 @@ repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 case ${1:-} in
   ''|--help|-h)
     echo 'Usage: tests/acceptance.sh PREFIX [ARTIFACT_DIRECTORY]'
-    echo 'Requires a managed Kakoune/kak-lsp/VLS stack, V, Python 3, tmux, and GDB DAP.'
+    echo 'Requires a managed Kakoune/kak-lsp/VLS stack, V, Python 3, tmux and GDB DAP.'
     exit 0 ;;
 esac
 prefix=$(CDPATH= cd -- "$1" && pwd)

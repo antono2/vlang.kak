@@ -60,7 +60,7 @@ case "$version" in
   v[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]) ;;
   *)
     if ! printf '%s\n' "$version" | LC_ALL=C grep -Eq '^[0-9a-f]{40}$'; then
-      echo "Select a stable tag, master, or a full upstream commit hash." >&2
+      echo "Select a stable tag, master or a full upstream commit hash." >&2
       exit 1
     fi
     ;;

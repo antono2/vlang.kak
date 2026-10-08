@@ -1,11 +1,11 @@
 #!/bin/sh
-# Install, exercise, update, and recheck a real stack in an isolated configuration.
+# Install, exercise, update and recheck a real stack in an isolated configuration.
 set -eu
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$repo_dir/tests/release.env"
 KAKOUNE_VERSION=${VLANG_RELEASE_KAKOUNE_REF:-$KAKOUNE_VERSION}
 case ${1:-} in
-  --help|-h) echo 'Usage: tests/release.sh [ARTIFACT_DIRECTORY] (requires V, build tools, tmux, GDB with DAP, Python 3, and network)'; exit 0 ;;
+  --help|-h) echo 'Usage: tests/release.sh [ARTIFACT_DIRECTORY] (requires V, build tools, tmux, GDB with DAP, Python 3 and network)'; exit 0 ;;
 esac
 root=${1:-$(mktemp -d "${TMPDIR:-/tmp}/vlang-release.XXXXXXXX")}
 mkdir -p "$root"
@@ -32,4 +32,4 @@ done
 "$repo_dir/scripts/update.sh" --prefix "$prefix" \
   --kakoune-version "$KAKOUNE_VERSION" --lsp-version "$LSP_VERSION" --vls-ref "$VLS_REF"
 "$repo_dir/scripts/check.sh" --live-lsp
-printf 'ok - clean managed installation, live navigation, debugging, panes, restart, and update\n'
+printf 'ok - clean managed installation, live navigation, debugging, panes, restart and update\n'

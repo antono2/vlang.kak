@@ -141,7 +141,7 @@ jobs:
           echo "VLANG_RELEASE_KAKOUNE_REF=$revision" >> "$GITHUB_ENV"
           echo "revision=$revision" >> "$GITHUB_OUTPUT"
 
-      - name: Test clean installation, live navigation, debugging, panes, and updates
+      - name: Test clean installation, live navigation, debugging, panes and updates
         run: |
           set -o pipefail
           ./tests/release.sh "$RUNNER_TEMP/vlang-release" 2>&1 | tee "$RUNNER_TEMP/vlang-release.log"
@@ -248,7 +248,7 @@ jobs:
           cat > "$RUNNER_TEMP/kakoune-update.md" <<EOF
           Weekly Kakoune master update to \`$VLANG_RELEASE_KAKOUNE_REF\`.
 
-          The clean install, automated IDE acceptance pass, and managed update checks passed.
+          The clean install, automated IDE acceptance pass and managed update checks passed.
           Review the uploaded logs and merge to advance the release gate's Kakoune pin.
           User settings and installed editor sessions are unchanged.
           EOF
