@@ -85,7 +85,7 @@ fn main() {
 		project = Project{ root: root }
 	} else if command == 'show' {
 		println('Project: ${root}\nPreferences: ${file}\nWorking directory: ${project.cwd}\nTarget: ${project.target}\nArguments: ${project.args}')
-		println('\nUse :v-project-arguments ARG... (Kakoune quoting), :v-project-directory PATH, :v-project-target PATH, or :v-project-reset.')
+		println('\nUse :v-project-arguments ARG... (Kakoune quoting), :v-project-directory PATH, :v-project-target PATH or :v-project-reset.')
 		return
 	} else if command == 'targets' {
 		files := os.walk_ext(root, '.v')

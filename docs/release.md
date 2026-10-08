@@ -8,7 +8,7 @@ gate. The first full IDE release includes local GDB DAP debugging; see
 ## Tested tool combination
 
 The release gate pins Kakoune in `tests/release.env`, kak-lsp `v21.0.2`, V commit
-`c9b806b294234408af3794f419439599a293a0ea`, and VLS commit
+`c9b806b294234408af3794f419439599a293a0ea` and VLS commit
 `436058d058b2ae9cb17d329d7b7f73ec129b2b8a`. The machine-readable
 versions are in `tests/release.env` and the CI workflow. Normal setup and update
 still select the latest tools. A newer upstream version is not automatically
@@ -35,13 +35,13 @@ for every feature of the complete IDE.
 See [automated acceptance](release-candidate.md) for a single command covering the
 IDE workflows. No manual user test pass is required.
 
-Run `./tests/run.sh` for syntax, editing, keys, project tasks, history, explorer,
+Run `./tests/run.sh` for syntax, editing, keys, project tasks, history, explorer
 and restart checks. Run `python3 tests/debugger.py /path/to/kak` for real
 GDB/editor interaction. Run `./tests/release.sh /absolute/artifact-directory` for a
 fresh managed installation, real VLS interaction, real tmux clients, an
-in-editor restart, real GDB debugging, a managed tool update, and another live VLS check. The latter
-requires network access, V, C++ build tools, Python 3, tmux, and GDB with DAP. Its configuration,
-cache, and installed tools stay under the supplied directory for inspection.
+in-editor restart, real GDB debugging, a managed tool update and another live VLS check. The latter
+requires network access, V, C++ build tools, Python 3, tmux and GDB with DAP. Its configuration,
+cache and installed tools stay under the supplied directory for inspection.
 It never updates the plugin checkout from Git.
 
 The release CI job runs that same script on Ubuntu 24.04. Its result must be
@@ -50,9 +50,9 @@ replace that check. Version 1.1.0 is the first full IDE release.
 
 | Interface | Verification status |
 | --- | --- |
-| Single-client navigation and live VLS | Automated editor interaction checks, including symbols, empty results, cancellation, rename, and diagnostics |
+| Single-client navigation and live VLS | Automated editor interaction checks, including symbols, empty results, cancellation, rename and diagnostics |
 | Local GDB 15.1 | Real editor tests: conditional V breakpoints, source jumps, stepping, stack/variables, expandable V values/watches, run to cursor, pause, input/output, relaunch, prebuilt executable and failure cleanup |
-| tmux | Automated real clients: repeated tree/peek/view opening and closing, independent same-file cursors, and preserved source position |
+| tmux | Automated real clients: repeated tree/peek/view opening and closing, independent same-file cursors and preserved source position |
 | Zellij 0.45.1 | Automated real clients: tree file opening, closing, peeking, independent views, unsaved edits and repeated use |
 | WezTerm 20240203-110809-5046fc22 | Automated real mux clients with a separate socket: the same pane workflows and unsaved-edit checks |
 | kitty 0.49.2 | Automated real clients under Xvfb with socket remote control: the same pane workflows and unsaved-edit checks |
@@ -114,7 +114,7 @@ sessions and settings are not modified by CI. To install current master locally:
 ```
 
 The installer resolves `master` to a full commit hash before building, stores
-the actual revision in `.vlang-revision`, and retains previous installations.
+the actual revision in `.vlang-revision` and retains previous installations.
 Use the same flag on subsequent updates, or supply a verified full hash from
 `tests/release.env`. Omitting the flag continues to select the latest stable tag.
 Inside Kakoune, use `:v-update --kakoune-version master`; restart safety
@@ -126,7 +126,7 @@ master commit may not have passed yet.
 Stop debugging before updating or restarting.
 
 Normal in-editor update/restart requires one client and saved buffers. It restores
-disk-backed files and the active main cursor. Scratch buffers, other selections,
+disk-backed files and the active main cursor. Scratch buffers, other selections
 and additional clients are not restored. Runtime-only option and key changes
 are not serialized; save settings in `vlang-user.kak` before restarting.
 Use `:v-session-save` for a private checkpoint and `:v-restart-recover` for a
@@ -141,9 +141,9 @@ Failure restores the previous managed activation; `:v-rollback` restores the
 previous successful snapshot. See [automation and recovery](automation.md) for
 power-loss limits and the standalone installers.
 
-To recover, keep the current session open, inspect `*make*`, and rerun the update
+To recover, keep the current session open, inspect `*make*` and rerun the update
 from a regular shell after fixing the reported problem. Select known versions
-with `--kakoune-version`, `--lsp-version`, and `--vls-ref`. For example:
+with `--kakoune-version`, `--lsp-version` and `--vls-ref`. For example:
 
 ```sh
 ./scripts/update.sh --kakoune-version v2026.05.21 --lsp-version v21.0.2 \
@@ -171,10 +171,10 @@ one setup run to record ownership. See [ownership and safe removal](automation.m
 
 ## Publishing checklist
 
-- All intended source, scripts, fixtures, and documentation are included in the commit; generated Python caches are excluded.
+- All intended source, scripts, fixtures and documentation are included in the commit; generated Python caches are excluded.
 - The changelog describes the IDE additions and the direct Space bindings.
 - Fast tests and the managed release job pass for the release commit.
 - The automated v1.1.1 and v1.2.0 upgrade checks preserve personal settings and external tools, and cover rollback and safe removal.
 - Backend support claims match the table above.
 - Release notes state the restart limitations and tool versions.
-- Choose the release version, create its tag, and publish the release only after reviewing those results.
+- Choose the release version, create its tag and publish the release only after reviewing those results.

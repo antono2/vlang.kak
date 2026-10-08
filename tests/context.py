@@ -153,7 +153,7 @@ with tempfile.TemporaryDirectory(prefix='vlang-context-') as directory:
             debug = (root / 'debug').read_text()
             assert 'Rerun this task' not in debug, debug
             assert 'error while parsing kakrc' not in debug, debug
-            print('ok - context-aware Space menus, saved-test gating, task rerun/return, and personal overrides')
+            print('ok - context-aware Space menus, saved-test gating, task rerun/return and personal overrides')
         finally:
             process.terminate()
             process.wait(timeout=5)

@@ -35,7 +35,7 @@ either menu. All `:v-debug-*` commands remain available.
    to a matching breakpoint. Without breakpoints, it keeps running normally.
    V panics, assertion failures and native runtime faults stop execution for
    inspection; normal completion exits without an artificial stop at `main`.
-4. At a stop, `Space O` steps over, `Space I` steps into, and `Space A` steps
+4. At a stop, `Space O` steps over, `Space I` steps into and `Space A` steps
    out. The active source line is highlighted yellow. Stops inside unavailable
    runtime/system source leave the current editor buffer open; use the stack
    to select a V caller. `Space E` continues. In an unmodified saved source

@@ -71,7 +71,7 @@ scripts/rollback.sh --prefix "$HOME/.local" --recover "$HOME/.local/opt/vlang-st
 
 Use the actual snapshot path printed by health. Recovery requires a complete
 snapshot from that installation. It preserves personal edits, keeps the recovered
-snapshot and the partial activation for inspection, and retains the ordinary
+snapshot and the partial activation for inspection and retains the ordinary
 previous-installation rollback target. Active sessions stay open; use
 `:v-restart-recover` afterward to preserve unsaved buffers and multiple views.
 Repair regenerates managed launchers; ordinary rollback restores the previous
@@ -83,7 +83,7 @@ redirected managed paths and unknown ownership are not grounds for deletion.
 `Space U` opens maintenance. `u` retains the development/upstream update path;
 `v` selects a published release and the versions verified for that release.
 Release selection requires a clean checkout, preserves a development revision
-already ahead of the latest release, and checks out a newer tag in detached
+already ahead of the latest release and checks out a newer tag in detached
 HEAD state and uses its tool pins. Later updates from a detached checkout stay
 on the release path. Externally selected VLS requires the ordinary update path
 if you want to preserve that choice; selecting a verified release selects its
@@ -125,7 +125,7 @@ v-project-directory /absolute/working/directory
 v-project-target /absolute/path/to/main.v
 ```
 
-Arguments apply to project run and debugging, working directories are remembered,
+Arguments apply to project run and debugging, working directories are remembered
 and the selected target changes the default run/debug target. Custom run commands
 retain their own target syntax. `:v-project-targets` offers V files containing a
 `fn main(` entry point; this lightweight scan is a suggestion, not a compiler's

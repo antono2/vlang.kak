@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Discovery only notifies, is rate-limited, and never updates the checkout."""
+"""Discovery only notifies, is rate-limited and never updates the checkout."""
 import os, subprocess, tempfile
 from pathlib import Path
 repo=Path(__file__).resolve().parent.parent
