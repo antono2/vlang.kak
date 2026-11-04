@@ -224,6 +224,14 @@ assert_file_equal \
   "$test_tmp/parenthesis.v" \
   "newline hook pairs parentheses"
 
+run_kak \
+  "filetype precedence after runtime autoload and before user overrides" \
+  "$test_tmp/detection/sample.v" \
+  "$script_dir/cases/filetype_precedence.kak"
+test "$(cat "$test_tmp/precedence-before")" = coq
+test "$(cat "$test_tmp/precedence-after")" = v
+test "$(cat "$test_tmp/precedence-custom")" = coq
+
 for filename in sample.v sample.vsh sample.vv sample.c.v; do
   rm -f "$test_tmp/detected"
   run_kak \

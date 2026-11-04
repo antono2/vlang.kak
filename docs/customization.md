@@ -216,7 +216,14 @@ set-option global grepcmd 'rg -n --no-heading'
 ```
 
 V files (`.v`, `.vsh`, `.vv`, `.c.v`) are recognized by the `BufCreate` hooks
-at the top of `rc/vlang.kak`. Add another extension in your personal file:
+registered by `v-enable-filetype-detection` in `rc/vlang.kak`. Kakoune's runtime
+also assigns `.v` to Coq. Managed setup calls this command in both generated
+configurations after autoload, so the runtime's loading order cannot override V.
+With a manual installation, put `v-enable-filetype-detection` in your `kakrc`
+after loading the plugin. Reopen existing buffers after changing detection.
+
+Personal hooks in `vlang-user.kak` run afterward and can still override these
+choices. Add another extension in your personal file:
 
 ```kak
 hook global BufCreate .*\.vinc$ %{ set-option buffer filetype v }
