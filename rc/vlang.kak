@@ -1885,9 +1885,6 @@ hook -group v-ide global WinSetOption filetype=v %{
   try %{
     set-option buffer lsp_servers %opt{v_lsp_servers}
     lsp-enable-window
-  } catch %{
-    # Keep syntax-only use working, but preserve the cause of failed IDE setup.
-    echo -debug -- "V LSP setup: %val{error}"
   }
   try %{
     set-option buffer lsp_semantic_tokens %opt{v_lsp_semantic_tokens}
