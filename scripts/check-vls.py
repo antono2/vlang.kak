@@ -397,6 +397,11 @@ def check_kakoune(kak, launcher, root, main_file):
             client = client_path.read_text().strip()
             require(client, "Kakoune did not report its client name")
 
+            filetype_path = root / "filetype"
+            remote(f"echo -to-file {kak_quote(filetype_path)} %opt{{filetype}}")
+            filetype = filetype_path.read_text().strip()
+            require(filetype == "v", f"V source detected as {filetype!r}; check filetype hook precedence")
+
             # Exercise result browsing, not just the LSP response contents.
             navigation_path = root / "navigation"
 

@@ -14,16 +14,18 @@
 
 # Detection
 # ‾‾‾‾‾‾‾‾‾
-# NOTE: The .v extension might be assigned to other filetypes.
-#       Please put these 2 hooks in your kakrc as well.
-#       kakrc is loaded last and ensures filetype=v.
-hook global BufCreate .*\.(v|vsh|vv|c\.v)$ %{
-  set-option buffer filetype v
+# Runtime filetypes such as Coq also claim .v. Managed kakrc calls this again
+# after autoload; manual installations can do the same before user overrides.
+define-command v-enable-filetype-detection -docstring 'Prefer V filename detection after runtime autoload' %{
+  remove-hooks global v-filetypes
+  hook -group v-filetypes global BufCreate .*\.(v|vsh|vv|c\.v)$ %{
+    set-option buffer filetype v
+  }
+  hook -group v-filetypes global BufCreate .+v\.mod$ %{
+    set-option buffer filetype json
+  }
 }
-
-hook global BufCreate .+v\.mod$ %{
-  set-option buffer filetype json
-}
+v-enable-filetype-detection
 
 provide-module v %§
   # Declare-Options

@@ -382,6 +382,7 @@ if [ "$integrate" = true ]; then
   fi
   {
     printf '# >>> vlang.kak managed >>>\n'
+    printf 'v-enable-filetype-detection\n'
     if [ "$existing_lsp" = false ] && [ -x "$lsp_bin" ]; then
       printf 'eval %%sh{ PATH="%s/bin:%s$PATH" "%s" }\n' "$prefix" "$compiler_add" "$lsp_bin"
       printf 'set-option global lsp_cmd %s\n' "'\"$lsp_bin\" --session \"\$kak_session\"'"
@@ -414,6 +415,7 @@ ln -sfn "$kak_runtime/rc" "$isolated_config/autoload/vlang-site-runtime"
 ln -sfn "$repo_dir/rc/vlang.kak" "$isolated_config/autoload/vlang.kak"
 {
   printf '# vlang.kak managed isolated configuration\n'
+  printf 'v-enable-filetype-detection\n'
   printf '# vlang.kak integrate: %s\n' "$integrate"
   printf '# vlang.kak compiler: %s\n' "$compiler_choice"
   printf '# vlang.kak compiler-policy: %s\n' "$compiler_policy"
