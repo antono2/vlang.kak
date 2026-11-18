@@ -140,7 +140,7 @@ assert_highlighting() {
     test "$render_status" -eq 255
   fi
 
-  python3 "$script_dir/assert_highlighting.py" "$syntax_ui" "$expectations"
+  v run "$script_dir/assert_highlighting.vsh" "$syntax_ui" "$expectations"
 }
 
 echo "Testing with $("$kak" -version) and $(v version)"
@@ -156,8 +156,8 @@ run_kak \
   "$test_tmp/project/main.v" \
   "$script_dir/cases/keymaps.kak"
 test "$(sed -n '1p' "$test_tmp/keymaps-ok")" = ok
-python3 "$script_dir/context.py" "$kak"
-python3 "$script_dir/browsing.py" "$kak"
+v run "$script_dir/context.vsh" "$kak"
+v run "$script_dir/browsing.vsh" "$kak"
 
 run_kak \
   "test at cursor and rerun" \
@@ -256,7 +256,7 @@ v run "$script_dir/settings.vsh" "$kak"
 python3 "$script_dir/restart.py" "$kak"
 python3 "$script_dir/lifecycle.py" "$kak"
 python3 "$script_dir/lifecycle_sessions.py" "$kak"
-python3 "$script_dir/install_lock.py"
+v run "$script_dir/install_lock.vsh"
 python3 "$script_dir/update_discovery.py"
 v run "$script_dir/explorer.vsh" "$repo_dir/scripts/explorer.sh"
 sh "$script_dir/windowing.sh" "$repo_dir/scripts/windowing.sh"
