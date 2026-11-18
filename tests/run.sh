@@ -252,7 +252,7 @@ assert_highlighting syntax.v "$script_dir/fixtures/highlighting.tsv"
 assert_highlighting language_features.v "$script_dir/fixtures/language_highlighting.tsv"
 
 python3 "$script_dir/check_vls_transport.py" "$kak"
-python3 "$script_dir/settings.py" "$kak"
+v run "$script_dir/settings.vsh" "$kak"
 python3 "$script_dir/restart.py" "$kak"
 python3 "$script_dir/lifecycle.py" "$kak"
 python3 "$script_dir/lifecycle_sessions.py" "$kak"
