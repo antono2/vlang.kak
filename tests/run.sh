@@ -258,7 +258,7 @@ python3 "$script_dir/lifecycle.py" "$kak"
 python3 "$script_dir/lifecycle_sessions.py" "$kak"
 python3 "$script_dir/install_lock.py"
 python3 "$script_dir/update_discovery.py"
-python3 "$script_dir/explorer.py" "$repo_dir/scripts/explorer.sh"
+v run "$script_dir/explorer.vsh" "$repo_dir/scripts/explorer.sh"
 sh "$script_dir/windowing.sh" "$repo_dir/scripts/windowing.sh"
 
 v fmt -verify "$test_tmp/syntax.v"
