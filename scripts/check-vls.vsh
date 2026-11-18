@@ -1,6 +1,7 @@
 // Check the installed VLS through its public language-server protocol.
 import flag
 import json2
+import liveeditor
 import lspwire
 import net.urllib
 import os
@@ -317,11 +318,12 @@ fn check_protocol(executable string, compiler string, root string) ! {
 fn run(args []string) ! {
 	mut parser := flag.new_flag_parser(args)
 	parser.application('check-vls')
-	parser.description('Check the VLS protocol without opening the editor.')
+	parser.description('Check the VLS protocol and optionally drive the managed Kakoune editor.')
 	default_prefix := os.getenv_opt('VLANG_KAK_PREFIX') or { os.join_path(os.home_dir(), '.local') }
 	prefix := os.expand_tilde_to_home(parser.string('prefix', 0, default_prefix, 'managed installation prefix'))
 	server_path := parser.string('vls', 0, '', 'VLS executable (default: PREFIX/bin/vls)')
 	project := parser.string('project', 0, '', 'use an existing empty directory for the test fixture')
+	editor := parser.bool('editor', 0, false, 'also check the managed Kakoune launcher')
 	if parser.bool('help', `h`, false, 'show this help') {
 		println(parser.usage())
 		return
@@ -333,6 +335,20 @@ fn run(args []string) ! {
 		os.expand_tilde_to_home(server_path)
 	})
 	require(os.is_file(vls) && os.is_executable(vls), 'VLS executable missing: ${vls}')!
+	mut kak := ''
+	launcher := os.join_path(os.abs_path(prefix), 'bin', 'kak-v')
+	if editor {
+		managed_vls := os.join_path(prefix, 'bin', 'vls')
+		require(os.real_path(vls) == os.real_path(managed_vls),
+			'The editor uses PREFIX/bin/vls. Use --vls alone to check a separate server.')!
+		managed_kak := os.join_path(os.abs_path(prefix), 'bin', 'kak')
+		kak = if os.is_executable(managed_kak) {
+			managed_kak
+		} else {
+			os.find_abs_path_of_executable('kak')!
+		}
+		require(os.is_executable(launcher), 'V IDE launcher missing: ${launcher}')!
+	}
 	artifacts := os.getenv('VLANG_LSP_ARTIFACTS')
 	if artifacts != '' && project == '' {
 		os.mkdir_all(artifacts)!
@@ -356,6 +372,9 @@ fn run(args []string) ! {
 	os.write_file(os.join_path(root, 'v.mod'), "Module { name: 'vlang_check' }\n")!
 	os.write_file(os.join_path(root, 'main.v'), source)!
 	check_protocol(vls, @VEXE, root)!
+	if editor {
+		liveeditor.run(kak, launcher, root, source, imports)!
+	}
 }
 
 run(os.args[1..]) or {

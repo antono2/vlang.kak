@@ -185,7 +185,7 @@ After installing or rebuilding VLS, run `./scripts/check.sh --live-lsp` to
 exercise the server and Kakoune integration with temporary V files. Set
 `VLANG_KAK_PREFIX` first if you installed under another prefix. To check a
 specific VLS executable before linking it, run
-`python3 scripts/check-vls.py --protocol-only --vls /absolute/path/to/vls`.
+`v run scripts/check-vls.vsh --vls /absolute/path/to/vls`.
 
 The plugin maps VLS semantic tokens to Kakoune faces through
 `v_lsp_semantic_tokens`. To change them, set that global option to a complete

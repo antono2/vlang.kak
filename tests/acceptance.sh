@@ -46,7 +46,7 @@ run() {
   fi
 }
 run core "$repo_dir/tests/run.sh"
-run live-vls python3 "$repo_dir/scripts/check-vls.py" --prefix "$prefix"
+run live-vls v run "$repo_dir/scripts/check-vls.vsh" --editor --prefix "$prefix"
 run panes python3 "$repo_dir/tests/panes.py" "$prefix"
 run debugger python3 "$repo_dir/tests/debugger.py" "$KAK"
 printf 'All IDE acceptance checks passed. Logs: %s\n' "$root"
