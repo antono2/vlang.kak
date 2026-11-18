@@ -91,10 +91,7 @@ fi
 if [ "$live_lsp" = true ]; then
   if [ "$status" -ne 0 ]; then
     echo 'Live VLS check skipped until the installation checks pass.' >&2
-  elif ! command -v python3 >/dev/null 2>&1; then
-    echo 'Python 3 is required for the live VLS check.' >&2
-    status=1
-  elif ! python3 "$script_dir/check-vls.py" --prefix "$prefix"; then
+  elif ! v run "$script_dir/check-vls.vsh" --editor --prefix "$prefix"; then
     status=1
   fi
 fi

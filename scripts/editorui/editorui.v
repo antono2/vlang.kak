@@ -32,14 +32,25 @@ pub fn quote(value string) string {
 }
 
 pub fn open(kak string, root string, file string) !&Client {
-	if !os.is_executable(kak) {
-		return error('Kakoune executable not found: ${kak}')
-	}
 	mut env := os.environ()
 	env['XDG_CONFIG_HOME'] = os.join_path(root, 'config')
+	return start(kak, kak, root, file, env)
+}
+
+pub fn open_managed(kak string, launcher string, root string, file string) !&Client {
+	return start(kak, launcher, root, file, os.environ())
+}
+
+fn start(kak string, launcher string, root string, file string, env map[string]string) !&Client {
+	for executable in [kak, launcher] {
+		if !os.is_executable(executable) {
+			return error('Kakoune executable not found: ${executable}')
+		}
+	}
+	os.signal_ignore(.pipe)
 	session := 'vlang-ui-' + rand.uuid_v4()
 	ready := os.join_path(root, 'ready')
-	mut process := os.new_process(kak)
+	mut process := os.new_process(launcher)
 	process.set_args(['-ui', 'json', '-s', session, file, '-e',
 		'echo -to-file ${quote(ready)} %val{client}'])
 	process.set_environment(env)
@@ -127,6 +138,10 @@ fn (mut editor Client) send(command string) ! {
 pub fn (mut editor Client) close() {
 	if editor.process.is_alive() {
 		editor.send('kill!') or {}
+		if editor.process.stdio_fd[0] != -1 {
+			os.fd_close(editor.process.stdio_fd[0])
+			editor.process.stdio_fd[0] = -1
+		}
 		deadline := time.sys_mono_now() + u64(time.second)
 		for editor.process.is_alive() && time.sys_mono_now() < deadline {
 			editor.read_output()
@@ -138,16 +153,46 @@ pub fn (mut editor Client) close() {
 			editor.process.wait()
 		}
 	}
+	editor.read_output()
 	editor.process.close()
 }
 
 pub fn (mut editor Client) remote(command string) ! {
-	done := os.join_path(editor.root, 'done')
-	if os.exists(done) {
-		os.rm(done)!
+	return editor.execute(command, false)
+}
+
+pub fn (mut editor Client) remote_allow_error(command string) ! {
+	return editor.execute(command, true)
+}
+
+fn (mut editor Client) execute(command string, allow_error bool) ! {
+	// Socket delivery can finish before Kakoune executes the command.
+	done := os.join_path(editor.root, 'command-' + rand.uuid_v4())
+	failure := done + '.error'
+	defer {
+		os.rm(done) or {}
+		os.rm(failure) or {}
 	}
-	editor.send('evaluate-commands -client ${editor.client} %{ ${command}\necho -to-file ${quote(done)} done }')!
+	editor.send('try %{
+evaluate-commands -client ${editor.client} %{
+${command}
+}
+} catch %{
+echo -to-file ${quote(failure)} %val{error}
+}
+echo -to-file ${quote(done)} done')!
 	editor.wait_file(done, command)!
+	if !allow_error && os.is_file(failure) {
+		return error('Kakoune command failed: ' + os.read_file(failure)!.trim_space())
+	}
+}
+
+pub fn (editor Client) save_artifacts() ! {
+	os.write_file(os.join_path(editor.root, 'ui.jsonl'), editor.output)!
+	os.write_file(os.join_path(editor.root, 'kak-stderr'), editor.errors)!
+	if editor.errors != '' {
+		return error('Kakoune wrote to stderr: ${editor.errors}')
+	}
 }
 
 pub fn (mut editor Client) keys(value string) {
@@ -178,6 +223,10 @@ pub fn (mut editor Client) wait_value(expression string, value string, prefix bo
 }
 
 pub fn (mut editor Client) wait_info(offset int, needle string) !string {
+	return editor.wait_event(offset, 'info_show', [needle])
+}
+
+pub fn (mut editor Client) wait_event(offset int, method_name string, needles []string) !string {
 	deadline := time.sys_mono_now() + u64(timeout)
 	for time.sys_mono_now() < deadline && editor.process.is_alive() {
 		editor.read_output()
@@ -186,11 +235,12 @@ pub fn (mut editor Client) wait_info(offset int, needle string) !string {
 			message := event.as_map()
 			method := message['method'] or { continue }
 			params := message['params'] or { continue }
-			if method.str() == 'info_show' && params.str().contains(needle) {
-				return params.str()
+			contents := params.str()
+			if method.str() == method_name && needles.all(contents.contains(it)) {
+				return contents
 			}
 		}
 		time.sleep(poll)
 	}
-	return editor.diagnostic('Timed out waiting for UI text ${needle}')
+	return editor.diagnostic('Timed out waiting for ${method_name} with ${needles.join(', ')}')
 }
