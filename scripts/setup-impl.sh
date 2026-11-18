@@ -255,7 +255,7 @@ fi
 
 if [ "$build" = true ]; then "$prefix/opt/vlang-kakoune/candidate/bin/kak" -version; fi
 if [ "$install_lsp" = true ]; then "$lsp_bin" --version; fi
-if [ "$vls_mode" = upstream ]; then "$script_dir/probe-vls.sh" "$prefix/opt/vlang-vls/candidate/bin/vls"; fi
+if [ "$vls_mode" = upstream ]; then v run "$script_dir/probe-vls.vsh" "$prefix/opt/vlang-vls/candidate/bin/vls"; fi
 if [ "$explorer" = true ]; then "$script_dir/explorer.sh" --prepare; fi
 if command -v gdb >/dev/null 2>&1 && command -v v >/dev/null 2>&1; then "$script_dir/debug.sh" --prepare; fi
 
