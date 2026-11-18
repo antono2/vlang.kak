@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Exercise the installed VLS directly and through the managed Kakoune launcher."""
+"""Check the managed Kakoune launcher and run the V protocol check."""
 
 import argparse
 from contextlib import nullcontext
 import json
 import os
-import select
 import shutil
 import subprocess
 import sys
@@ -27,7 +26,6 @@ fn main() {
     println(result)
 }
 """
-BROKEN = "module main\nfn broken() int { return 'wrong' }\n"
 CLEAN = "module main\nfn broken() int { return 1 }\n"
 IMPORTS = "module main\n\nimport os\nimport math\n\nfn main() { println(os.args.len) }\n"
 
@@ -78,277 +76,6 @@ def send_editor_commands(kak, session, client, commands, root, *, allow_error=Fa
     finally:
         acknowledgment.unlink(missing_ok=True)
         error_path.unlink(missing_ok=True)
-
-
-class LspTransport:
-    def __init__(self, process):
-        self.process = process
-        self.pending = bytearray()
-        self.next_id = 1
-
-    def send(self, message):
-        body = json.dumps(message, separators=(",", ":")).encode()
-        self.process.stdin.write(
-            b"Content-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body
-        )
-        self.process.stdin.flush()
-
-    def receive(self, timeout=20):
-        deadline = time.monotonic() + timeout
-        while True:
-            marker = self.pending.find(b"\r\n\r\n")
-            if marker >= 0:
-                header = self.pending[:marker].decode()
-                lengths = [
-                    int(value.strip())
-                    for name, value in (
-                        line.split(":", 1) for line in header.split("\r\n") if ":" in line
-                    )
-                    if name.lower() == "content-length"
-                ]
-                require(len(lengths) == 1 and lengths[0] < 10_000_000, "Invalid VLS frame")
-                end = marker + 4 + lengths[0]
-                if len(self.pending) >= end:
-                    body = bytes(self.pending[marker + 4 : end])
-                    del self.pending[:end]
-                    return json.loads(body)
-            remaining = deadline - time.monotonic()
-            if remaining <= 0 or not select.select([self.process.stdout], [], [], remaining)[0]:
-                raise RuntimeError("Timed out waiting for a VLS response")
-            chunk = os.read(self.process.stdout.fileno(), 65536)
-            require(chunk, "VLS closed stdout unexpectedly")
-            self.pending.extend(chunk)
-
-    def request(self, method, params):
-        request_id = self.next_id
-        self.next_id += 1
-        self.send({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params})
-        while True:
-            message = self.receive()
-            if message.get("id") == request_id:
-                require("error" not in message, f"VLS {method} failed: {message.get('error')}")
-                return message.get("result")
-            if "id" in message and "method" in message:
-                self.send({"jsonrpc": "2.0", "id": message["id"], "result": None})
-
-    def notify(self, method, params):
-        self.send({"jsonrpc": "2.0", "method": method, "params": params})
-
-
-def check_protocol(vls, v_command, root, main_file):
-    with tempfile.TemporaryFile() as errors:
-        environment = os.environ.copy()
-        environment["VLS_V_COMMAND"] = v_command
-        process = subprocess.Popen(
-            [str(vls)],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=errors,
-            env=environment,
-            bufsize=0,
-        )
-        transport = LspTransport(process)
-        try:
-            root_uri = root.as_uri()
-            uri = main_file.as_uri()
-            response = transport.request(
-                "initialize",
-                {
-                    "processId": os.getpid(),
-                    "rootUri": root_uri,
-                    "workspaceFolders": [{"uri": root_uri, "name": "vlang-check"}],
-                    "capabilities": {},
-                },
-            )
-            capabilities = response["capabilities"]
-            for name in (
-                "hoverProvider",
-                "signatureHelpProvider",
-                "definitionProvider",
-                "referencesProvider",
-                "renameProvider",
-                "callHierarchyProvider",
-                "codeActionProvider",
-                "documentHighlightProvider",
-                "selectionRangeProvider",
-                "documentSymbolProvider",
-                "completionProvider",
-                "semanticTokensProvider",
-            ):
-                require(capabilities.get(name), f"VLS does not advertise {name}")
-            transport.notify("initialized", {})
-            transport.notify(
-                "textDocument/didOpen",
-                {
-                    "textDocument": {
-                        "uri": uri,
-                        "languageId": "v",
-                        "version": 1,
-                        "text": SOURCE,
-                    }
-                },
-            )
-            location = {"textDocument": {"uri": uri}, "position": {"line": 8, "character": 14}}
-            hover_location = {
-                "textDocument": {"uri": uri},
-                "position": {"line": 8, "character": 15},
-            }
-            hover = transport.request("textDocument/hover", hover_location)
-            require(
-                "fn add(left int, right int) int" in json.dumps(hover)
-                and "Adds two values." in json.dumps(hover),
-                f"VLS hover omitted the declaration or documentation: {str(hover)[:500]}",
-            )
-            signature = transport.request(
-                "textDocument/signatureHelp",
-                {"textDocument": {"uri": uri}, "position": {"line": 8, "character": 21}},
-            )
-            require(
-                "add(left int, right int) int" in signature["signatures"][0]["label"],
-                "VLS signature is missing",
-            )
-            require(
-                signature.get("activeParameter") == 1,
-                "VLS selected the wrong call parameter",
-            )
-            definition = transport.request("textDocument/definition", location)
-            require(
-                definition["range"]["start"]["line"] == 3,
-                "VLS definition has the wrong line",
-            )
-            symbols = transport.request("textDocument/documentSymbol", {"textDocument": {"uri": uri}})
-            require(any(item.get("name") == "add" for item in symbols), "VLS omitted the add symbol")
-            references = transport.request(
-                "textDocument/references",
-                {**location, "context": {"includeDeclaration": True}},
-            )
-            require(
-                len(references) >= 2,
-                "VLS did not find the declaration and call reference",
-            )
-            rename = transport.request("textDocument/rename", {**location, "newName": "sum_values"})
-            edits = rename.get("changes", {}).get(uri, [])
-            require(
-                {item["range"]["start"]["line"] for item in edits} == {3, 8}
-                and all(item["newText"] == "sum_values" for item in edits),
-                "VLS rename did not edit the declaration and call",
-            )
-            callee = transport.request(
-                "textDocument/prepareCallHierarchy",
-                {"textDocument": {"uri": uri}, "position": {"line": 3, "character": 4}},
-            )
-            require(callee and callee[0]["name"] == "add", "VLS omitted the add call item")
-            incoming = transport.request("callHierarchy/incomingCalls", {"item": callee[0]})
-            require(
-                any(item["from"]["name"] == "main" for item in incoming),
-                "VLS omitted the main caller",
-            )
-            caller = transport.request(
-                "textDocument/prepareCallHierarchy",
-                {"textDocument": {"uri": uri}, "position": {"line": 7, "character": 4}},
-            )
-            require(caller and caller[0]["name"] == "main", "VLS omitted the main call item")
-            outgoing = transport.request("callHierarchy/outgoingCalls", {"item": caller[0]})
-            require(
-                any(item["to"]["name"] == "add" for item in outgoing),
-                "VLS omitted the add callee",
-            )
-            imports_file = root / "imports.v"
-            imports_file.write_text(IMPORTS)
-            imports_uri = imports_file.as_uri()
-            transport.notify(
-                "textDocument/didOpen",
-                {
-                    "textDocument": {
-                        "uri": imports_uri,
-                        "languageId": "v",
-                        "version": 1,
-                        "text": IMPORTS,
-                    }
-                },
-            )
-            actions = transport.request(
-                "textDocument/codeAction",
-                {
-                    "textDocument": {"uri": imports_uri},
-                    "range": {
-                        "start": {"line": 2, "character": 0},
-                        "end": {"line": 2, "character": 0},
-                    },
-                    "context": {"diagnostics": [], "only": ["source.organizeImports"]},
-                },
-            )
-            require(
-                any(
-                    action.get("kind") == "source.organizeImports"
-                    and action["edit"]["changes"][imports_uri][0]["newText"]
-                    == "import math\nimport os"
-                    for action in actions
-                ),
-                "VLS did not offer an import organizing action",
-            )
-            highlights = transport.request("textDocument/documentHighlight", location)
-            require(
-                any(item["range"]["start"]["line"] == 8 for item in highlights),
-                "VLS did not highlight the call",
-            )
-            ranges = transport.request(
-                "textDocument/selectionRange",
-                {"textDocument": {"uri": uri}, "positions": [location["position"]]},
-            )
-            require(
-                ranges and ranges[0].get("parent"),
-                "VLS did not return an expandable syntax range",
-            )
-            completion = transport.request(
-                "textDocument/completion",
-                {"textDocument": {"uri": uri}, "position": {"line": 8, "character": 17}},
-            )
-            require(
-                any(item.get("label") == "add" for item in completion.get("items", [])),
-                "VLS completion omitted add",
-            )
-            semantic = transport.request("textDocument/semanticTokens/full", {"textDocument": {"uri": uri}})
-            require(semantic.get("data"), "VLS returned no semantic tokens")
-            transport.notify(
-                "textDocument/didChange",
-                {
-                    "textDocument": {"uri": uri, "version": 2},
-                    "contentChanges": [{"text": BROKEN}],
-                },
-            )
-            deadline = time.monotonic() + 20
-            while True:
-                remaining = deadline - time.monotonic()
-                require(remaining > 0, "VLS did not publish the type error")
-                message = transport.receive(remaining)
-                if "id" in message and "method" in message:
-                    transport.send({"jsonrpc": "2.0", "id": message["id"], "result": None})
-                if message.get("method") == "textDocument/publishDiagnostics":
-                    params = message.get("params", {})
-                    if params.get("version") == 2 and params.get("diagnostics"):
-                        require(
-                            any(item.get("severity") == 1 for item in params["diagnostics"]),
-                            "VLS published no error diagnostic",
-                        )
-                        break
-            transport.request("shutdown", {})
-            transport.notify("exit", {})
-            process.stdin.close()
-            require(process.wait(timeout=5) == 0, "VLS exited with an error")
-        finally:
-            if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait(timeout=5)
-            errors.seek(0)
-            error_text = errors.read().decode(errors="replace")
-            if error_text:
-                print(error_text[-1200:], file=sys.stderr)
-    print("ok - VLS hover, rename, calls, import actions, syntax, completion, diagnostics")
 
 
 def ui_events(path):
@@ -721,15 +448,13 @@ def main():
         workspace = tempfile.TemporaryDirectory(prefix="vlang-kak-lsp-")
     with workspace as directory:
         root = Path(directory)
-        (root / "v.mod").write_text("Module { name: 'vlang_check' }\n")
-        main_file = root / "main.v"
-        main_file.write_text(SOURCE)
-        check_protocol(vls, v_command, root, main_file)
-        # The import-action probe is intentionally invalid as a project source.
-        # Remove it before testing hover in the editor session.
-        (root / "imports.v").unlink(missing_ok=True)
+        protocol = Path(__file__).resolve().with_name("check-vls.vsh")
+        result = subprocess.run(
+            [v_command, "run", str(protocol), "--vls", str(vls), "--project", str(root)],
+        )
+        require(result.returncode == 0, "VLS protocol check failed")
         if not args.protocol_only:
-            check_kakoune(kak, launcher, root, main_file)
+            check_kakoune(kak, launcher, root, root / "main.v")
 
 
 if __name__ == "__main__":
