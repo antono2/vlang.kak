@@ -97,7 +97,7 @@ jobs:
           sudo apt-get install --yes build-essential git curl unzip tmux gdb \
             xvfb xauth screen xterm xdotool sway foot wtype libegl1 libgl1-mesa-dri libopengl0 libfontconfig1 \
             libxcursor1 libxrandr2 libxi6 libxinerama1 libxkbcommon0 \
-            libxkbcommon-x11-0 libxcb-xkb1
+            libxkbcommon-x11-0 libxcb-xkb1 imagemagick fonts-dejavu-core
 
       - name: Identify compiler cache
         id: compiler-cache
@@ -145,6 +145,13 @@ jobs:
         run: |
           set -o pipefail
           v run tests/release.vsh "$RUNNER_TEMP/vlang-release" 2>&1 | tee "$RUNNER_TEMP/vlang-release.log"
+
+      - name: Record the six-screen IDE demonstration
+        env:
+          TMPDIR: ${{ runner.temp }}/vlang-release
+        run: |
+          v run tests/record_demo.vsh "$RUNNER_TEMP/vlang-release/prefix" \
+            "$RUNNER_TEMP/vlang-release/demo/ide.gif" --frames "$RUNNER_TEMP/vlang-release/demo/frames"
 
       - name: Restore verified pane-host download archives
         id: pane-restore
@@ -199,6 +206,10 @@ jobs:
             ${{ runner.temp }}/vlang-release/acceptance/lsp/**/kak-stderr
             ${{ runner.temp }}/vlang-release/acceptance/**/*.log
             ${{ runner.temp }}/vlang-release/acceptance/results.txt
+            ${{ runner.temp }}/vlang-release/demo/ide.gif
+            ${{ runner.temp }}/vlang-release/demo/frames/*.png
+            ${{ runner.temp }}/vlang-release/vlang-demo-*/last-screen.txt
+            ${{ runner.temp }}/vlang-release/vlang-demo-*/*.ansi
             ${{ runner.temp }}/vlang-release/pane-hosts/**/host.log
             ${{ runner.temp }}/vlang-release/pane-hosts/**/kak-debug
             ${{ runner.temp }}/vlang-release/pane-hosts/**/panes.json
