@@ -399,7 +399,10 @@ fn (mut check Check) runtime_errors() ! {
 	check.command('edit ${quote(path)}; v-debug')!
 	require(check.runtime_stop(path, 'panic')!.message == 'V panic', 'Wrong panic classification')!
 	check.command('v-debug-continue')!
-	require(check.phase('exited')!.output.contains('debugger test panic'), 'Panic output was lost')!
+	// The DAP exit event and the last program output arrive on separate streams.
+	check.wait_state('panic output after program exit', fn (state State) bool {
+		return state.phase == 'exited' && state.output.contains('debugger test panic')
+	})!
 
 	os.write_file(path, 'module main\nfn main() {\n    assert 2 == 3\n}\n')!
 	check.command('edit! ${quote(path)}; v-debug')!
