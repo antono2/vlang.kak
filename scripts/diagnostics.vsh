@@ -1,4 +1,5 @@
 // Report the tools, configuration, and recovery state of a Kakoune IDE installation.
+import managedfiles { inspect_lock }
 import os
 import time
 
@@ -67,7 +68,11 @@ fn capture(program string, args []string) Output {
 	output += child.stdout_slurp()
 	diagnostics += child.stderr_slurp()
 	child.wait()
-	return Output{ code: child.code, stdout: output.trim_right('\n'), stderr: diagnostics }
+	return Output{
+		code:   child.code
+		stdout: output.trim_right('\n')
+		stderr: diagnostics
+	}
 }
 
 fn report_version(label string, path string, flag string) int {
@@ -157,7 +162,10 @@ fn (install Installation) report_recovery() {
 	}
 	println('')
 	// Use the same PID identity check as setup and rollback.
-	lock_state := run_child(os.join_path(@DIR, 'lock.sh'), ['--prefix', install.prefix])
+	lock_prefix := os.real_path(os.abs_path(install.prefix))
+	lock_report := inspect_lock(lock_prefix,
+		os.join_path(lock_prefix, 'opt', 'vlang-state', 'lock'))
+	println(lock_report.message)
 	mut entries := os.ls(state) or { []string{} }
 	entries.sort()
 	for entry in entries {
@@ -167,7 +175,7 @@ fn (install Installation) report_recovery() {
 		}
 		if !regular_file(os.join_path(pending, 'ready')) {
 			println('Incomplete setup snapshot: ${pending} (activation snapshot was not completed).')
-		} else if lock_state == 1 {
+		} else if lock_report.status == .active {
 			println('Setup snapshot (operation active): ${pending}')
 		} else {
 			println('Interrupted setup snapshot: ${pending} (keep it until recovery is complete).')
@@ -197,7 +205,9 @@ fn (install Installation) health(report bool) int {
 	print('Plugin revision: ')
 	git := tool('git')
 	revision := if git == '' {
-		Output{ code: 1 }
+		Output{
+			code: 1
+		}
 	} else {
 		capture(git, ['-C', install.repo, 'describe', '--tags', '--always', '--dirty'])
 	}
@@ -229,7 +239,8 @@ fn run(args []string) int {
 	home := os.home_dir()
 	install := Installation{
 		prefix: env_path('VLANG_KAK_PREFIX', os.join_path(home, '.local'))
-		config: env_path('VLANG_KAK_CONFIG_HOME', env_path('XDG_CONFIG_HOME', os.join_path(home, '.config')))
+		config: env_path('VLANG_KAK_CONFIG_HOME', env_path('XDG_CONFIG_HOME', os.join_path(home,
+			'.config')))
 		repo:   os.dir(@DIR)
 	}
 	mut path := os.getenv('PATH')
@@ -241,7 +252,7 @@ fn run(args []string) int {
 		}
 	}
 	os.setenv('PATH', os.join_path(install.prefix, 'bin') + ':' + path, true)
-	match args[0] or { '' } {
+	match args[0] {
 		'check' {
 			if option in ['', '--live-lsp'] {
 				return install.check(option == '--live-lsp')
@@ -254,7 +265,8 @@ fn run(args []string) int {
 			}
 		}
 		else {}
-	}
+	} or { '' }
+
 	return 2
 }
 

@@ -64,6 +64,8 @@ scripts/lock.sh --prefix "$HOME/.local" --clear-stale
 
 PID start times prevent a reused PID from being mistaken for the original owner.
 Active locks, unknown/legacy owners and unexpected lock contents are preserved.
+Lock inspection and stale-lock recovery use V when a working compiler is
+available, with a shell fallback for editor-only installations.
 For an empty legacy lock, inspect running setup/removal processes before using
 `rmdir` on that exact directory. Keep reported `pending.*` snapshots until recovery
 is complete. After clearing a known stale lock, restore the snapshot reported by
