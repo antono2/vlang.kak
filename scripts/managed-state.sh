@@ -8,6 +8,12 @@ case "$prefix" in /*) ;; *) echo 'Use an absolute prefix.' >&2; exit 2 ;; esac
 state=$prefix/opt/vlang-state
 case "$operation" in
   record)
+    script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+    . "$script_dir/managed-v.inc"
+    if compiler=$(find_maintenance_v --prefix "$prefix"); then
+      exec "$compiler" run "$script_dir/record-managed-state.vsh" "$prefix" "$3" "${4:-}"
+    fi
+    # Editor-only installations may record ownership before V is available.
     config=$3
     mkdir -p "$state"
     manifest=$state/manifest.tsv

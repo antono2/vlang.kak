@@ -25,6 +25,8 @@ GDB DAP requirements; preflight/health report those limitations.
 
 Setup records file hashes, symlink targets and managed directories in
 `PREFIX/opt/vlang-state/manifest.tsv`. This is data, not executable shell code.
+Ownership recording uses V when a system or managed compiler is available.
+Editor-only setup can record ownership before installing a compiler.
 Personal settings and projects are excluded. An isolated installation does not
 claim unrelated autoload links or a VLS link supplied outside setup.
 
