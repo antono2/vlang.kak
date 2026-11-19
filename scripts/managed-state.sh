@@ -77,6 +77,12 @@ case "$operation" in
     printf '%s\n' "${XDG_CACHE_HOME:-$HOME/.cache}" > "$state/cache-home"
     ;;
   repair-links)
+    script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+    . "$script_dir/managed-v.inc"
+    if compiler=$(find_maintenance_v --prefix "$prefix"); then
+      exec "$compiler" run "$script_dir/repair-managed-links.vsh" "$prefix"
+    fi
+    # Editor-only installations may repair links without a compiler installed.
     manifest=$state/manifest.tsv
     [ -f "$manifest" ] || exit 0
     while IFS="$(printf '\t')" read -r kind target path; do
@@ -134,5 +140,5 @@ case "$operation" in
       done < "$snapshot/personal-paths"
     fi
     ;;
-  *) echo 'Usage: managed-state.sh record PREFIX CONFIG_HOME | snapshot PREFIX DIRECTORY | restore PREFIX DIRECTORY' >&2; exit 2 ;;
+  *) echo 'Usage: managed-state.sh record PREFIX CONFIG_HOME | snapshot PREFIX DIRECTORY | restore PREFIX DIRECTORY | repair-links PREFIX' >&2; exit 2 ;;
 esac

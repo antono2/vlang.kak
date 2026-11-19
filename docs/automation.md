@@ -103,8 +103,10 @@ own tool, rather than participating in the complete setup transaction.
 
 `:v-health` reports the selected tools/configuration. `:v-repair` repairs missing
 owned links and regenerates managed launchers/configuration using installed
-tools. Changed links and replacement files are kept. It does not install system
-packages. `:v-diagnostic-report` prepares a report containing versions and paths;
+tools. Link repair uses V when a system or managed compiler is available and
+also works on editor-only installations without V. Changed links and replacement
+files are kept. It does not install system packages. `:v-diagnostic-report`
+prepares a report containing versions and paths;
 review it before copying it into an issue. The live VLS checker remains available
 as `scripts/check.sh --live-lsp` and requires Python only for that development
 check.

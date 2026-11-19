@@ -84,6 +84,46 @@ fn (life Lifecycle) settings_and_ownership() ! {
 		'Uninstall did not preserve personal files and remove unchanged owned files')!
 }
 
+fn (life Lifecycle) repair_links() ! {
+	prefix := os.join_path(life.root, 'repair prefix')
+	state := os.join_path(prefix, 'opt', 'vlang-state')
+	tool := os.join_path(prefix, 'opt', 'vlang-vls')
+	config := os.join_path(life.root, 'repair config')
+	outside := os.join_path(life.root, 'repair outside')
+	os.mkdir_all(state)!
+	os.mkdir_all(tool)!
+	os.mkdir(outside)!
+	os.write_file(os.join_path(state, 'config-home'), config + '\n')!
+	current := os.join_path(tool, 'current')
+	candidate := os.join_path(tool, 'candidate')
+	autoload := os.join_path(config, 'kak', 'autoload', 'vlang.kak')
+	replacement := os.join_path(prefix, 'bin', 'vls')
+	redirect := os.join_path(tool, 'redirect')
+	os.mkdir_all(os.dir(replacement))!
+	os.symlink('releases/personal', candidate)!
+	os.write_file(replacement, 'personal launcher')!
+	os.symlink(outside, redirect)!
+	rows := [
+		'link\treleases/previous\t${current}',
+		'link\treleases/recorded\t${candidate}',
+		'link\t${tool}/runtime.kak\t${autoload}',
+		'link\t${tool}/bin/vls\t${replacement}',
+		'link\tignored\t${redirect}/missing/link',
+		'link\tignored\t${tool}/../../unrecognized',
+	]
+	manifest := os.join_path(state, 'manifest.tsv')
+	os.write_file(manifest, rows.join('\n') + '\n')!
+	life.script('managed-state', ['repair-links', prefix])!
+	require(os.readlink(current)! == 'releases/previous'
+		&& os.readlink(autoload)! == '${tool}/runtime.kak', 'Repair did not restore the recorded links')!
+	require(os.readlink(candidate)! == 'releases/personal'
+		&& os.read_file(replacement)! == 'personal launcher', 'Repair replaced a user change')!
+	require(os.ls(outside)!.len == 0 && !os.is_link(os.join_path(prefix, 'unrecognized')),
+		'Repair followed a redirected ancestor or path traversal')!
+	require(life.script('managed-state', ['repair-links', prefix])!.contains('Keep changed link:'),
+		'Repeated repair did not preserve the changed link')!
+}
+
 fn (life Lifecycle) cleanup_releases(state string) ! {
 	// Cleanup resolves a saved relative link against its original installation root.
 	tool := os.join_path(life.prefix, 'opt/vlang-vls')
@@ -201,8 +241,7 @@ fn (life Lifecycle) checkpoints() ! {
 
 	dispatch := os.join_path(life.root, 'dispatch')
 	printf_args := quote("printf '<%s>\\n' .")
-	life.editor(
-		'define-command -override -params 1 v-make-command %{ echo -to-file ${quote(dispatch)} %arg{1} }; ' +
+	life.editor('define-command -override -params 1 v-make-command %{ echo -to-file ${quote(dispatch)} %arg{1} }; ' +
 		'set-option global v_run_command ${printf_args}; v-project-preference load; v-run-project; quit!', [
 		source,
 	], env)!
@@ -307,9 +346,10 @@ fn run(kak_path string) ! {
 		env:    releasetest.editor_environment(root, prefix, config, kak)!
 	}
 	life.settings_and_ownership()!
+	life.repair_links()!
 	life.uninstall_integration()!
 	life.checkpoints()!
-	println('ok - owned removal, changed-file preservation, failed setup recovery, persistent settings, literal arguments and buffer checkpoint restoration')
+	println('ok - link repair, owned removal, changed-file preservation, failed setup recovery, persistent settings, literal arguments and buffer checkpoint restoration')
 }
 
 if os.args.len != 2 {
