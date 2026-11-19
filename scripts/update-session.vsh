@@ -1,7 +1,9 @@
 // Update the managed tools and tell the original Kakoune client to restart.
 import os
+import time
 
 const usage = 'Usage: update-session.sh PREFIX SESSION CLIENT CLIENT_PID [update options]'
+const process_poll = 20 * time.millisecond
 
 fn update(prefix string, options []string) int {
 	mut child := os.new_process(os.join_path(@DIR, 'update.sh'))
@@ -20,17 +22,21 @@ fn request_restart(kak string, session string, client string) bool {
 	mut child := os.new_process(kak)
 	defer { child.close() }
 	child.set_args(['-p', session])
-	child.set_redirect_stdio_merged()
+	child.set_redirect_stdio()
 	child.run()
 	os.signal_ignore(.pipe)
 	child.stdin_write(command)
 	os.fd_close(child.stdio_fd[0])
 	child.stdio_fd[0] = -1
-	diagnostics := child.stdout_slurp()
-	child.wait()
-	if diagnostics != '' {
-		eprint(diagnostics)
+	// Drain both streams while the client is running so errors cannot fill a pipe.
+	for child.is_alive() {
+		print(child.stdout_read())
+		eprint(child.stderr_read())
+		time.sleep(process_poll)
 	}
+	print(child.stdout_slurp())
+	eprint(child.stderr_slurp())
+	child.wait()
 	return child.code == 0
 }
 
