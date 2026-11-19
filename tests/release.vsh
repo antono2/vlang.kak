@@ -3,7 +3,7 @@ import os
 import rand
 import releasetest
 
-const usage = 'Usage: v run tests/release.vsh [ARTIFACT_DIRECTORY]\nRequires V, build tools, tmux, GDB with DAP, Python 3, and network access.'
+const usage = 'Usage: v run tests/release.vsh [ARTIFACT_DIRECTORY]\nRequires V, build tools, tmux, GDB with DAP, and network access.'
 
 fn command(program string, args []string) ! {
 	program_path := os.find_abs_path_of_executable(program)!

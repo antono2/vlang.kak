@@ -169,7 +169,7 @@ Session artifacts live under `$XDG_CACHE_HOME/vlang.kak/debug-SESSION_HASH`
 To run the real editor integration test:
 
 ```sh
-python3 tests/debugger.py /absolute/path/to/kak
+v run tests/debugger.vsh /absolute/path/to/kak
 ```
 
 The test uses temporary source/configuration and checks V locations, conditional

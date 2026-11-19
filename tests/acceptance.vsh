@@ -4,7 +4,7 @@ import rand
 import releasetest { capture }
 import time
 
-const usage = 'Usage: v run tests/acceptance.vsh PREFIX [ARTIFACT_DIRECTORY]\nRequires a managed Kakoune/kak-lsp/VLS stack, V, Python 3, tmux and GDB DAP.'
+const usage = 'Usage: v run tests/acceptance.vsh PREFIX [ARTIFACT_DIRECTORY]\nRequires a managed Kakoune/kak-lsp/VLS stack, V, tmux and GDB DAP.'
 
 struct Stage {
 	name    string
@@ -86,8 +86,8 @@ fn acceptance(prefix string, root string) ! {
 		Stage{ name: 'panes', program: 'v', args: ['run', os.join_path(@DIR, 'panes.vsh'), prefix] },
 		Stage{
 			name:    'debugger'
-			program: 'python3'
-			args:    [os.join_path(@DIR, 'debugger.py'), kak]
+			program: 'v'
+			args:    ['run', os.join_path(@DIR, 'debugger.vsh'), kak]
 		},
 	] {
 		run_stage(stage, root, mut results)!

@@ -36,11 +36,11 @@ See [automated acceptance](release-candidate.md) for a single command covering t
 IDE workflows. No manual user test pass is required.
 
 Run `./tests/run.sh` for syntax, editing, keys, project tasks, history, explorer
-and restart checks. Run `python3 tests/debugger.py /path/to/kak` for real
+and restart checks. Run `v run tests/debugger.vsh /path/to/kak` for real
 GDB/editor interaction. Run `v run tests/release.vsh /absolute/artifact-directory` for a
 fresh managed installation, real VLS interaction, real tmux clients, an
 in-editor restart, real GDB debugging, a managed tool update and another live VLS check. The latter
-requires network access, V, C++ build tools, Python 3, tmux and GDB with DAP. Its configuration,
+requires network access, V, C++ build tools, tmux and GDB with DAP. Its configuration,
 cache and installed tools stay under the supplied directory for inspection.
 It never updates the plugin checkout from Git.
 

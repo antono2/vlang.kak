@@ -38,8 +38,7 @@ v run tests/lifecycle_stack.vsh "$HOME/.local"
 
 These commands use isolated configurations, test projects and sessions. They
 preserve personal settings and existing editor sessions. The tmux pane test
-uses V and tmux. The full acceptance suite also needs Python 3 and GDB with
-DAP. The fresh installation needs network access and C/C++ build tools.
+uses V and tmux. The full acceptance suite also needs GDB with DAP. The fresh installation needs network access and C/C++ build tools.
 
 ## Coverage
 

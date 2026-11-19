@@ -9,8 +9,7 @@ for questions, configuration examples and workflow feedback.
 Clone the repository and create a branch. The plugin lives in `rc/vlang.kak`;
 installed explorer and debugger helpers are V programs in `scripts/`. Shell
 scripts manage installation, updates and pane hosts. The core tests use V,
-Kakoune and tmux. The full release suite also uses Python for the debugger and
-terminal-host checks.
+Kakoune and tmux. Release CI also uses Python for the terminal-host checks.
 
 For a separate managed development installation:
 
