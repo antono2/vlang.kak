@@ -221,6 +221,10 @@ fn (install Installation) health(report bool) int {
 }
 
 fn run(args []string) int {
+	if args in [['--help'], ['-h']] {
+		println('Usage: v run scripts/diagnostics.vsh check [--live-lsp] | health [--report]')
+		return 0
+	}
 	option := args[1] or { '' }
 	home := os.home_dir()
 	install := Installation{

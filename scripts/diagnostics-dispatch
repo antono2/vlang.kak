@@ -24,7 +24,7 @@ if command -v v >/dev/null 2>&1 && stage=$(mktemp -d "${TMPDIR:-/tmp}/vlang-kak-
     trap 'exit 130' INT
     trap 'exit 143' TERM
     if v -skip-running -o "$stage/diagnostics" "$script_dir/diagnostics.vsh" >/dev/null 2>&1 &&
-        [ -x "$stage/diagnostics" ]; then
+        "$stage/diagnostics" --help >/dev/null 2>&1; then
         # A nonzero report status belongs to the caller, so never replay the report.
         PATH=$original_path "$stage/diagnostics" "$mode" "$@"
         exit
