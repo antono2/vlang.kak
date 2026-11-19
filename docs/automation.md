@@ -163,7 +163,9 @@ Enable weekly release discovery through `:v-settings`, or set
 `v_update_check_enabled true`. On client creation it starts a background check,
 at most once per seven days, and notifies only for a newly discovered release.
 It does not schedule a system service or install updates. `:v-check-updates`
-checks immediately. The repository's weekly Kakoune-master CI is separate.
+checks immediately. Release discovery uses V when available and retains a POSIX
+fallback for editor-only installations. The repository's weekly Kakoune-master
+CI is separate.
 
 `:v-cleanup` previews unchanged inactive tool releases. `:v-cleanup-apply` asks
 before removing them. Current, previous and versions recorded by active managed
