@@ -268,15 +268,20 @@ if [ "$integrate" = true ] && [ -n "${VLANG_KAK_TRANSACTION:-}" ]; then
 fi
 
 # All builds succeeded. Switch the prepared versions and generate launchers.
-for tool in kakoune kak-lsp vls v; do
-  root=$prefix/opt/vlang-$tool
-  if [ -L "$root/candidate" ]; then
-    target=$(readlink "$root/candidate")
-    ln -sfn "$target" "$root/current.next"
-    mv -Tf "$root/current.next" "$root/current"
-    rm "$root/candidate"
+. "$script_dir/managed-v.inc"
+activation_status=125
+if compiler=$(find_maintenance_v --prefix "$prefix"); then
+  activation_status=0
+  run_maintenance_program "$compiler" "$script_dir/setup-activation.vsh" "$prefix" "$vls_mode" "$vls_path" || activation_status=$?
+  if [ "$activation_status" -eq 125 ]; then
+    echo 'V could not prepare tool activation. Using shell activation.' >&2
   fi
-done
+fi
+case "$activation_status" in
+  0) ;;
+  125) . "$script_dir/setup-activation-posix" ;;
+  *) exit "$activation_status" ;;
+esac
 if [ "$build" = true ] || [ -d "$prefix/opt/vlang-kakoune/current/share/kak" ]; then
   kak_runtime=$prefix/opt/vlang-kakoune/current/share/kak
   cat > "$prefix/bin/kak.tmp" <<EOF
@@ -289,11 +294,6 @@ EOF
   chmod 755 "$prefix/bin/kak.tmp"; mv "$prefix/bin/kak.tmp" "$prefix/bin/kak"
 fi
 if [ "$install_lsp" = true ]; then lsp_bin=$prefix/opt/vlang-kak-lsp/current/bin/kak-lsp; fi
-if [ "$vls_mode" = upstream ]; then
-  ln -sfn "$prefix/opt/vlang-vls/current/bin/vls" "$prefix/bin/vls"
-elif [ "$vls_mode" = external ]; then
-  ln -sfn "$vls_path" "$prefix/bin/vls"
-fi
 
 compiler_add=
 compiler_launcher=

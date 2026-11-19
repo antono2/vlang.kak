@@ -165,6 +165,7 @@ fn (mut suite Suite) run() ! {
 	scripts := os.real_path(os.join_path(@DIR, '..', 'scripts'))
 	suite.script('explorer.vsh', [os.join_path(scripts, 'explorer.sh')])!
 	suite.script('windowing.vsh', [os.join_path(scripts, 'windowing.sh')])!
+	suite.script('setup_activation.vsh', [])!
 
 	for file in ['syntax.v', 'language_features.v'] {
 		path := os.join_path(suite.scratch, file)
