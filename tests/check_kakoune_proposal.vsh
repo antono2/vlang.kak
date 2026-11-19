@@ -8,7 +8,8 @@ const new_pin = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 const proposal_branch = 'automation/kakoune-${new_pin}'
 const base = 'master'
 const pin_path = 'tests/release.env'
-const list_args = ['pr', 'list', '--head', proposal_branch, '--state', 'all', '--json', 'number']
+const list_args = ['pr', 'list', '--head', proposal_branch, '--state', 'all', '--json', 'number',
+	'--jq', 'length']
 const create_args = ['pr', 'create', '--base', base, '--head', proposal_branch, '--title',
 	'Update verified Kakoune master revision', '--body-file']
 const workflow_args = ['workflow', 'run', 'test.yml', '--ref', proposal_branch]
@@ -25,9 +26,9 @@ fn fake_gh(log string) ! {
 		args == list_args {
 			receipt.writeln('list')!
 			match os.getenv('VLANG_PROPOSAL_MODE') {
-				'existing' { println('[{"number":42}]') }
+				'existing' { println('1') }
 				'error' { return error('Simulated GitHub lookup failure') }
-				else { println('[]') }
+				else { println('0') }
 			}
 		}
 		args.len == create_args.len + 1 && args[..create_args.len] == create_args {

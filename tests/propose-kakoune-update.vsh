@@ -1,5 +1,4 @@
 // Propose the Kakoune revision that passed the full release gate.
-import json2
 import os
 import rand
 import releasetest { capture, capture_result }
@@ -12,10 +11,6 @@ const git_name = 'user.name=github-actions[bot]'
 const git_email = 'user.email=41898282+github-actions[bot]@users.noreply.github.com'
 const usage = 'Usage: v run tests/propose-kakoune-update.vsh VERIFIED_SHA DEFAULT_BRANCH'
 
-struct PullRequest {
-	number int
-}
-
 fn pin_line(lines []string) !int {
 	matches := lines.filter(it.starts_with(key))
 	if matches.len != 1 {
@@ -26,9 +21,13 @@ fn pin_line(lines []string) !int {
 
 fn previous_proposal(branch string) !bool {
 	// Include closed and merged proposals so a prior decision is respected.
-	raw :=
-		capture('gh', ['pr', 'list', '--head', branch, '--state', 'all', '--json', 'number'], true)!
-	return json2.decode[[]PullRequest](raw)!.len > 0
+	result := capture('gh', ['pr', 'list', '--head', branch, '--state', 'all', '--json', 'number',
+		'--jq', 'length'], true)!
+	count := result.trim_space()
+	if count == '' || !count.bytes().all(it >= `0` && it <= `9`) {
+		return error('Expected a pull request count from GitHub CLI, got: ${count}')
+	}
+	return count != '0'
 }
 
 fn remote_branch(branch string, pin string) !bool {
