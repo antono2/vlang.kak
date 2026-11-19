@@ -159,7 +159,7 @@ jobs:
 
       - name: Install pinned pane hosts for real-client checks
         run: |
-          ./tests/install-pane-hosts.sh "$RUNNER_TEMP/vlang-pane-tools"
+          v run tests/install-pane-hosts.vsh "$RUNNER_TEMP/vlang-pane-tools"
           echo "$RUNNER_TEMP/vlang-pane-tools/zellij" >> "$GITHUB_PATH"
           echo "$RUNNER_TEMP/vlang-pane-tools/wezterm/wezterm/usr/bin" >> "$GITHUB_PATH"
           echo "$RUNNER_TEMP/vlang-pane-tools/kitty/bin" >> "$GITHUB_PATH"

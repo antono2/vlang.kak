@@ -5,19 +5,6 @@ import releasetest
 
 const usage = 'Usage: v run tests/release.vsh [ARTIFACT_DIRECTORY]\nRequires V, build tools, tmux, GDB with DAP, and network access.'
 
-fn command(program string, args []string) ! {
-	program_path := os.find_abs_path_of_executable(program)!
-	mut child := os.new_process(program_path)
-	child.set_args(args)
-	child.run()
-	defer { child.close() }
-	// Inherit stdio so the acceptance logs stream to the release runner.
-	child.wait()
-	if child.code != 0 {
-		return error('${program} ${args.join(' ')} exited ${child.code}')
-	}
-}
-
 fn release(root string) ! {
 	repo := os.dir(@DIR)
 	pins := releasetest.read_pins(os.join_path(@DIR, 'release.env'))!
@@ -32,17 +19,17 @@ fn release(root string) ! {
 	check := os.join_path(repo, 'scripts/check.sh')
 
 	println('Release test artifacts: ${root}')
-	command(os.join_path(repo, 'scripts/setup.sh'), args)!
+	releasetest.run_inherited(os.join_path(repo, 'scripts/setup.sh'), args)!
 	os.setenv('PATH', os.join_path(prefix, 'bin') + ':' + os.getenv('PATH'), true)
-	command(check, ['--live-lsp'])!
-	command('v', ['run', os.join_path(@DIR, 'lifecycle_stack.vsh'), prefix])!
+	releasetest.run_inherited(check, ['--live-lsp'])!
+	releasetest.run_inherited('v', ['run', os.join_path(@DIR, 'lifecycle_stack.vsh'), prefix])!
 	for previous in ['v1.1.1', 'v1.2.0'] {
-		command('v', ['run', os.join_path(@DIR, 'upgrade.vsh'), prefix, previous])!
+		releasetest.run_inherited('v', ['run', os.join_path(@DIR, 'upgrade.vsh'), prefix, previous])!
 	}
-	command('v', ['run', os.join_path(@DIR, 'acceptance.vsh'), prefix,
+	releasetest.run_inherited('v', ['run', os.join_path(@DIR, 'acceptance.vsh'), prefix,
 		os.join_path(root, 'acceptance')])!
-	command(os.join_path(repo, 'scripts/update.sh'), args)!
-	command(check, ['--live-lsp'])!
+	releasetest.run_inherited(os.join_path(repo, 'scripts/update.sh'), args)!
+	releasetest.run_inherited(check, ['--live-lsp'])!
 	println('ok - clean managed installation, live navigation, debugging, panes, restart and update')
 }
 
