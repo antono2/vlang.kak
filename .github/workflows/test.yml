@@ -95,7 +95,7 @@ jobs:
       - name: Install build and terminal dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes build-essential git curl unzip tmux python3 gdb \
+          sudo apt-get install --yes build-essential git curl unzip tmux gdb \
             xvfb xauth screen xterm xdotool sway foot wtype libegl1 libgl1-mesa-dri libopengl0 libfontconfig1 \
             libxcursor1 libxrandr2 libxi6 libxinerama1 libxkbcommon0 \
             libxkbcommon-x11-0 libxcb-xkb1
@@ -181,7 +181,7 @@ jobs:
           foot --version
           sway --version
           for backend in zellij wezterm kitty screen native wayland; do
-            python3 tests/pane_hosts.py "$RUNNER_TEMP/vlang-release/prefix" "$backend" \
+            v run tests/pane_hosts.vsh "$RUNNER_TEMP/vlang-release/prefix" "$backend" \
               --artifacts "$RUNNER_TEMP/vlang-release/pane-hosts/$backend"
           done
 

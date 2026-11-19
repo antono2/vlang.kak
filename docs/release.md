@@ -66,11 +66,18 @@ interface. The additional host versions and archive checksums are pinned in
 `tests/pane-hosts.env`. These results cover the tested Linux configurations;
 custom host keymaps, plugins and other versions can affect behavior.
 
-The CI managed-installation job also runs `tests/pane_hosts.py` for each pinned
-host. Zellij uses an attached terminal on a private tmux socket; WezTerm uses
-a private mux server; Screen uses a private socket directory and attached terminal; kitty and Xterm use isolated Xvfb displays; Foot uses an isolated headless Sway compositor and virtual keyboard input. Logs and pane captures
-are included in the release-verification artifact. No user terminal configuration
-or active session is changed.
+The CI managed-installation job runs the V pane-host driver on each pinned
+backend. Zellij uses an attached terminal on a private tmux socket. WezTerm
+uses a private mux server, and Screen uses a private socket directory and
+attached terminal. Kitty and Xterm use isolated Xvfb displays. Foot uses an
+isolated headless Sway compositor and virtual keyboard input. The
+release-verification artifact includes logs and pane captures.
+
+To run the Xterm check against an existing managed installation:
+
+```sh
+v run tests/pane_hosts.vsh "$HOME/.local" native --artifacts /absolute/path/to/pane-logs
+```
 
 CI caches the pinned V compiler at its permanent source path (V embeds those
 paths), with keys covering both source pins, compiler installer, runner architecture
