@@ -24,10 +24,11 @@ pub struct Client {
 	session    string
 	env        map[string]string
 mut:
-	process &os.Process
-	client  string
-	output  string
-	errors  string
+	process         &os.Process
+	client          string
+	output          string
+	errors          string
+	transcript_path string
 }
 
 pub fn quote(value string) string {
@@ -77,7 +78,19 @@ fn start(kak string, launcher string, root string, file string, env map[string]s
 	return editor
 }
 
+pub fn (mut editor Client) read_transcript_from(path string) {
+	editor.transcript_path = path
+}
+
 fn (mut editor Client) read_output() {
+	if editor.transcript_path != '' && os.is_file(editor.transcript_path) {
+		size := int(os.file_size(editor.transcript_path))
+		if size > editor.output.len {
+			mut file := os.open(editor.transcript_path) or { return }
+			editor.output += file.read_bytes_at(size - editor.output.len, u64(editor.output.len)).bytestr()
+			file.close()
+		}
+	}
 	for {
 		out := editor.process.stdout_read()
 		err := editor.process.stderr_read()
@@ -201,14 +214,18 @@ pub fn (mut editor Client) close() {
 }
 
 pub fn (mut editor Client) remote(command string) ! {
-	return editor.execute(command, false)
+	return editor.remote_for(command, timeout)
+}
+
+pub fn (mut editor Client) remote_for(command string, duration time.Duration) ! {
+	return editor.execute(command, false, duration)
 }
 
 pub fn (mut editor Client) remote_allow_error(command string) ! {
-	return editor.execute(command, true)
+	return editor.execute(command, true, timeout)
 }
 
-fn (mut editor Client) execute(command string, allow_error bool) ! {
+fn (mut editor Client) execute(command string, allow_error bool, duration time.Duration) ! {
 	// Socket delivery can finish before Kakoune executes the command.
 	done := os.join_path(editor.root, 'command-' + rand.uuid_v4())
 	failure := done + '.error'
@@ -222,14 +239,16 @@ ${editor.target(command)}
 echo -to-file ${quote(failure)} %val{error}
 }
 echo -to-file ${quote(done)} done')!
-	editor.wait_file(done, command)!
+	editor.wait_file_for(done, command, duration)!
 	if !allow_error && os.is_file(failure) {
 		return error('Kakoune command failed: ' + os.read_file(failure)!.trim_space())
 	}
 }
 
 pub fn (editor Client) save_artifacts() ! {
-	os.write_file(os.join_path(editor.root, 'ui.jsonl'), editor.output)!
+	if editor.transcript_path == '' {
+		os.write_file(os.join_path(editor.root, 'ui.jsonl'), editor.output)!
+	}
 	os.write_file(os.join_path(editor.root, 'kak-stderr'), editor.errors)!
 	if editor.errors != '' {
 		return error('Kakoune wrote to stderr: ${editor.errors}')
@@ -284,4 +303,10 @@ pub fn (mut editor Client) wait_event(offset int, method_name string, needles []
 		time.sleep(poll)
 	}
 	return editor.diagnostic('Timed out waiting for ${method_name} with ${needles.join(', ')}')
+}
+
+// Return JSON UI output since a previously recorded byte offset.
+pub fn (mut editor Client) transcript(offset int) string {
+	editor.read_output()
+	return editor.output[offset..]
 }
