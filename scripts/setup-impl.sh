@@ -264,16 +264,7 @@ if command -v v >/dev/null 2>&1; then "$script_dir/preferences.sh" --prepare; fi
 # Include integrated configuration in the transaction, after builds so user
 # edits made while compiling are captured. Personal preferences are excluded.
 if [ "$integrate" = true ] && [ -n "${VLANG_KAK_TRANSACTION:-}" ]; then
-  printf '%s\n' "$config_home" > "$VLANG_KAK_TRANSACTION/config-home"
-  for relative in kak/kakrc kak/autoload/vlang.kak kak/autoload/vlang-site-runtime; do
-    path=$config_home/$relative
-    mkdir -p "$VLANG_KAK_TRANSACTION/personal/$(dirname "$relative")"
-    if [ -f "$path" ] || [ -L "$path" ]; then cp -Pp "$path" "$VLANG_KAK_TRANSACTION/personal/$relative"; fi
-    printf '%s\n' "$relative" >> "$VLANG_KAK_TRANSACTION/personal-paths"
-  done
-  if [ -f "$config_home/kak/kakrc" ]; then
-    cp -p "$(readlink -f "$config_home/kak/kakrc")" "$VLANG_KAK_TRANSACTION/kakrc-content"
-  fi
+  "$script_dir/managed-state.sh" snapshot-personal "$prefix" "$config_home" "$VLANG_KAK_TRANSACTION"
 fi
 
 # All builds succeeded. Switch the prepared versions and generate launchers.

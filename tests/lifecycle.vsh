@@ -32,6 +32,70 @@ fn (life Lifecycle) script(name string, args []string) !string {
 	)
 }
 
+fn (life Lifecycle) snapshot_restore() ! {
+	prefix := os.join_path(life.root, 'snapshot prefix')
+	launcher := os.join_path(prefix, 'bin', 'kak-v')
+	new_launcher := os.join_path(prefix, 'bin', 'v')
+	current := os.join_path(prefix, 'opt', 'vlang-vls', 'current')
+	os.mkdir_all(os.dir(launcher))!
+	os.mkdir_all(os.dir(current))!
+	os.write_file(launcher, '# previous launcher\n')!
+	os.chmod(launcher, 0o750)!
+	os.symlink('releases/previous', current)!
+	config := os.join_path(life.root, 'snapshot config')
+	kakrc := os.join_path(config, 'kak', 'kakrc')
+	linked := os.join_path(life.root, 'settings target')
+	alias := os.join_path(life.root, 'settings hard link')
+	os.mkdir_all(os.dir(kakrc))!
+	block := '# >>> vlang.kak managed >>>\n# previous block\n# <<< vlang.kak managed <<<\n'
+	os.write_file(linked, '# original personal settings\n' + block)!
+	os.link(linked, alias)!
+	os.symlink(linked, kakrc)!
+	snapshot := os.join_path(life.root, 'snapshot data')
+	life.script('managed-state', ['snapshot', prefix, snapshot])!
+	life.script('managed-state', ['snapshot-personal', prefix, config, snapshot])!
+	os.write_file(launcher, '# active launcher\n')!
+	os.chmod(launcher, 0o700)!
+	os.write_file(new_launcher, '# new launcher\n')!
+	os.rm(current)!
+	os.symlink('releases/active', current)!
+	edited := '# new personal settings\n'
+	os.write_file(linked, edited + block.replace('previous', 'active'))!
+	marker := os.join_path(snapshot, 'paths')
+	paths := os.read_file(marker)!
+	os.write_file(marker, paths + '../outside\n')!
+	refused := execute(os.join_path(life.repo, 'scripts/managed-state.sh'), [
+		'restore',
+		prefix,
+		snapshot,
+	], false,
+		environment: life.env
+		timeout:     setup_timeout
+	)!
+	require(refused.stderr.contains('Unexpected snapshot path:')
+		&& !refused.stderr.contains('Using shell recovery')
+		&& os.read_file(launcher)! == '# active launcher\n',
+		'Malformed snapshot partly restored managed files')!
+	os.write_file(marker, paths)!
+	life.script('managed-state', ['restore', prefix, snapshot])!
+	require(os.readlink(current)! == 'releases/previous'
+		&& os.read_file(launcher)! == '# previous launcher\n'
+		&& os.stat(launcher)!.mode & 0o777 == 0o750 && !os.exists(new_launcher),
+		'Restore changed a link target or launcher permissions, or kept a new launcher')!
+	require(os.readlink(kakrc)! == linked && os.read_file(alias)! == edited + block,
+		'Restore changed the settings file identity or discarded personal edits')!
+	state := os.join_path(prefix, 'opt', 'vlang-state')
+	os.mkdir_all(state)!
+	os.rename_dir(snapshot, os.join_path(state, 'previous'))!
+	active_block := block.replace('previous', 'active')
+	os.write_file(linked, edited + active_block)!
+	life.script('rollback', ['--prefix', prefix])!
+	require(os.read_file(alias)! == edited + block, 'Rollback did not restore the saved block')!
+	life.script('rollback', ['--prefix', prefix])!
+	require(os.read_file(alias)! == edited + active_block,
+		'Second rollback did not restore the newer block')!
+}
+
 fn (life Lifecycle) settings_and_ownership() ! {
 	setup := ['--prefix', life.prefix, '--no-build', '--no-lsp', '--no-vls', '--no-explorer']
 	life.script('setup', setup)!
@@ -115,7 +179,8 @@ fn (life Lifecycle) repair_links() ! {
 	os.write_file(manifest, rows.join('\n') + '\n')!
 	life.script('managed-state', ['repair-links', prefix])!
 	require(os.readlink(current)! == 'releases/previous'
-		&& os.readlink(autoload)! == '${tool}/runtime.kak', 'Repair did not restore the recorded links')!
+		&& os.readlink(autoload)! == '${tool}/runtime.kak',
+		'Repair did not restore the recorded links')!
 	require(os.readlink(candidate)! == 'releases/personal'
 		&& os.read_file(replacement)! == 'personal launcher', 'Repair replaced a user change')!
 	require(os.ls(outside)!.len == 0 && !os.is_link(os.join_path(prefix, 'unrecognized')),
@@ -242,7 +307,8 @@ fn (life Lifecycle) checkpoints() ! {
 
 	dispatch := os.join_path(life.root, 'dispatch')
 	printf_args := quote("printf '<%s>\\n' .")
-	life.editor('define-command -override -params 1 v-make-command %{ echo -to-file ${quote(dispatch)} %arg{1} }; ' +
+	life.editor(
+		'define-command -override -params 1 v-make-command %{ echo -to-file ${quote(dispatch)} %arg{1} }; ' +
 		'set-option global v_run_command ${printf_args}; v-project-preference load; v-run-project; quit!', [
 		source,
 	], env)!
@@ -346,6 +412,7 @@ fn run(kak_path string) ! {
 		kak:    kak
 		env:    releasetest.editor_environment(root, prefix, config, kak)!
 	}
+	life.snapshot_restore()!
 	life.settings_and_ownership()!
 	life.repair_links()!
 	life.uninstall_integration()!
