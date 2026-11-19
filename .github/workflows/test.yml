@@ -53,11 +53,10 @@ jobs:
         env:
           KAKOUNE_VERSION: ${{ matrix.kakoune }}
         run: |
-          git clone --depth 1 --branch "$KAKOUNE_VERSION" \
-            https://github.com/mawww/kakoune.git "$RUNNER_TEMP/kakoune"
-          make -C "$RUNNER_TEMP/kakoune" -j2
-          echo "KAK=$RUNNER_TEMP/kakoune/src/kak" >> "$GITHUB_ENV"
-          echo "KAKOUNE_RUNTIME=$RUNNER_TEMP/kakoune/share/kak" >> "$GITHUB_ENV"
+          prefix="$RUNNER_TEMP/managed-kakoune"
+          v run scripts/build-kakoune.vsh --version "$KAKOUNE_VERSION" --prefix "$prefix"
+          echo "KAK=$prefix/bin/kak" >> "$GITHUB_ENV"
+          echo "KAKOUNE_RUNTIME=$prefix/opt/vlang-kakoune/current/share/kak" >> "$GITHUB_ENV"
 
       - name: Install client-test dependencies
         run: |

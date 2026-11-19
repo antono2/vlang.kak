@@ -195,10 +195,14 @@ case "$vls_mode" in auto|upstream) json_import=json2 ;; esac
 printf 'import %s\nfn main() { _ = json2.Any(0) }\n' "$json_import" > "$probe/probe.v"
 if command -v v >/dev/null 2>&1 && v -check "$probe/probe.v" >/dev/null 2>&1; then compiler_ok=true; fi
 rm -rf "$probe"
-if [ "$managed_v" = system ] && [ "$compiler_ok" = false ] && { [ "$explorer" = true ] || [ "$vls_mode" = auto ] || [ "$vls_mode" = upstream ]; }; then
+compiler_required=false
+if [ "$build" = true ] || [ "$explorer" = true ] || [ "$vls_mode" = auto ] || [ "$vls_mode" = upstream ]; then
+  compiler_required=true
+fi
+if [ "$managed_v" = system ] && [ "$compiler_ok" = false ] && [ "$compiler_required" = true ]; then
   echo 'Selected system V cannot compile the requested stack; use --managed-v or supply a compatible compiler on PATH.' >&2; exit 1
 fi
-if [ "$managed_v" = true ] || { [ "$managed_v" != system ] && [ "$compiler_ok" = false ] && { [ "$explorer" = true ] || [ "$vls_mode" = auto ] || [ "$vls_mode" = upstream ]; }; }; then
+if [ "$managed_v" = true ] || { [ "$managed_v" != system ] && [ "$compiler_ok" = false ] && [ "$compiler_required" = true ]; }; then
   "$script_dir/install-v.sh" "$prefix"
   PATH="$prefix/opt/vlang-v/candidate:$PATH"
   export PATH
@@ -208,7 +212,7 @@ elif [ "$managed_v" != system ] && [ -x "$prefix/opt/vlang-v/current/v" ]; then
 fi
 
 if [ "$build" = true ]; then
-  "$script_dir/build-kakoune.sh" --version "$kakoune_version" --prefix "$prefix"
+  v run "$script_dir/build-kakoune.vsh" --version "$kakoune_version" --prefix "$prefix"
   kak_runtime=$prefix/opt/vlang-kakoune/candidate/share/kak
 else
   kak_path=$(command -v kak || true)

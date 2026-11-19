@@ -57,7 +57,15 @@ Use `./scripts/update.sh --release` or `:v-update-release` (`Space U v`) to sele
 
 For unsaved text, scratch buffers and multiple views, use `:v-session-save` and the confirmed `:v-restart-recover` (`Space U S` / `Space U R`). Recovery restart restores buffers and selections through a supported pane host; it does not restore pane geometry or running tasks. See [session recovery](docs/automation.md#session-recovery). The normal automatic update restart retains its single-client, saved-buffer requirement.
 
-To select a particular release, use --kakoune-version vYYYY.MM.DD and --lsp-version vMAJOR.MINOR.PATCH with either setup or update. Use `--vls-ref TAG_OR_COMMIT` for a specific upstream VLS revision. These options can also switch back to an earlier installed release. Run `scripts/build-kakoune.sh` or `scripts/install-kak-lsp.sh` to install those tools separately. To build VLS on its own, use `v run scripts/install-vls.vsh`; add `--help` for the available options.
+To select a particular release, use --kakoune-version vYYYY.MM.DD and --lsp-version vMAJOR.MINOR.PATCH with either setup or update. Use `--vls-ref TAG_OR_COMMIT` for a specific upstream VLS revision. These options can also switch back to an earlier installed release.
+
+Use `v run scripts/build-kakoune.vsh` to install Kakoune separately. The
+standalone builder needs V, Git, Make and a C++23 compiler. The full
+`scripts/setup.sh` can bootstrap V. Use a prefix without spaces for
+Kakoune versions whose runtime autoload splits paths on whitespace.
+To install kak-lsp or VLS separately,
+use `scripts/install-kak-lsp.sh` or `v run scripts/install-vls.vsh`.
+Add `--help` to see the available options.
 
 ## Key bindings
 
