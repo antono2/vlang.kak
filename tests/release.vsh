@@ -39,7 +39,8 @@ fn release(root string) ! {
 	for previous in ['v1.1.1', 'v1.2.0'] {
 		command('v', ['run', os.join_path(@DIR, 'upgrade.vsh'), prefix, previous])!
 	}
-	command(os.join_path(@DIR, 'acceptance.sh'), [prefix, os.join_path(root, 'acceptance')])!
+	command('v', ['run', os.join_path(@DIR, 'acceptance.vsh'), prefix,
+		os.join_path(root, 'acceptance')])!
 	command(os.join_path(repo, 'scripts/update.sh'), args)!
 	command(check, ['--live-lsp'])!
 	println('ok - clean managed installation, live navigation, debugging, panes, restart and update')
