@@ -51,7 +51,7 @@ fn (fixture Fixture) check_arguments(expected []string) ! {
 	}
 }
 
-fn check(helper string) ! {
+fn check(helper string, cache_writable bool) ! {
 	root := os.join_path(os.temp_dir(), 'vlang-kak-windowing.' + rand.uuid_v4())
 	os.mkdir(root, mode: 0o700)!
 	defer { os.rmdir_all(root) or {} }
@@ -68,6 +68,11 @@ fn check(helper string) ! {
 	env['PATH'] = root + ':' + os.getenv('PATH')
 	env['VLANG_WINDOWING_TEST_LOG'] = log
 	env['kak_opt_termcmd'] = ''
+	cache_home := os.join_path(root, 'cache')
+	if !cache_writable {
+		os.write_file(cache_home, '')!
+	}
+	env['XDG_CACHE_HOME'] = cache_home
 	fixture := Fixture{
 		executable: helper
 		env:        env
@@ -78,6 +83,11 @@ fn check(helper string) ! {
 		'ZELLIJ_SESSION_NAME': 'test'
 	}
 	fixture.detect('auto', 'none', {})!
+	if cache_writable {
+		cache := os.join_path(cache_home, 'vlang.kak')
+		binaries := os.ls(cache)!.filter(it.starts_with('windowing-'))
+		assert binaries.len == 1 && os.is_executable(os.join_path(cache, binaries[0]))
+	}
 	fixture.detect('auto', 'tmux', {
 		'TMUX':                'socket,1,0'
 		'TMUX_PANE':           '%0'
@@ -96,6 +106,12 @@ fn check(helper string) ! {
 	})!
 	fixture.detect('kitty', 'none', zellij)!
 
+	fixture.launch('tmux', 'left', quoted_command, {
+		'TMUX':      'socket,1,0'
+		'TMUX_PANE': '%3'
+	})!
+	fixture.check_arguments(['split-window', '-b', '%3', quoted_command])!
+
 	fixture.launch('zellij', 'left', 'v-tree', {
 		'ZELLIJ_SESSION_NAME': 'test'
 		'ZELLIJ_PANE_ID':      'terminal_1'
@@ -110,12 +126,21 @@ fn check(helper string) ! {
 	fixture.check_arguments(['split-pane', '--no-auto-start', '--right', 'v-definition'])!
 	assert os.read_lines(log + '.socket')! == [socket]
 
+	fixture.launch('kitty', 'right', quoted_command, {
+		'KITTY_WINDOW_ID': '4'
+		'KITTY_LISTEN_ON': 'unix:/tmp/kitty socket'
+	})!
+	fixture.check_arguments(['--location=after', '--match=id:4', '--to=unix:/tmp/kitty socket',
+		quoted_command])!
+
 	screen_session := '123.session name'
 	fixture.launch('screen', 'right', quoted_command, {
 		'STY':    screen_session
 		'WINDOW': '2'
 	})!
 	fixture.check_arguments([screen_session, '2', launch_session, quoted_command])!
+	quoted := fixture.invoke(['open', 'native', 'left', launch_session, "echo 'quoted'"], {})!
+	assert quoted == "new 'echo ''quoted'''"
 
 	os.rm(log)!
 	marker := log + '.session'
@@ -132,7 +157,6 @@ fn check(helper string) ! {
 		if receipt.trim_space() == launch_session {
 			assert os.read_lines(log + '.runtime')! == [display, runtime]
 			fixture.check_arguments(['sh'])!
-			println('ok - pane host detection and client launch arguments')
 			return
 		}
 		time.sleep(100 * time.millisecond)
@@ -149,8 +173,13 @@ if log := os.getenv_opt('VLANG_WINDOWING_TEST_LOG') {
 	eprintln('Usage: v run tests/windowing.vsh PATH_TO_WINDOWING_HELPER')
 	exit(2)
 } else {
-	check(os.args[1]) or {
+	check(os.args[1], true) or {
 		eprintln(err)
 		exit(1)
 	}
+	check(os.args[1], false) or {
+		eprintln(err)
+		exit(1)
+	}
+	println('ok - V pane adapter and POSIX fallback detect hosts and preserve client launch arguments')
 }
