@@ -2,12 +2,10 @@
 import editorui { quote }
 import os
 import rand
-import time
+import releasetest { capture }
 
 const default_base = 'v1.1.1'
 const pre_manifest_release = 'v1.1.1'
-const command_timeout = 3 * time.minute
-const command_poll = 20 * time.millisecond
 const personal_text = 'declare-option str upgrade_personal_setting preserved\n'
 const kakrc_text = '# original personal configuration\n'
 const inherited_note = 'personal file in an inherited tool release\n'
@@ -31,37 +29,6 @@ fn require(condition bool, detail string) ! {
 	}
 }
 
-fn command(program string, args []string, success bool) !string {
-	program_path := os.find_abs_path_of_executable(program)!
-	mut child := os.new_process(program_path)
-	child.set_args(args)
-	child.use_pgroup = true
-	child.set_redirect_stdio()
-	child.run()
-	defer { child.close() }
-	// Setup and Kakoune must see EOF immediately on their input.
-	os.fd_close(child.stdio_fd[0])
-	child.stdio_fd[0] = -1
-	deadline := time.sys_mono_now() + u64(command_timeout)
-	mut output := ''
-	mut diagnostics := ''
-	for child.is_alive() && time.sys_mono_now() < deadline {
-		output += child.stdout_read()
-		diagnostics += child.stderr_read()
-		time.sleep(command_poll)
-	}
-	if child.is_alive() {
-		child.signal_pgkill()
-		child.wait()
-		return error('${program} ${args.join(' ')} timed out\n${output}${diagnostics}')
-	}
-	output += child.stdout_read()
-	diagnostics += child.stderr_read()
-	require((child.code == 0) == success,
-		'${program} ${args.join(' ')} exited ${child.code}\n${output}${diagnostics}')!
-	return output
-}
-
 fn (upgrade Upgrade) prepare(tools string) ! {
 	os.mkdir_all(os.join_path(upgrade.config, 'autoload'))!
 	os.mkdir(os.dir(upgrade.personal))!
@@ -77,11 +44,11 @@ fn (upgrade Upgrade) prepare(tools string) ! {
 		target := os.join_path(releases, os.file_name(installed))
 		os.mkdir_all(releases)!
 		// Preserve links within cached tool releases, along with executable modes.
-		command('cp', ['-a', '--', installed, target], true)!
+		capture('cp', ['-a', '--', installed, target], true)!
 		os.symlink(target, os.join_path(tool_root, 'current'))!
 	}
 	vls_source := os.real_path(os.join_path(tools, 'bin', 'vls'))
-	command('cp', ['-p', '--', vls_source, upgrade.vls], true)!
+	capture('cp', ['-p', '--', vls_source, upgrade.vls], true)!
 	os.setenv('XDG_CONFIG_HOME', os.dir(upgrade.config), true)
 	os.setenv('XDG_CACHE_HOME', os.join_path(upgrade.root, 'cache'), true)
 	os.setenv('VLANG_KAK_PREFIX', upgrade.prefix, true)
@@ -95,13 +62,13 @@ fn (upgrade Upgrade) prepare(tools string) ! {
 }
 
 fn (upgrade Upgrade) checkout_revision(revision string) ! {
-	command('git', ['-C', upgrade.checkout, 'checkout', '--quiet', '--detach', revision], true)!
+	capture('git', ['-C', upgrade.checkout, 'checkout', '--quiet', '--detach', revision], true)!
 }
 
 fn (upgrade Upgrade) script(name string, extra []string, success bool) !string {
 	mut args := ['--prefix', upgrade.prefix]
 	args << extra
-	return command(os.join_path(upgrade.checkout, 'scripts', name + '.sh'), args, success)
+	return capture(os.join_path(upgrade.checkout, 'scripts', name + '.sh'), args, success)
 }
 
 fn (upgrade Upgrade) setup(extra []string, success bool) ! {
@@ -119,9 +86,9 @@ fn (upgrade Upgrade) verify_settings() ! {
 }
 
 fn (upgrade Upgrade) exercise(repo string, base_ref string) ! {
-	revision := command('git', ['-C', repo, 'rev-parse', 'HEAD'], true)!.trim_space()
-	command('git', ['clone', '--quiet', '--no-local', repo, upgrade.checkout], true)!
-	base := command('git', ['-C', upgrade.checkout, 'rev-parse', '--verify', '--end-of-options',
+	revision := capture('git', ['-C', repo, 'rev-parse', 'HEAD'], true)!.trim_space()
+	capture('git', ['clone', '--quiet', '--no-local', repo, upgrade.checkout], true)!
+	base := capture('git', ['-C', upgrade.checkout, 'rev-parse', '--verify', '--end-of-options',
 		'${base_ref}^{commit}'], true)!.trim_space()
 	upgrade.checkout_revision(base)!
 	upgrade.setup(['--vls', upgrade.vls], true)!
@@ -161,7 +128,7 @@ fn (upgrade Upgrade) exercise(repo string, base_ref string) ! {
 		'Rollback changed the personal setting or symlink')!
 	upgrade.setup([], true)!
 	observed := os.join_path(upgrade.root, 'observed')
-	command(launcher, ['-ui', 'json', '-e',
+	capture(launcher, ['-ui', 'json', '-e',
 		'echo -to-file ${quote(observed)} %opt{upgrade_personal_setting}; quit!'], true)!
 	require(os.read_file(observed)!.trim_space() == 'preserved',
 		'Managed Kakoune no longer reads the personal setting')!
