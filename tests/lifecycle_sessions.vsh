@@ -172,10 +172,12 @@ fn (session Session) exercise() ! {
 		'Restart did not preserve the unsaved source independently of the file on disk')!
 	require(session.tmux(['list-panes', '-F', '#{pane_id}'])!.split_into_lines().len == 2,
 		'Restart did not restore both tmux panes')!
-	panes := session.tmux(['list-panes', '-F', '#{pane_id}'])!.fields()
-	screens := panes.map(session.tmux(['capture-pane', '-p', '-t', it])!)
-	require(screens.any(it.contains('Unsavedfirst')) && screens.any(it.contains('other')),
-		'The restored panes did not display both buffers')!
+	// The editors can answer remote commands before tmux has redrawn their buffers.
+	wait_for('restored pane text', editor_timeout, fn [session] () !bool {
+		panes := session.tmux(['list-panes', '-F', '#{pane_id}'])!.fields()
+		screens := panes.map(session.tmux(['capture-pane', '-p', '-t', it])!)
+		return screens.any(it.contains('Unsavedfirst')) && screens.any(it.contains('other'))
+	})!
 }
 
 fn process_state(pid int) []string {
