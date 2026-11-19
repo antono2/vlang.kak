@@ -27,6 +27,8 @@ Setup records file hashes, symlink targets and managed directories in
 `PREFIX/opt/vlang-state/manifest.tsv`. This is data, not executable shell code.
 Ownership recording uses V when a system or managed compiler is available.
 Editor-only setup can record ownership before installing a compiler.
+Setup generates the launchers and Kakoune configuration in V when a working
+compiler is available, with shell generation for compiler-free setup.
 Personal settings and projects are excluded. An isolated installation does not
 claim unrelated autoload links or a VLS link supplied outside setup.
 
