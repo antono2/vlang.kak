@@ -140,12 +140,20 @@ fn (life Lifecycle) checkpoints() ! {
 	mut env := life.env.clone()
 	env['XDG_CONFIG_HOME'] = editor_config
 	env['VLANG_KAK_CONFIG_HOME'] = life.config
+	// With V installed, checkpoint serialization should never call the POSIX hasher.
+	hash_marker := os.join_path(life.root, 'shell-hash-used')
+	hash_shim := os.join_path(life.root, 'bin', 'sha256sum')
+	os.write_file(hash_shim, '#!/bin/sh\n: > ' + os.quoted_path(hash_marker) + '\nexit 1\n')!
+	os.chmod(hash_shim, 0o700)!
 	record := os.join_path(life.root, 'snapshot-path')
 	life.editor('execute-keys iUnsaved<esc>; edit -scratch notes; execute-keys iScratch<esc>; ' +
 		'edit -scratch recovered-report; execute-keys iReport<esc>; set-option buffer filetype v-doc; ' +
 		'set-option buffer readonly true; buffer ${quote(source)}; select ${saved_selection}; v-session-save; ' +
 		'echo -to-file ${quote(record)} %opt{v_session_checkpoint}; quit!', [source], env)!
 	checkpoint := os.read_file(record)!.trim_space()
+	os.rm(hash_shim)!
+	require(!os.exists(hash_marker) && !os.exists(os.join_path(checkpoint, 'session-checkpoint')),
+		'The V checkpoint writer used the shell hasher or left its executable behind')!
 
 	dispatch := os.join_path(life.root, 'dispatch')
 	printf_args := quote("printf '<%s>\\n' .")
