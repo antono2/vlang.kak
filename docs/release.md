@@ -108,7 +108,10 @@ IDE acceptance suite, including a managed update and repeat live VLS checks.
 Only a passing run proposes a pull request advancing `tests/release.env` to that
 exact revision. It does not merge the pull request automatically. Logs are
 uploaded on success and failure. A failed candidate leaves the verified pin
-unchanged. Another PR is not opened for a revision already proposed.
+unchanged. The job checks open and closed proposals for that revision. If a
+previous run pushed the branch before opening a PR, the job verifies the pin
+on that branch before reusing it. The PR branch is tested with default workflow
+inputs, which skip the proposal job.
 
 The workflow must be on the repository's default branch and Actions must be
 enabled. Under Settings → Actions → General → Workflow permissions, allow

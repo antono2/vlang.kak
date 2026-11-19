@@ -80,6 +80,7 @@ fn start(program string, args []string, options ProcessOptions) !&os.Process {
 
 pub struct CommandOutput {
 pub:
+	code   int
 	stdout string
 	stderr string
 }
@@ -89,6 +90,14 @@ pub fn capture(program string, args []string, success bool, options ProcessOptio
 }
 
 pub fn execute(program string, args []string, success bool, options ProcessOptions) !CommandOutput {
+	result := capture_result(program, args, options)!
+	if (result.code == 0) != success {
+		return error('${program} ${args.join(' ')} exited ${result.code}\n${result.stdout}${result.stderr}')
+	}
+	return result
+}
+
+pub fn capture_result(program string, args []string, options ProcessOptions) !CommandOutput {
 	mut child := start(program, args, options)!
 	defer { child.close() }
 	deadline := time.sys_mono_now() + u64(options.timeout)
@@ -113,10 +122,11 @@ pub fn execute(program string, args []string, success bool, options ProcessOptio
 		output += out
 		diagnostics += err
 	}
-	if (child.code == 0) != success {
-		return error('${program} ${args.join(' ')} exited ${child.code}\n${output}${diagnostics}')
+	return CommandOutput{
+		code:   child.code
+		stdout: output
+		stderr: diagnostics
 	}
-	return CommandOutput{ stdout: output, stderr: diagnostics }
 }
 
 pub fn copy_source(repo string, target string) ! {
