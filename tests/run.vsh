@@ -160,6 +160,7 @@ fn (mut suite Suite) run() ! {
 		'lifecycle_sessions.vsh'] {
 		suite.script(test, [suite.kak])!
 	}
+	suite.script('setup_transaction.vsh', [])!
 	suite.script('install_lock.vsh', [])!
 	suite.script('update_discovery.vsh', [])!
 	scripts := os.real_path(os.join_path(@DIR, '..', 'scripts'))

@@ -100,6 +100,8 @@ with local edits it rolls back tools only. Personal settings are preserved.
 Snapshot capture, rollback and interrupted-update recovery use V when a working
 compiler is available. The snapshot format also works with shell recovery on
 editor-only installations.
+The same V code manages setup snapshots and restores the previous activation when
+setup fails or receives an interrupt. First-time setup can use the shell bootstrap.
 Rollback swaps snapshots so you can return to the newer combination too.
 Keep sessions open until an update has succeeded. Activation changes version
 links in a short commit phase; power loss or SIGKILL during that phase may

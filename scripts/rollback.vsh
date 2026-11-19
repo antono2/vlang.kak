@@ -1,10 +1,9 @@
 // Roll back an active installation or recover an interrupted activation.
-import managedfiles { acquire_lock, release_lock }
+import managedfiles { acquire_lock, git_at, release_lock }
 import managedrecord
 import managedsnapshot
 import os
 import rand
-import time
 
 const usage = 'Usage: rollback.sh [--prefix DIRECTORY] [--recover PENDING_SNAPSHOT]'
 
@@ -71,32 +70,6 @@ fn select_snapshot(state string, recover string) !Selection {
 	}
 }
 
-fn git(repo string, args []string) !string {
-	mut child := os.new_process('git')
-	defer { child.close() }
-	mut command := ['-C', repo]
-	command << args
-	child.set_args(command)
-	child.set_redirect_stdio()
-	child.run()
-	os.fd_close(child.stdio_fd[0])
-	child.stdio_fd[0] = -1
-	mut output := ''
-	mut diagnostics := ''
-	for child.is_alive() {
-		output += child.stdout_read()
-		diagnostics += child.stderr_read()
-		time.sleep(15 * time.millisecond)
-	}
-	output += child.stdout_slurp()
-	diagnostics += child.stderr_slurp()
-	child.wait()
-	if child.code != 0 {
-		return error('Git ${args.join(' ')} failed in ${repo}: ${diagnostics.trim_space()}')
-	}
-	return output.trim_right('\n')
-}
-
 struct Plugin {
 	repo     string
 	previous string
@@ -116,16 +89,16 @@ fn select_plugin(snapshot string) !Plugin {
 	if !os.is_abs_path(repo) {
 		return error('Plugin checkout must be an absolute path.')
 	}
-	if git(repo, ['status', '--porcelain'])! != '' {
+	if git_at(repo, ['status', '--porcelain'])! != '' {
 		println('Plugin checkout has local edits; rolling back tools only.')
 		return Plugin{}
 	}
 	stored := (os.read_file(revision)!).trim_right('\n')
-	previous := git(repo, ['rev-parse', '--verify', '--end-of-options', '${stored}^{commit}'])!
+	previous := git_at(repo, ['rev-parse', '--verify', '--end-of-options', '${stored}^{commit}'])!
 	return Plugin{
 		repo:     repo
 		previous: previous
-		current:  git(repo, ['rev-parse', 'HEAD'])!
+		current:  git_at(repo, ['rev-parse', 'HEAD'])!
 	}
 }
 
@@ -133,8 +106,8 @@ fn checkout_plugin(plugin Plugin, next string) !bool {
 	if plugin.repo == '' {
 		return false
 	}
-	if git(plugin.repo, ['status', '--porcelain'])! != ''
-		|| git(plugin.repo, ['rev-parse', 'HEAD'])! != plugin.current {
+	if git_at(plugin.repo, ['status', '--porcelain'])! != ''
+		|| git_at(plugin.repo, ['rev-parse', 'HEAD'])! != plugin.current {
 		println('Plugin checkout changed during rollback; rolling back tools only.')
 		return false
 	}
@@ -143,7 +116,7 @@ fn checkout_plugin(plugin Plugin, next string) !bool {
 	if plugin.current == plugin.previous {
 		return false
 	}
-	git(plugin.repo, ['checkout', '--detach', plugin.previous])!
+	git_at(plugin.repo, ['checkout', '--detach', plugin.previous])!
 	return true
 }
 
@@ -221,7 +194,7 @@ fn rollback(options Options) ! {
 	}
 	finalize(selection, next) or {
 		if changed_plugin {
-			git(plugin.repo, ['checkout', '--detach', plugin.current]) or { eprintln(err) }
+			git_at(plugin.repo, ['checkout', '--detach', plugin.current]) or { eprintln(err) }
 		}
 		undo(prefix, state, next)
 		return error('${err}. Pre-rollback snapshot retained at ${next}.')
