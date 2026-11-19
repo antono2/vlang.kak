@@ -18,7 +18,9 @@ mut:
 }
 
 fn parse_args(args []string) !Options {
-	mut options := Options{ prefix: os.join_path(os.home_dir(), '.local') }
+	mut options := Options{
+		prefix: os.join_path(os.home_dir(), '.local')
+	}
 	for i := 0; i < args.len; i++ {
 		name := args[i]
 		if name == '--latest' {
@@ -43,7 +45,8 @@ fn parse_args(args []string) !Options {
 
 fn version_parts(tag string) ![]int {
 	parts := tag.trim_string_left('v').split('.')
-	if !tag.starts_with('v') || parts.len != 3 || !parts.all(it.len > 0 && it.bytes().all(it.is_digit())) {
+	if !tag.starts_with('v') || parts.len != 3 || !parts.all(it.len > 0
+		&& it.bytes().all(it.is_digit())) {
 		return error('Expected a stable kak-lsp tag such as v21.0.2.')
 	}
 	mut numbers := []int{cap: 3}
@@ -67,16 +70,19 @@ fn resolve_version(requested string) !string {
 		version_parts(requested)!
 		return requested
 	}
-	git := os.find_abs_path_of_executable('git') or { return error('Git is required to resolve the latest kak-lsp tag.') }
+	git := os.find_abs_path_of_executable('git') or {
+		return error('Git is required to resolve the latest kak-lsp tag.')
+	}
 	mut child := os.new_process(git)
 	defer { child.close() }
 	child.set_args(['ls-remote', '--tags', '--refs', upstream + '.git', 'v[0-9]*'])
-	child.set_redirect_stdio_merged()
+	child.set_redirect_stdio()
 	child.run()
 	output := child.stdout_slurp()
+	diagnostics := child.stderr_slurp()
 	child.wait()
 	if child.code != 0 {
-		return error('Could not read kak-lsp tags: ${output.trim_space()}')
+		return error('Could not read kak-lsp tags: ${diagnostics.trim_space()}')
 	}
 	mut latest := ''
 	mut latest_parts := [0, 0, 0]
@@ -143,7 +149,9 @@ fn (mut binary ArchiveBinary) data_block(mut block tar.Read, data []u8, _ int) {
 fn (mut binary ArchiveBinary) other_block(mut _ tar.Read, _ string) {}
 
 fn extract_binary(archive string, output string) ! {
-	mut binary := &ArchiveBinary{ output: os.create(output)! }
+	mut binary := &ArchiveBinary{
+		output: os.create(output)!
+	}
 	defer { binary.output.close() }
 	mut reader := tar.new_decompressor(tar.new_untar(binary))
 	reader.read_all(os.read_bytes(archive)!)!
@@ -168,7 +176,9 @@ fn install_release(releases string, version string) !string {
 	if os.exists(release) || os.is_link(release) {
 		return error('Incomplete managed release at ${release}; move it aside and retry.')
 	}
-	curl := os.find_abs_path_of_executable('curl') or { return error('curl is required to download kak-lsp.') }
+	curl := os.find_abs_path_of_executable('curl') or {
+		return error('curl is required to download kak-lsp.')
+	}
 	stage := os.join_path(releases, '.stage-${version}.' + rand.uuid_v4())
 	os.mkdir(stage, mode: 0o700)!
 	defer { os.rmdir_all(stage) or {} }
