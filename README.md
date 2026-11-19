@@ -188,12 +188,12 @@ coverage. The managed release gate includes this check. See
 The integration suite covers settings preservation, failed updates, editor commands, user-key bindings, test selection and rerun, task failure navigation, file history, filetype detection, rendered syntax highlighting, formatting, editing hooks and a compiling V sample. It runs with the distribution Kakoune and the current tagged release in CI.
 
 ~~~sh
-./tests/run.sh
+v run tests/run.vsh
 
 # Test an uninstalled Kakoune build:
 KAK=/path/to/kakoune/src/kak \
 KAKOUNE_RUNTIME=/path/to/kakoune/share/kak \
-./tests/run.sh
+v run tests/run.vsh
 ~~~
 
 See [setup and maintenance automation](docs/automation.md) for dependency preparation, ownership-based removal, staged updates/rollback, health and repair, persistent settings, project arguments, recovery snapshots and optional release notifications.
