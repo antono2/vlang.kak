@@ -120,6 +120,7 @@ Menus follow debugger state. The verified backend is local Linux GDB;
 conditional breakpoints, custom builds, prebuilt executables and all settings.
 Use `v_debug_enabled false` to hide debugger launch/breakpoint entries. Stop
 debugging before an in-editor update or restart.
+The managed launcher can still run `:v-update` when the V compiler needs repair.
 
 ## Investigation loop
 
