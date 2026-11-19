@@ -2,7 +2,21 @@
 """Real owning launcher plus tmux views survive a recovery restart."""
 import os, shlex, subprocess, sys, tempfile, uuid, shutil, signal, time
 from pathlib import Path
-from panes import wait_for, quote
+
+
+def quote(value):
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def wait_for(predicate, label, timeout=20):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = predicate()
+        if result:
+            return result
+        time.sleep(0.1)
+    raise RuntimeError('Timed out: ' + label)
+
 
 repo=Path(__file__).resolve().parent.parent
 kak=str(Path(sys.argv[1]).resolve())

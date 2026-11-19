@@ -10,6 +10,12 @@ For an existing managed installation, with a compatible V compiler on PATH:
 ./tests/acceptance.sh "$HOME/.local" /absolute/path/to/acceptance-logs
 ```
 
+To run just the real tmux pane checks against that installation:
+
+```sh
+v run tests/panes.vsh "$HOME/.local"
+```
+
 For a fresh installation and an actual managed tool update:
 
 ```sh
@@ -17,9 +23,9 @@ For a fresh installation and an actual managed tool update:
 ```
 
 These commands use isolated configurations, test projects and sessions. They
-preserve personal settings and existing editor sessions. Python 3 is required
-for the test drivers; installed IDE helpers use V. tmux and GDB with DAP are
-required. The fresh installation also needs network and C/C++ build tools.
+preserve personal settings and existing editor sessions. The tmux pane test
+uses V and tmux. The full acceptance suite also needs Python 3 and GDB with
+DAP. The fresh installation needs network access and C/C++ build tools.
 
 ## Coverage
 
