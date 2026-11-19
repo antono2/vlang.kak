@@ -161,6 +161,7 @@ fn (mut suite Suite) run() ! {
 		suite.script(test, [suite.kak])!
 	}
 	suite.script('install_lock.vsh', [])!
+	suite.script('setup_checks.vsh', [])!
 	suite.script('update_discovery.vsh', [])!
 	scripts := os.real_path(os.join_path(@DIR, '..', 'scripts'))
 	suite.script('explorer.vsh', [os.join_path(scripts, 'explorer.sh')])!
