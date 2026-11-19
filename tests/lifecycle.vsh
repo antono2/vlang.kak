@@ -96,6 +96,64 @@ fn (life Lifecycle) snapshot_restore() ! {
 		'Second rollback did not restore the newer block')!
 }
 
+fn fixture_git(repo string, args []string) !string {
+	mut command := ['-C', repo, '-c', 'user.name=Rollback Test', '-c',
+		'user.email=rollback@example.invalid', '-c', 'commit.gpgsign=false']
+	command << args
+	return capture('git', command, true)!.trim_right('\n')
+}
+
+fn (life Lifecycle) rollback_plugin() ! {
+	repo := os.join_path(life.root, 'plugin checkout')
+	os.mkdir(repo)!
+	fixture_git(repo, ['init', '-q'])!
+	plugin := os.join_path(repo, 'plugin.kak')
+	os.write_file(plugin, '# previous revision\n')!
+	fixture_git(repo, ['add', 'plugin.kak'])!
+	fixture_git(repo, ['commit', '-qm', 'previous'])!
+	previous := fixture_git(repo, ['rev-parse', 'HEAD'])!
+	os.write_file(plugin, '# active revision\n')!
+	fixture_git(repo, ['commit', '-qam', 'active'])!
+	current := fixture_git(repo, ['rev-parse', 'HEAD'])!
+	prefix := os.join_path(life.root, 'rollback prefix')
+	launcher := os.join_path(prefix, 'bin', 'kak-v')
+	state := os.join_path(prefix, 'opt', 'vlang-state')
+	snapshot := os.join_path(state, 'previous')
+	os.mkdir_all(os.dir(launcher))!
+	os.write_file(launcher, '# previous launcher\n')!
+	life.script('managed-state', ['snapshot', prefix, snapshot])!
+	revision := os.join_path(snapshot, 'plugin-revision')
+	os.write_file(revision, 'missing-commit\n')!
+	os.write_file(os.join_path(snapshot, 'plugin-repo'), repo + '\n')!
+	os.write_file(launcher, '# active launcher\n')!
+	rollback := os.join_path(life.repo, 'scripts', 'rollback.sh')
+	args := ['--prefix', prefix]
+	invalid := execute(rollback, args, false, environment: life.env, timeout: setup_timeout)!
+	require(invalid.stderr.contains('rev-parse') && os.read_file(launcher)! == '# active launcher\n'
+		&& fixture_git(repo, ['rev-parse', 'HEAD'])! == current,
+		'Rollback mutated the installation before validating its saved Git revision')!
+	os.write_file(revision, previous + '\n')!
+	config_marker := os.join_path(state, 'config-home')
+	os.write_file(config_marker, 'invalid-relative-config\n')!
+	failure := execute(rollback, args, false, environment: life.env, timeout: setup_timeout)!
+	require(failure.stderr.contains('Pre-rollback snapshot retained')
+		&& os.read_file(launcher)! == '# active launcher\n'
+		&& fixture_git(repo, ['rev-parse', 'HEAD'])! == current
+		&& os.read_file(revision)! == previous + '\n' && !os.exists(os.join_path(state, 'lock')),
+		'Rollback did not restore the active installation after ownership recording failed')!
+	os.rm(config_marker)!
+	life.script('rollback', args)!
+	require(os.read_file(launcher)! == '# previous launcher\n'
+		&& fixture_git(repo, ['rev-parse', 'HEAD'])! == previous,
+		'Rollback did not restore the launcher and checkout together')!
+	os.write_file(plugin, '# personal plugin edit\n')!
+	output := life.script('rollback', args)!
+	require(output.contains('local edits') && os.read_file(launcher)! == '# active launcher\n'
+		&& fixture_git(repo, ['rev-parse', 'HEAD'])! == previous
+		&& os.read_file(plugin)! == '# personal plugin edit\n',
+		'Rollback overwrote local plugin edits')!
+}
+
 fn (life Lifecycle) settings_and_ownership() ! {
 	setup := ['--prefix', life.prefix, '--no-build', '--no-lsp', '--no-vls', '--no-explorer']
 	life.script('setup', setup)!
@@ -413,6 +471,7 @@ fn run(kak_path string) ! {
 		env:    releasetest.editor_environment(root, prefix, config, kak)!
 	}
 	life.snapshot_restore()!
+	life.rollback_plugin()!
 	life.settings_and_ownership()!
 	life.repair_links()!
 	life.uninstall_integration()!
