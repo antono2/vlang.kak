@@ -14,7 +14,7 @@ pub:
 	vls_ref string
 }
 
-pub fn read_pins(path string) !Pins {
+pub fn read_assignments(path string) !map[string]string {
 	mut values := map[string]string{}
 	for line in os.read_lines(path)! {
 		if line == '' || line.starts_with('#') {
@@ -23,6 +23,11 @@ pub fn read_pins(path string) !Pins {
 		name, value := line.split_once('=') or { return error('Invalid release pin in ${path}: ${line}') }
 		values[name] = value
 	}
+	return values
+}
+
+pub fn read_pins(path string) !Pins {
+	values := read_assignments(path)!
 	for name in ['KAKOUNE_VERSION', 'LSP_VERSION', 'VLS_REF'] {
 		if values[name] == '' {
 			return error('Missing ${name} in ${path}')
@@ -187,4 +192,17 @@ pub fn log_command(program string, args []string, mut log os.File) !int {
 		log.write_string(diagnostics)!
 	}
 	return child.code
+}
+
+pub fn run_inherited(program string, args []string) ! {
+	program_path := os.find_abs_path_of_executable(program)!
+	mut child := os.new_process(program_path)
+	child.set_args(args)
+	child.run()
+	defer { child.close() }
+	// Stream child output directly to the caller.
+	child.wait()
+	if child.code != 0 {
+		return error('${program} ${args.join(' ')} exited ${child.code}')
+	}
 }

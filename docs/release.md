@@ -79,6 +79,15 @@ To run the Xterm check against an existing managed installation:
 v run tests/pane_hosts.vsh "$HOME/.local" native --artifacts /absolute/path/to/pane-logs
 ```
 
+To fetch the pinned Zellij, WezTerm and kitty releases for local host checks:
+
+```sh
+v run tests/install-pane-hosts.vsh /absolute/path/to/pane-tools
+```
+
+The installer prints the directories to add to `PATH` and reuses archives after
+checking their pinned SHA-256 digests.
+
 CI caches the pinned V compiler at its permanent source path (V embeds those
 paths), with keys covering both source pins, compiler installer, runner architecture
 and GCC version. Completed compiler builds and verified archives are saved before
