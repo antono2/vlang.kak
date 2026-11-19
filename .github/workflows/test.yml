@@ -71,6 +71,10 @@ jobs:
         if: matrix.kakoune == 'packaged'
         run: v run tests/check_kakoune_proposal.vsh
 
+      - name: Test VLS installation and activation with a local source repository
+        if: matrix.kakoune == 'packaged'
+        run: v run tests/check_vls_installer.vsh
+
       - name: Check setup and update scripts
         run: |
           for script in scripts/*.sh; do sh -n "$script"; "$script" --help > /dev/null; done

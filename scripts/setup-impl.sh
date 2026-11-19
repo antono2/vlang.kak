@@ -234,11 +234,7 @@ if [ ! -x "$lsp_bin" ]; then
 fi
 
 if [ "$vls_mode" = upstream ]; then
-  if [ -n "$vls_ref" ]; then
-    "$script_dir/install-vls.sh" --ref "$vls_ref" --prefix "$prefix"
-  else
-    "$script_dir/install-vls.sh" --prefix "$prefix"
-  fi
+  v run "$script_dir/install-vls.vsh" --ref "$vls_ref" --prefix "$prefix"
 elif [ "$vls_mode" = external ]; then
   [ -x "$vls_path" ] || { echo "VLS is not executable: $vls_path" >&2; exit 1; }
   vls_path=$(readlink -f "$vls_path")
