@@ -161,3 +161,30 @@ pub fn interrupt_at_marker(program string, args []string, marker string, options
 		return error('${program} did not reach ${marker} before interruption\n${output}${child.stdout_read()}${child.stderr_read()}')
 	}
 }
+
+// Drain both streams while the child runs so a long test can write directly to disk.
+pub fn log_command(program string, args []string, mut log os.File) !int {
+	mut child := start(program, args)!
+	defer {
+		if child.is_alive() {
+			child.signal_pgkill()
+			child.wait()
+		}
+		child.close()
+	}
+	for {
+		running := child.is_alive()
+		out := child.stdout_read()
+		diagnostics := child.stderr_read()
+		if out == '' && diagnostics == '' {
+			if !running {
+				return child.code
+			}
+			time.sleep(command_poll)
+			continue
+		}
+		log.write_string(out)!
+		log.write_string(diagnostics)!
+	}
+	return child.code
+}

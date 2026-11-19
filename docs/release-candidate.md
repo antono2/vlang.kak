@@ -7,7 +7,7 @@ and local GDB DAP. The first full IDE release targets Linux x86_64.
 For an existing managed installation, with a compatible V compiler on PATH:
 
 ```sh
-./tests/acceptance.sh "$HOME/.local" /absolute/path/to/acceptance-logs
+v run tests/acceptance.vsh "$HOME/.local" /absolute/path/to/acceptance-logs
 ```
 
 To run just the real tmux pane checks against that installation:

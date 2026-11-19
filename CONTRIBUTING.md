@@ -29,7 +29,7 @@ Run `./tests/run.sh` with V, Kakoune and tmux on PATH. Set `KAK` to use a
 different editor binary. An uninstalled build may also need `KAKOUNE_RUNTIME`.
 
 For changes affecting the full IDE, run
-`./tests/acceptance.sh /absolute/managed-prefix /absolute/artifact-directory`.
+`v run tests/acceptance.vsh /absolute/managed-prefix /absolute/artifact-directory`.
 For installer, update or tool-version changes, run
 `v run tests/release.vsh /absolute/artifact-directory`. Requirements and coverage are
 documented in [automated acceptance](docs/release-candidate.md).
