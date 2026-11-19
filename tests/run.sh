@@ -257,7 +257,7 @@ python3 "$script_dir/restart.py" "$kak"
 python3 "$script_dir/lifecycle.py" "$kak"
 python3 "$script_dir/lifecycle_sessions.py" "$kak"
 v run "$script_dir/install_lock.vsh"
-python3 "$script_dir/update_discovery.py"
+v run "$script_dir/update_discovery.vsh"
 v run "$script_dir/explorer.vsh" "$repo_dir/scripts/explorer.sh"
 sh "$script_dir/windowing.sh" "$repo_dir/scripts/windowing.sh"
 
