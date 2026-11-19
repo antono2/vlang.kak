@@ -1,0 +1,37 @@
+#!/bin/sh
+# Keep diagnostics available when V is missing or cannot compile the reporter.
+set -eu
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+mode=$1
+shift
+fallback="$script_dir/$mode-posix"
+case "${1:-}" in
+    --help|-h) exec "$fallback" "$@" ;;
+    --repair) if [ "$mode" = health ]; then exec "$fallback" "$@"; fi ;;
+esac
+
+prefix=${VLANG_KAK_PREFIX:-$HOME/.local}
+settings="$prefix/opt/vlang-kakoune/ide-config/kak/kakrc"
+original_path=$PATH
+if [ -f "$settings" ] && grep -qx '# vlang.kak compiler: managed' "$settings"; then
+    PATH="$prefix/opt/vlang-v/current:$PATH"
+fi
+PATH="$prefix/bin:$PATH"
+export PATH
+if command -v v >/dev/null 2>&1 && stage=$(mktemp -d "${TMPDIR:-/tmp}/vlang-kak-diagnostics.XXXXXXXX"); then
+    trap 'rm -f -- "$stage/diagnostics"; rmdir -- "$stage"' EXIT
+    trap 'exit 129' HUP
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    if v -skip-running -o "$stage/diagnostics" "$script_dir/diagnostics.vsh" >/dev/null 2>&1 &&
+        "$stage/diagnostics" --help >/dev/null 2>&1; then
+        # A nonzero report status belongs to the caller, so never replay the report.
+        PATH=$original_path "$stage/diagnostics" "$mode" "$@"
+        exit
+    fi
+    rm -f -- "$stage/diagnostics"
+    rmdir -- "$stage"
+    trap - EXIT HUP INT TERM
+fi
+PATH=$original_path
+exec "$fallback" "$@"

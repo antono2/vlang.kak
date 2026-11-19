@@ -199,7 +199,7 @@ v run tests/run.vsh
 
 See [setup and maintenance automation](docs/automation.md) for dependency preparation, ownership-based removal, staged updates/rollback, health and repair, persistent settings, project arguments, recovery snapshots and optional release notifications.
 
-The standalone scripts accept --help. Run scripts/check.sh after setup to see which executables and configuration links are in use.
+The standalone scripts accept `--help`. Run `./scripts/check.sh` after setup to see which executables and configuration links are in use. Use `./scripts/health.sh --report` to include the pane backend, installation lock and recovery snapshots. Both commands can report installation problems even when V needs repair.
 
 For persistent command, server, search, key, syntax and installation settings, see the [customization guide](docs/customization.md).
 
