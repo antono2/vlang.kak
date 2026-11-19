@@ -2007,7 +2007,7 @@ define-command -hidden -params 1 v-session-save-buffer %{
     evaluate-commands %sh{
       source=$(readlink -f "$kak_opt_v_plugin_source")
       : "$kak_bufname" "$kak_buffile" "$kak_modified" "$kak_opt_filetype" "$kak_opt_readonly" "$kak_opt_v_session_checkpoint"
-      "${source%/rc/vlang.kak}/scripts/session-buffer.sh"
+      "${source%/rc/vlang.kak}/scripts/session-buffer.sh" buffer || echo "fail 'Could not checkpoint buffer'"
     }
   }
 }
@@ -2019,10 +2019,9 @@ define-command -hidden -params .. v-session-save-buffers %{
 define-command -hidden -params 1 v-session-save-client %{
   evaluate-commands -client %arg{1} %{
     evaluate-commands %sh{
-      quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-      identity=$(printf %s "$kak_client" | sha256sum | cut -d ' ' -f 1)
-      printf 'rename-client %s\nbuffer %s\nselect %s\n' "$(quote "$kak_client")" "$(quote "$kak_bufname")" "$kak_selections_desc" > "$kak_opt_v_session_checkpoint/client-$identity.kak"
-      printf '%s\n' "$identity" >> "$kak_opt_v_session_checkpoint/clients"
+      source=$(readlink -f "$kak_opt_v_plugin_source")
+      : "$kak_client" "$kak_bufname" "$kak_selections_desc" "$kak_opt_v_session_checkpoint"
+      "${source%/rc/vlang.kak}/scripts/session-buffer.sh" client || echo "fail 'Could not checkpoint client'"
     }
   }
 }
@@ -2036,16 +2035,27 @@ define-command v-session-save -docstring 'Checkpoint buffers and client position
   evaluate-commands %sh{
     umask 077
     root=${XDG_CACHE_HOME:-$HOME/.cache}/vlang.kak/sessions
-    mkdir -p "$root"
-    directory=$(mktemp -d "$root/checkpoint.XXXXXXXX") || exit
+    if ! mkdir -p "$root" || ! directory=$(mktemp -d "$root/checkpoint.XXXXXXXX"); then
+      echo "fail 'Could not create checkpoint directory'"
+      exit
+    fi
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    if ! "${source%/rc/vlang.kak}/scripts/session-buffer.sh" --prepare "$directory" >&2; then
+      echo "fail 'Could not build the V checkpoint writer'"
+      exit
+    fi
     printf "set-option global v_session_checkpoint '%s'\n" "$(printf %s "$directory" | sed "s/'/''/g")"
   }
   v-session-save-buffers %val{buflist}
   v-session-save-clients %val{client_list}
   evaluate-commands %sh{
-    identity=$(printf %s "$kak_client" | sha256sum | cut -d ' ' -f 1)
-    printf '%s\n' "$identity" > "$kak_opt_v_session_checkpoint/main-client"
     source=$(readlink -f "$kak_opt_v_plugin_source")
+    : "$kak_client" "$kak_opt_v_session_checkpoint"
+    if ! "${source%/rc/vlang.kak}/scripts/session-buffer.sh" main; then
+      echo "fail 'Could not finish checkpoint'"
+      exit
+    fi
+    rm -f -- "$kak_opt_v_session_checkpoint/session-checkpoint"
     helper=${source%/rc/vlang.kak}/scripts/windowing.sh
     : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
       "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
