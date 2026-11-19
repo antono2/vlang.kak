@@ -1,6 +1,7 @@
 // Check that setup and migration preserve personal files, symlinks and settings.
 import os
 import rand
+import releasetest { capture, execute }
 import time
 
 const process_timeout = 20 * time.second
@@ -143,11 +144,65 @@ fn check(root string, kak string) ! {
 	assert os.real_path(link) == os.join_path(os.dir(@DIR), 'rc', 'vlang.kak')
 }
 
+fn check_persisted_settings(root string, search_path string) ! {
+	config := os.join_path(root, "config with apostrophe's", 'kak')
+	os.mkdir_all(config)!
+	target := os.join_path(root, 'personal.kak')
+	path := os.join_path(config, 'vlang-user.kak')
+	os.write_file(target, personal_settings)!
+	os.symlink(target, path)!
+	mut environment := os.environ()
+	environment['PATH'] = search_path
+	environment['VLANG_KAK_CONFIG_HOME'] = os.dir(config)
+	program := os.join_path(@DIR, '..', 'scripts', 'settings.sh')
+
+	output := capture(program, ['v_pane_mode', 'off'], true, environment: environment)!
+	assert output == 'set-option global v_pane_mode off\nv-refresh-keys\n'
+	output_update := capture(program, ['v_update_check_enabled', 'true'], true,
+		environment: environment
+	)!
+	assert output_update.ends_with('v-update-check-background\n')
+	capture(program, ['v_pane_mode', 'auto'], true, environment: environment)!
+	assert os.is_link(path) && os.real_path(path) == target
+	expected := personal_settings + '\n# >>> vlang.kak preferences >>>\ntry %{ set-option global v_update_check_enabled true }\nset-option global v_pane_mode auto\n# <<< vlang.kak preferences <<<\n'
+	assert os.read_file(target)! == expected
+	mut backups := []string{}
+	for name in os.ls(root)!.filter(it.starts_with('personal.kak.vlang-backup.')) {
+		backups << os.read_file(os.join_path(root, name))!
+	}
+	assert backups.len == 3 && personal_settings in backups
+
+	invalid := execute(program, ['v_pane_mode', 'sometimes'], false, environment: environment)!
+	assert invalid.code == 2 && invalid.stderr.contains('Unsupported setting/value.')
+	lock_dir := os.join_path(config, '.vlang-settings-lock')
+	os.mkdir(lock_dir)!
+	locked := execute(program, ['v_pane_mode', 'off'], false, environment: environment)!
+	assert locked.stderr.contains('Settings are being edited by another command.')
+	assert os.read_file(target)! == expected && os.is_dir(lock_dir)
+	os.rmdir(lock_dir)!
+
+	malformed := expected + '# >>> vlang.kak preferences >>>\n'
+	os.write_file(target, malformed)!
+	rejected := execute(program, ['v_pane_mode', 'off'], false, environment: environment)!
+	assert rejected.stderr.contains('Malformed preferences block')
+	assert os.read_file(target)! == malformed && !os.exists(lock_dir)
+	assert os.ls(root)!.filter(it.starts_with('personal.kak.vlang-backup.')).len == backups.len
+}
+
 fn run(kak string) ! {
 	root := os.join_path(os.temp_dir(), 'vlang-settings-' + rand.uuid_v4())
 	os.mkdir(root, mode: 0o700)!
 	defer { os.rmdir_all(root) or {} }
 	check(os.real_path(root), kak)!
+	check_persisted_settings(os.join_path(root, 'native'), os.getenv('PATH'))!
+	// Reproduce a stock editor environment with the POSIX tools but without V.
+	posix_tools := os.join_path(root, 'posix-tools')
+	os.mkdir(posix_tools)!
+	for tool in ['dirname', 'mkdir', 'readlink', 'touch', 'mktemp', 'awk', 'cp', 'cat', 'rm', 'rmdir'] {
+		os.symlink(os.find_abs_path_of_executable(tool)!, os.join_path(posix_tools, tool))!
+	}
+	check_persisted_settings(os.join_path(root, 'posix'), posix_tools)!
+	println('ok - settings persistence and refusal paths agree with and without V')
 	println('ok - setup preserves personal settings, symlinks, conflicts and legacy update paths')
 }
 
