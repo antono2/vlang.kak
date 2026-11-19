@@ -202,7 +202,7 @@ The standalone scripts accept --help. Run scripts/check.sh after setup to see wh
 
 For persistent command, server, search, key, syntax and installation settings, see the [customization guide](docs/customization.md).
 
-Release support, tested tool versions, experimental pane adapters, recovery and removal instructions are in the [release guide](docs/release.md). The full managed-installation gate is `./tests/release.sh /absolute/artifact-directory`; CI runs it with real VLS and tmux. The release gate includes local GDB debugging, program input and V value inspection.
+Release support, tested tool versions, experimental pane adapters, recovery and removal instructions are in the [release guide](docs/release.md). The full managed-installation gate is `v run tests/release.vsh /absolute/artifact-directory`; CI runs it with real VLS and tmux. The release gate includes local GDB debugging, program input and V value inspection.
 
 ## Contributor source map
 

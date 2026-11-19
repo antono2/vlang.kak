@@ -37,7 +37,7 @@ IDE workflows. No manual user test pass is required.
 
 Run `./tests/run.sh` for syntax, editing, keys, project tasks, history, explorer
 and restart checks. Run `python3 tests/debugger.py /path/to/kak` for real
-GDB/editor interaction. Run `./tests/release.sh /absolute/artifact-directory` for a
+GDB/editor interaction. Run `v run tests/release.vsh /absolute/artifact-directory` for a
 fresh managed installation, real VLS interaction, real tmux clients, an
 in-editor restart, real GDB debugging, a managed tool update and another live VLS check. The latter
 requires network access, V, C++ build tools, Python 3, tmux and GDB with DAP. Its configuration,

@@ -30,7 +30,7 @@ set `KAK`; an uninstalled build may also need `KAKOUNE_RUNTIME`.
 For changes affecting the full IDE, run
 `./tests/acceptance.sh /absolute/managed-prefix /absolute/artifact-directory`.
 For installer, update or tool-version changes, run
-`./tests/release.sh /absolute/artifact-directory`. Requirements and coverage are
+`v run tests/release.vsh /absolute/artifact-directory`. Requirements and coverage are
 documented in [automated acceptance](docs/release-candidate.md).
 
 Add regression checks for reported behavior failures. Test actual interactions
