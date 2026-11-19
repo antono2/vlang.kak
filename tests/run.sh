@@ -253,7 +253,7 @@ assert_highlighting language_features.v "$script_dir/fixtures/language_highlight
 
 v run "$script_dir/check_vls_transport.vsh" "$kak"
 v run "$script_dir/settings.vsh" "$kak"
-python3 "$script_dir/restart.py" "$kak"
+v run "$script_dir/restart.vsh" "$kak"
 python3 "$script_dir/lifecycle.py" "$kak"
 python3 "$script_dir/lifecycle_sessions.py" "$kak"
 v run "$script_dir/install_lock.vsh"

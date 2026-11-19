@@ -8,6 +8,9 @@ import x.json2
 
 const timeout = 15 * time.second
 const poll = 30 * time.millisecond
+const restart_timeout = 20 * time.second
+const quit_timeout = 5 * time.second
+const ready_file = 'ready'
 
 struct KeyEvent {
 	jsonrpc string = '2.0'
@@ -49,7 +52,7 @@ fn start(kak string, launcher string, root string, file string, env map[string]s
 	}
 	os.signal_ignore(.pipe)
 	session := 'vlang-ui-' + rand.uuid_v4()
-	ready := os.join_path(root, 'ready')
+	ready := os.join_path(root, ready_file)
 	mut process := os.new_process(launcher)
 	process.set_args(['-ui', 'json', '-s', session, file, '-e',
 		'echo -to-file ${quote(ready)} %val{client}'])
@@ -93,7 +96,11 @@ pub fn (mut editor Client) diagnostic(label string) IError {
 }
 
 fn (mut editor Client) wait_file(path string, label string) ! {
-	deadline := time.sys_mono_now() + u64(timeout)
+	editor.wait_file_for(path, label, timeout)!
+}
+
+fn (mut editor Client) wait_file_for(path string, label string, duration time.Duration) ! {
+	deadline := time.sys_mono_now() + u64(duration)
 	for time.sys_mono_now() < deadline && editor.process.is_alive() {
 		editor.read_output()
 		if os.is_file(path) && os.file_size(path) > 0 {
@@ -102,6 +109,42 @@ fn (mut editor Client) wait_file(path string, label string) ! {
 		time.sleep(poll)
 	}
 	return editor.diagnostic('Timed out waiting for ${label}')
+}
+
+pub fn (editor Client) session_name() string {
+	return editor.session
+}
+
+pub fn (editor Client) client_name() string {
+	return editor.client
+}
+
+fn (editor Client) target(command string) string {
+	return 'evaluate-commands -client ${quote(editor.client)} %{\n${command}\n}'
+}
+
+// Restart requests complete when the managed launcher creates a new client.
+pub fn (mut editor Client) restart(command string) ! {
+	ready := os.join_path(editor.root, ready_file)
+	os.rm(ready)!
+	editor.send(editor.target(command))!
+	editor.wait_file_for(ready, 'in-editor restart', restart_timeout)!
+	editor.client = os.read_file(ready)!.trim_space()
+}
+
+pub fn (mut editor Client) quit() ! {
+	editor.send(editor.target('quit!'))!
+	deadline := time.sys_mono_now() + u64(quit_timeout)
+	for editor.process.is_alive() && time.sys_mono_now() < deadline {
+		editor.read_output()
+		time.sleep(poll)
+	}
+	if editor.process.is_alive() {
+		return editor.diagnostic('Kakoune did not exit after quit')
+	}
+	if editor.process.code != 0 {
+		return editor.diagnostic('Kakoune exited with status ${editor.process.code}')
+	}
 }
 
 fn (mut editor Client) send(command string) ! {
@@ -174,9 +217,7 @@ fn (mut editor Client) execute(command string, allow_error bool) ! {
 		os.rm(failure) or {}
 	}
 	editor.send('try %{
-evaluate-commands -client ${editor.client} %{
-${command}
-}
+${editor.target(command)}
 } catch %{
 echo -to-file ${quote(failure)} %val{error}
 }
