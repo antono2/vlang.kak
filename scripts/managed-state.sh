@@ -26,6 +26,17 @@ case "$operation" in snapshot|snapshot-personal|restore)
   # Snapshot recovery must also work on editor-only installations without V.
   ;;
 esac
+tool_paths='bin/kak bin/kak-v bin/vls bin/v opt/vlang-kakoune/current opt/vlang-kak-lsp/current opt/vlang-vls/current opt/vlang-v/current opt/vlang-kakoune/ide-config/kak/kakrc opt/vlang-kakoune/ide-config/kak/autoload/vlang.kak opt/vlang-kakoune/ide-config/kak/autoload/vlang-site-runtime'
+personal_paths='kak/kakrc kak/autoload/vlang.kak kak/autoload/vlang-site-runtime'
+validate_paths() {
+  while IFS= read -r item || [ -n "$item" ]; do
+    match=false
+    for expected in $2; do
+      if [ "$item" = "$expected" ]; then match=true; break; fi
+    done
+    [ "$match" = true ] || { echo "Unexpected snapshot path: $item" >&2; return 1; }
+  done < "$1"
+}
 case "$operation" in
   record)
     script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -124,7 +135,7 @@ case "$operation" in
     mkdir -p "$state"
     destination=$3
     mkdir -p "$destination"
-    for path in bin/kak bin/kak-v bin/vls bin/v opt/vlang-kakoune/current opt/vlang-kak-lsp/current opt/vlang-vls/current opt/vlang-v/current opt/vlang-kakoune/ide-config/kak/kakrc opt/vlang-kakoune/ide-config/kak/autoload/vlang.kak opt/vlang-kakoune/ide-config/kak/autoload/vlang-site-runtime; do
+    for path in $tool_paths; do
       mkdir -p "$destination/$(dirname "$path")"
       if [ -e "$prefix/$path" ] || [ -L "$prefix/$path" ]; then cp -Pp "$prefix/$path" "$destination/$path"; fi
       printf '%s\n' "$path" >> "$destination/paths"
@@ -134,7 +145,7 @@ case "$operation" in
     config=$3
     destination=$4
     printf '%s\n' "$config" > "$destination/config-home"
-    for path in kak/kakrc kak/autoload/vlang.kak kak/autoload/vlang-site-runtime; do
+    for path in $personal_paths; do
       mkdir -p "$destination/personal/$(dirname "$path")"
       if [ -f "$config/$path" ] || [ -L "$config/$path" ]; then cp -Pp "$config/$path" "$destination/personal/$path"; fi
       printf '%s\n' "$path" >> "$destination/personal-paths"
@@ -146,8 +157,13 @@ case "$operation" in
   restore)
     snapshot=$3
     [ -f "$snapshot/paths" ] || { echo 'No previous tool snapshot.' >&2; exit 1; }
+    validate_paths "$snapshot/paths" "$tool_paths"
+    if [ -f "$snapshot/personal-paths" ]; then
+      validate_paths "$snapshot/personal-paths" "$personal_paths"
+      config=$(cat "$snapshot/config-home")
+      case "$config" in /*) ;; *) echo 'Invalid personal configuration location.' >&2; exit 1 ;; esac
+    fi
     while IFS= read -r path; do
-      case "$path" in bin/kak|bin/kak-v|bin/vls|bin/v|opt/vlang-*/current|opt/vlang-kakoune/ide-config/kak/*) ;; *) exit 1 ;; esac
       if [ -e "$snapshot/$path" ] || [ -L "$snapshot/$path" ]; then
         mkdir -p "$prefix/$(dirname "$path")"
         cp -Pp "$snapshot/$path" "$prefix/$path.restore"
@@ -155,9 +171,7 @@ case "$operation" in
       else rm -f "$prefix/$path"; fi
     done < "$snapshot/paths"
     if [ -f "$snapshot/personal-paths" ]; then
-      config=$(cat "$snapshot/config-home")
       while IFS= read -r relative; do
-        case "$relative" in kak/kakrc|kak/autoload/vlang.kak|kak/autoload/vlang-site-runtime) ;; *) exit 1 ;; esac
         if [ "$relative" = kak/kakrc ] && [ -f "$snapshot/kakrc-content" ]; then
           # Restore only our block; retain unrelated edits since the snapshot.
           target=$(readlink -f "$config/$relative")

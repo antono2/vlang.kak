@@ -46,14 +46,12 @@ fn copy_entry(source string, target string) ! {
 	// Pass each argument directly and keep symlink targets relative when saved.
 	mut child := os.new_process('/bin/cp')
 	child.set_args(['-Pp', '--', source, target])
-	child.set_redirect_stdio_merged()
 	child.run()
-	output := child.stdout_slurp()
 	child.wait()
 	status := child.code
 	child.close()
 	if status != 0 {
-		return error('Could not copy ${source} to ${target}: ${output.trim_space()}')
+		return error('Could not copy ${source} to ${target} (exit ${status}).')
 	}
 }
 
@@ -153,7 +151,8 @@ fn restoration(root string, snapshot string, paths []string, personal bool, save
 		if relative == 'kak/kakrc' && (saved_kakrc != '' || !saved) && os.is_file(target) {
 			current := settings_block(target)!
 			owned := if saved_kakrc == '' { '' } else { settings_block(saved_kakrc)!.owned }
-			separator := if owned != '' && current.remaining != '' && !current.remaining.ends_with('\n') {
+			separator := if owned != '' && current.remaining != ''
+				&& !current.remaining.ends_with('\n') {
 				'\n'
 			} else {
 				''
@@ -166,7 +165,10 @@ fn restoration(root string, snapshot string, paths []string, personal bool, save
 				}
 			}
 		} else if saved || present(target)! {
-			replacements << Replacement{ target: target, source: if saved { source } else { '' } }
+			replacements << Replacement{
+				target: target
+				source: if saved { source } else { '' }
+			}
 		}
 	}
 	return replacements
@@ -189,12 +191,12 @@ fn restore(prefix string, snapshot string) ! {
 		if os.is_link(saved_kakrc) {
 			return error('Refusing redirected saved Kakoune settings.')
 		}
-		actions << restoration(config, os.join_path(snapshot, 'personal'),
-			snapshot_paths(personal, personal_paths)!, true, if present(saved_kakrc)! {
-				saved_kakrc
-			} else {
-				''
-			})!
+		actions << restoration(config, os.join_path(snapshot, 'personal'), snapshot_paths(personal,
+			personal_paths)!, true, if present(saved_kakrc)! {
+			saved_kakrc
+		} else {
+			''
+		})!
 	}
 	apply(actions)!
 }
