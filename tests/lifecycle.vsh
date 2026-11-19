@@ -75,7 +75,8 @@ fn (life Lifecycle) settings_and_ownership() ! {
 	life.cleanup_releases(state)!
 	os.write_file(launcher, os.read_file(launcher)! + '# my edit\n')!
 	preview := life.script('uninstall', ['--prefix', life.prefix])!
-	require(os.is_file(launcher) && preview.contains('Keep changed:'), 'Uninstall preview lost the edited launcher')!
+	require(os.is_file(launcher) && preview.contains('Keep changed:'),
+		'Uninstall preview lost the edited launcher')!
 	life.script('uninstall', ['--prefix', life.prefix, '--apply'])!
 	require(os.is_file(launcher) && os.is_file(user) && os.readlink(personal_link)! == other
 		&& os.is_file(isolated_custom) && !os.exists(os.join_path(ide_config, 'kakrc')),
@@ -86,7 +87,8 @@ fn (life Lifecycle) cleanup_releases(state string) ! {
 	// Cleanup resolves a saved relative link against its original installation root.
 	tool := os.join_path(life.prefix, 'opt/vlang-vls')
 	releases := os.join_path(tool, 'releases')
-	for version in ['old', 'current', 'unused'] {
+	for version in ['old', 'current', 'candidate', 'unused', 'modified', 'extra-directory', 'live',
+		'session', 'unowned'] {
 		release := os.join_path(releases, version)
 		os.mkdir_all(release)!
 		os.write_file(os.join_path(release, '.vlang-commit'), version)!
@@ -94,16 +96,57 @@ fn (life Lifecycle) cleanup_releases(state string) ! {
 	}
 	current := os.join_path(tool, 'current')
 	os.symlink('releases/old', current)!
+	os.symlink('releases/candidate', os.join_path(tool, 'candidate'))!
+	live := os.join_path(releases, 'live', 'worker')
+	os.cp(os.find_abs_path_of_executable('sleep')!, live)!
+	os.chmod(live, 0o755)!
 	life.script('managed-state', ['record', life.prefix, life.config])!
 	previous := os.join_path(state, 'previous')
 	os.rmdir_all(previous)!
 	life.script('managed-state', ['snapshot', life.prefix, previous])!
 	os.rm(current)!
 	os.symlink('releases/current', current)!
+	os.write_file(os.join_path(releases, 'modified', 'payload'), 'user edit')!
+	os.mkdir(os.join_path(releases, 'extra-directory', 'user directory'))!
+	os.write_file(os.join_path(state, 'unowned-releases'), os.join_path(releases, 'unowned') + '\n')!
+	restart := os.join_path(life.prefix, 'opt', 'vlang-kakoune', 'restart.cleanup-test')
+	os.mkdir(restart)!
+	defer { os.rmdir_all(restart) or {} }
+	os.write_file(os.join_path(restart, 'owner-pid'), os.getpid().str() + '\n')!
+	os.write_file(os.join_path(restart, 'tool-releases'), os.join_path(releases, 'session') + '\n')!
+	mut worker := os.new_process(live)
+	worker.set_args(['60'])
+	worker.run()
+	defer {
+		if worker.is_alive() {
+			worker.signal_kill()
+			worker.wait()
+		}
+		worker.close()
+	}
+	// Wait for the child to exec so its /proc link identifies the release.
+	mut executable := ''
+	for _ in 0 .. 100 {
+		executable = os.readlink('/proc/${worker.pid}/exe') or { '' }
+		if executable == live {
+			break
+		}
+		time.sleep(10 * time.millisecond)
+	}
+	require(executable == live, 'Could not start the release usage control')!
+	preview := life.script('cleanup', ['--prefix', life.prefix])!
+	require(preview.contains('Remove unused release: ' + os.join_path(releases, 'unused'))
+		&& os.is_dir(os.join_path(releases, 'unused')),
+		'Preview removed or omitted the unused release')!
 	life.script('cleanup', ['--prefix', life.prefix, '--apply'])!
-	require(os.is_file(os.join_path(releases, 'old/payload'))
-		&& os.is_file(os.join_path(releases, 'current/payload'))
-		&& !os.exists(os.join_path(releases, 'unused')), 'Cleanup did not retain the active and rollback releases')!
+	require(!os.exists(os.join_path(releases, 'unused')),
+		'Cleanup left an unchanged inactive release')!
+	for version in ['old', 'current', 'candidate', 'modified', 'extra-directory', 'live', 'session',
+		'unowned'] {
+		require(os.is_file(os.join_path(releases, version, 'payload')),
+			'Cleanup removed the protected ${version} release')!
+	}
+	require(!os.exists(os.join_path(state, 'lock')), 'Cleanup left its installation lock')!
 }
 
 fn (life Lifecycle) editor(commands string, open_files []string, env map[string]string) ! {
@@ -157,9 +200,11 @@ fn (life Lifecycle) checkpoints() ! {
 
 	dispatch := os.join_path(life.root, 'dispatch')
 	printf_args := quote("printf '<%s>\\n' .")
-	life.editor('define-command -override -params 1 v-make-command %{ echo -to-file ${quote(dispatch)} %arg{1} }; ' +
-		'set-option global v_run_command ${printf_args}; v-project-preference load; v-run-project; quit!',
-		[source], env)!
+	life.editor(
+		'define-command -override -params 1 v-make-command %{ echo -to-file ${quote(dispatch)} %arg{1} }; ' +
+		'set-option global v_run_command ${printf_args}; v-project-preference load; v-run-project; quit!', [
+		source,
+	], env)!
 	command := os.read_file(dispatch)!.trim_space()
 	output := capture('/bin/sh', ['-c', command], true,
 		environment: life.env
@@ -176,9 +221,10 @@ fn (life Lifecycle) checkpoints() ! {
 	life.editor('v-session-restore ${quote(checkpoint)}; write ${quote(source_copy)}; ' +
 		'echo -to-file ${quote(position)} %val{selections_desc}; buffer notes; write ${quote(scratch_copy)}; ' +
 		'buffer recovered-report; echo -to-file ${quote(recovery_type)} %opt{filetype}; ' +
-		'execute-keys -with-maps q; echo -to-file ${quote(after_close)} %val{buflist}; quit!',
-		[], env)!
-	require(os.read_file(source_copy)!.starts_with('Unsaved') && os.read_file(source)!.starts_with('module')
+		'execute-keys -with-maps q; echo -to-file ${quote(after_close)} %val{buflist}; quit!', [],
+		env)!
+	require(os.read_file(source_copy)!.starts_with('Unsaved')
+		&& os.read_file(source)!.starts_with('module')
 		&& os.read_file(scratch_copy)!.starts_with('Scratch')
 		&& os.read_file(recovery_type)!.trim_space() == 'v-recovery'
 		&& !os.read_file(after_close)!.contains('recovered-report')

@@ -168,8 +168,10 @@ fallback for editor-only installations. The repository's weekly Kakoune-master
 CI is separate.
 
 `:v-cleanup` previews unchanged inactive tool releases. `:v-cleanup-apply` asks
-before removing them. Current, previous and versions recorded by active managed
-sessions are retained. Modified/unrecorded releases are retained as a whole.
-`scripts/cleanup.sh --cache` also offers compiled helper caches older than 30 days;
-`--apply` removes them and helpers rebuild on demand. Session checkpoints,
+before removing them. Current, previous, staged candidates and versions used by
+active sessions are retained. Modified and unrecorded releases are retained as
+a whole. Use `v run scripts/cleanup.vsh --cache` to include compiled helper
+caches older than 30 days. The `scripts/cleanup.sh` command also accepts these
+options and can use the managed V compiler. With `--apply`, removed helpers
+rebuild on demand. Session checkpoints,
 debugger records and personal preferences are excluded from cache cleanup.
