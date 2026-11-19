@@ -49,10 +49,11 @@ pub fn (pins Pins) setup_args(prefix string) []string {
 @[params]
 pub struct ProcessOptions {
 pub:
-	work_folder string
-	environment map[string]string
-	input       string
-	timeout     time.Duration = command_timeout
+	work_folder     string
+	environment     map[string]string
+	input           string
+	keep_stdin_open bool
+	timeout         time.Duration = command_timeout
 }
 
 fn start(program string, args []string, options ProcessOptions) !&os.Process {
@@ -72,9 +73,11 @@ fn start(program string, args []string, options ProcessOptions) !&os.Process {
 	if options.input != '' {
 		child.stdin_write(options.input)
 	}
-	// Installers and editor clients must see EOF rather than interactive input.
-	os.fd_close(child.stdio_fd[0])
-	child.stdio_fd[0] = -1
+	// Most clients expect EOF. Kakoune cases that issue their own quit keep stdin open.
+	if !options.keep_stdin_open {
+		os.fd_close(child.stdio_fd[0])
+		child.stdio_fd[0] = -1
+	}
 	return child
 }
 

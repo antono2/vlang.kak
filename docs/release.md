@@ -35,7 +35,7 @@ for every feature of the complete IDE.
 See [automated acceptance](release-candidate.md) for a single command covering the
 IDE workflows. No manual user test pass is required.
 
-Run `./tests/run.sh` for syntax, editing, keys, project tasks, history, explorer
+Run `v run tests/run.vsh` for syntax, editing, keys, project tasks, history, explorer
 and restart checks. Run `v run tests/debugger.vsh /path/to/kak` for real
 GDB/editor interaction. Run `v run tests/release.vsh /absolute/artifact-directory` for a
 fresh managed installation, real VLS interaction, real tmux clients, an

@@ -24,7 +24,7 @@ checkout. Your normal Kakoune configuration remains separate. See
 
 ## Verification
 
-Run `./tests/run.sh` with V, Kakoune and tmux on PATH. Set `KAK` to use a
+Run `v run tests/run.vsh` with V, Kakoune and tmux on PATH. Set `KAK` to use a
 different editor binary. An uninstalled build may also need `KAKOUNE_RUNTIME`.
 
 For changes affecting the full IDE, run
