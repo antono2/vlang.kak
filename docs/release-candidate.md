@@ -29,6 +29,13 @@ an existing managed installation:
 v run tests/upgrade.vsh "$HOME/.local" v1.2.0
 ```
 
+To verify interrupted updates and repair with copies of the pinned tool releases
+from a managed installation:
+
+```sh
+v run tests/lifecycle_stack.vsh "$HOME/.local"
+```
+
 These commands use isolated configurations, test projects and sessions. They
 preserve personal settings and existing editor sessions. The tmux pane test
 uses V and tmux. The full acceptance suite also needs Python 3 and GDB with

@@ -1,25 +1,9 @@
 // Install, exercise, update, and recheck a real stack in an isolated configuration.
 import os
 import rand
+import releasetest
 
 const usage = 'Usage: v run tests/release.vsh [ARTIFACT_DIRECTORY]\nRequires V, build tools, tmux, GDB with DAP, Python 3, and network access.'
-
-fn read_pins(path string) !map[string]string {
-	mut pins := map[string]string{}
-	for line in os.read_lines(path)! {
-		if line == '' || line.starts_with('#') {
-			continue
-		}
-		name, value := line.split_once('=') or { return error('Invalid release pin in ${path}: ${line}') }
-		pins[name] = value
-	}
-	for name in ['KAKOUNE_VERSION', 'LSP_VERSION', 'VLS_REF'] {
-		if pins[name] == '' {
-			return error('Missing ${name} in ${path}')
-		}
-	}
-	return pins
-}
 
 fn command(program string, args []string) ! {
 	program_path := os.find_abs_path_of_executable(program)!
@@ -36,9 +20,7 @@ fn command(program string, args []string) ! {
 
 fn release(root string) ! {
 	repo := os.dir(@DIR)
-	pins := read_pins(os.join_path(@DIR, 'release.env'))!
-	kak_override := os.getenv('VLANG_RELEASE_KAKOUNE_REF')
-	kak_version := if kak_override != '' { kak_override } else { pins['KAKOUNE_VERSION'] }
+	pins := releasetest.read_pins(os.join_path(@DIR, 'release.env'))!
 	prefix := os.join_path(root, 'prefix')
 	os.setenv('XDG_CONFIG_HOME', os.join_path(root, 'config'), true)
 	os.setenv('XDG_CACHE_HOME', os.join_path(root, 'cache'), true)
@@ -46,15 +28,14 @@ fn release(root string) ! {
 	os.setenv('VLANG_KAK_SKIP_PULL', '1', true)
 	os.setenv('VLANG_LSP_ARTIFACTS', os.join_path(root, 'lsp'), true)
 	os.unsetenv('VLANG_KAK_CONFIG_HOME')
-	args := ['--prefix', prefix, '--kakoune-version', kak_version, '--lsp-version',
-		pins['LSP_VERSION'], '--vls-ref', pins['VLS_REF']]
+	args := pins.setup_args(prefix)
 	check := os.join_path(repo, 'scripts/check.sh')
 
 	println('Release test artifacts: ${root}')
 	command(os.join_path(repo, 'scripts/setup.sh'), args)!
 	os.setenv('PATH', os.join_path(prefix, 'bin') + ':' + os.getenv('PATH'), true)
 	command(check, ['--live-lsp'])!
-	command('python3', [os.join_path(@DIR, 'lifecycle_stack.py'), prefix])!
+	command('v', ['run', os.join_path(@DIR, 'lifecycle_stack.vsh'), prefix])!
 	for previous in ['v1.1.1', 'v1.2.0'] {
 		command('v', ['run', os.join_path(@DIR, 'upgrade.vsh'), prefix, previous])!
 	}
