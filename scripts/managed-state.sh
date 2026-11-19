@@ -9,18 +9,13 @@ state=$prefix/opt/vlang-state
 case "$operation" in snapshot|snapshot-personal|restore)
   script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
   . "$script_dir/managed-v.inc"
-  if compiler=$(find_maintenance_v --prefix "$prefix") && snapshot_runtime=$(mktemp -d); then
-    trap 'rm -rf -- "$snapshot_runtime"' EXIT
-    trap 'exit 130' HUP INT TERM
-    # Compile independently so simultaneous operations on distinct prefixes cannot collide.
-    if TMPDIR="$snapshot_runtime" "$compiler" -skip-running -o "$snapshot_runtime/snapshot" "$script_dir/managed-snapshot.vsh" &&
-       [ -x "$snapshot_runtime/snapshot" ]; then
-      case "$operation" in
-        snapshot-personal) "$snapshot_runtime/snapshot" "$operation" "$3" "$4" ;;
-        *) "$snapshot_runtime/snapshot" "$operation" "$prefix" "$3" ;;
-      esac
-      exit
-    fi
+  if compiler=$(find_maintenance_v --prefix "$prefix"); then
+    status=0
+    case "$operation" in
+      snapshot-personal) run_maintenance_program "$compiler" "$script_dir/managed-snapshot.vsh" "$operation" "$3" "$4" || status=$? ;;
+      *) run_maintenance_program "$compiler" "$script_dir/managed-snapshot.vsh" "$operation" "$prefix" "$3" || status=$? ;;
+    esac
+    [ "$status" -eq 125 ] || exit "$status"
     echo 'V could not prepare the snapshot command. Using shell recovery.' >&2
   fi
   # Snapshot recovery must also work on editor-only installations without V.
