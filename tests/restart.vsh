@@ -101,6 +101,14 @@ fn exercise(root string, kak string) ! {
 	original_pid := editor.value(pid_expression)!
 	require(editor.value(setting_expression)! == 'preserved', 'Personal settings were not loaded')!
 
+	// Exercise the V entry point directly so a compilation failure cannot hide behind the fallback.
+	compiler := os.find_abs_path_of_executable('v')!
+	helper := os.join_path(repo, 'scripts', 'update-session.vsh')
+	refused := run_command(compiler, ['run', helper, prefix, editor.session_name(),
+		editor.client_name(), original_pid, '--prefix', root])!
+	require(refused.code == 2 && refused.errors.contains('keeps the current installation prefix'),
+		'V update handoff accepted an alternate prefix\n${refused.output}${refused.errors}')!
+
 	mut failure_args := [prefix, editor.session_name(), editor.client_name(), original_pid, '--vls',
 		os.join_path(root, 'missing-vls')]
 	failure_args << no_install
