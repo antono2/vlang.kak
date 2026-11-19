@@ -19,7 +19,14 @@ v run tests/panes.vsh "$HOME/.local"
 For a fresh installation and an actual managed tool update:
 
 ```sh
-./tests/release.sh /absolute/path/to/release-artifacts
+v run tests/release.vsh /absolute/path/to/release-artifacts
+```
+
+To exercise upgrade, rollback, and removal from one published tag using copies of
+an existing managed installation:
+
+```sh
+v run tests/upgrade.vsh "$HOME/.local" v1.2.0
 ```
 
 These commands use isolated configurations, test projects and sessions. They
