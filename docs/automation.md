@@ -92,6 +92,8 @@ HEAD state and uses its tool pins. Later updates from a detached checkout stay
 on the release path. Externally selected VLS requires the ordinary update path
 if you want to preserve that choice; selecting a verified release selects its
 managed VLS pin. Local edits are never discarded to select a release.
+The update command uses V when a working compiler is available and also runs
+on editor-only installations without V.
 
 A failed setup/update restores the previous tool activation. A successful run
 retains one previous snapshot. `:v-rollback` restores that snapshot, including
