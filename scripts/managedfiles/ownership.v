@@ -3,6 +3,7 @@ module managedfiles
 
 import crypto.sha256
 import os
+import strings
 
 pub struct ManifestEntry {
 pub:
@@ -91,4 +92,55 @@ pub fn active_executables(prefix string) ![]string {
 		}
 	}
 	return active
+}
+
+const block_start = '# >>> vlang.kak managed >>>'
+const block_end = '# <<< vlang.kak managed <<<'
+
+pub struct SettingsBlock {
+pub:
+	original  string
+	owned     string
+	remaining string
+}
+
+pub fn settings_block(path string) !SettingsBlock {
+	original := os.read_file(path)!
+	mut inside := false
+	mut owned := []string{}
+	mut remaining := strings.new_builder(original.len)
+	lines := original.split('\n')
+	for index, line in lines {
+		if line == block_start {
+			if inside || owned.len > 0 {
+				return error('Ambiguous managed block in ${path}.')
+			}
+			inside = true
+		}
+		if inside {
+			owned << line
+			if line == block_end {
+				inside = false
+			}
+		} else {
+			remaining.write_string(line)
+			if index < lines.len - 1 {
+				remaining.write_u8(`\n`)
+			}
+		}
+	}
+	if inside {
+		return error('Incomplete or missing managed block in ${path}.')
+	}
+	if owned.len == 0 {
+		return SettingsBlock{
+			original:  original
+			remaining: original
+		}
+	}
+	return SettingsBlock{
+		original:  original
+		owned:     owned.join('\n') + '\n'
+		remaining: remaining.str()
+	}
 }

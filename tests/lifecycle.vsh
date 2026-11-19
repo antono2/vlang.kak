@@ -150,6 +150,7 @@ fn (life Lifecycle) cleanup_releases(state string) ! {
 	os.write_file(os.join_path(releases, 'modified', 'payload'), 'user edit')!
 	os.mkdir(os.join_path(releases, 'extra-directory', 'user directory'))!
 	os.write_file(os.join_path(state, 'unowned-releases'), os.join_path(releases, 'unowned') + '\n')!
+	life.script('managed-state', ['record', life.prefix, life.config])!
 	restart := os.join_path(life.prefix, 'opt', 'vlang-kakoune', 'restart.cleanup-test')
 	os.mkdir(restart)!
 	defer { os.rmdir_all(restart) or {} }

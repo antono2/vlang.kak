@@ -1,28 +1,19 @@
 // Remove files still owned by a recorded installation and preserve user edits.
 import crypto.sha256
-import managedfiles { ManifestEntry, acquire_lock, active_executables, digest, read_manifest, release_lock }
+import managedfiles { ManifestEntry, SettingsBlock, acquire_lock, active_executables, digest, read_manifest, release_lock, settings_block }
 import os
 import rand
-import strings
 
 const usage = 'Usage: v run scripts/uninstall.vsh [--prefix DIRECTORY] [--apply] [--verbose]
 Default: preview. Personal settings, modified files and external tools are kept.'
 
 const tool_names = ['kakoune', 'kak-lsp', 'vls', 'v']
-const block_start = '# >>> vlang.kak managed >>>'
-const block_end = '# <<< vlang.kak managed <<<'
 
 struct Options {
 mut:
 	prefix  string
 	apply   bool
 	verbose bool
-}
-
-struct SettingsBlock {
-	original  string
-	owned     string
-	remaining string
 }
 
 fn options(args []string) !Options {
@@ -103,41 +94,6 @@ fn shared_runtime(config string, kakoune string) !string {
 		return os.real_path(os.join_path(kakoune, 'current'))
 	}
 	return ''
-}
-
-fn settings_block(path string) !SettingsBlock {
-	original := os.read_file(path)!
-	mut inside := false
-	mut owned := []string{}
-	mut remaining := strings.new_builder(original.len)
-	lines := original.split('\n')
-	for index, line in lines {
-		if line == block_start {
-			if inside || owned.len > 0 {
-				return error('Ambiguous managed block in ${path}.')
-			}
-			inside = true
-		}
-		if inside {
-			owned << line
-			if line == block_end {
-				inside = false
-			}
-		} else {
-			remaining.write_string(line)
-			if index < lines.len - 1 {
-				remaining.write_u8(`\n`)
-			}
-		}
-	}
-	if inside || owned.len == 0 {
-		return error('Incomplete or missing managed block in ${path}.')
-	}
-	return SettingsBlock{
-		original:  original
-		owned:     owned.join('\n') + '\n'
-		remaining: remaining.str()
-	}
 }
 
 fn matches(path string, entry ManifestEntry, block SettingsBlock) !bool {
