@@ -12,7 +12,18 @@ import tempfile
 import time
 import uuid
 
-from pane_hosts import quote, wait_for
+def quote(value):
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def wait_for(predicate, label, timeout=30):
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        result = predicate()
+        if result:
+            return result
+        time.sleep(.1)
+    raise RuntimeError('Timed out: ' + label)
 
 
 def render(screen, title):
