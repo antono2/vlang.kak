@@ -7,8 +7,8 @@ for questions, configuration examples and workflow feedback.
 ## Development
 
 Clone the repository and create a branch. The plugin lives in `rc/vlang.kak`;
-installed explorer and debugger helpers are V programs in `scripts/`. Shell
-scripts manage installation, updates and pane hosts. The core tests use V,
+installed explorer, debugger and pane-host helpers are V programs in `scripts/`.
+Shell entry points manage bootstrap, installation and updates. The core tests use V,
 Kakoune and tmux.
 
 For a separate managed development installation:

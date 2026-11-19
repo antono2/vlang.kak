@@ -328,7 +328,10 @@ use `:v-close-view` (`Space q` in a V buffer) to close its pane or window.
 Without an active pane host, the tree
 uses its normal scratch buffer and definition peek uses `:v-doc`.
 
-Use `:v-window-status` to see the detected backend. Detection checks the
+Use `:v-window-status` to see the detected backend. The first request builds
+the V pane adapter in the user's cache, and subsequent requests reuse it.
+Plugin-only installs can use the POSIX fallback when V is unavailable.
+Detection checks the
 current client, so connecting an existing headless Kakoune session from tmux
 will use tmux. The active host must offer its CLI and allow pane creation;
 kitty remote control, for example, must be enabled. Configure these options
