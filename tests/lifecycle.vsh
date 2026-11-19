@@ -1,4 +1,5 @@
 // Verify managed ownership, settings, and editor checkpoints on isolated paths.
+import crypto.sha256
 import editorui { quote }
 import os
 import rand
@@ -232,6 +233,64 @@ fn (life Lifecycle) checkpoints() ! {
 		'Checkpoint did not restore the source, selection, and scratch or recovery buffers')!
 }
 
+fn (life Lifecycle) uninstall_integration() ! {
+	prefix := os.join_path(life.root, 'integrated prefix')
+	config := os.join_path(life.root, 'integrated config')
+	state := os.join_path(prefix, 'opt/vlang-state')
+	autoload := os.join_path(config, 'kak/autoload')
+	os.mkdir_all(state)!
+	os.mkdir_all(autoload)!
+	os.write_file(os.join_path(state, 'config-home'), config + '\n')!
+	kakrc := os.join_path(config, 'kak/kakrc')
+	target := os.join_path(life.root, 'linked kakrc')
+	block := '# >>> vlang.kak managed >>>\nset-option global v_pane_mode off\n# <<< vlang.kak managed <<<\n'
+	original := '# personal before\n' + block.trim_right('\n')
+	os.write_file(target, original)!
+	os.chmod(target, 0o600)!
+	os.symlink(target, kakrc)!
+
+	kakoune := os.join_path(prefix, 'opt/vlang-kakoune')
+	runtime := os.join_path(kakoune, 'releases/fixture/share/kak')
+	os.mkdir_all(runtime)!
+	payload := os.join_path(runtime, 'runtime.kak')
+	os.write_file(payload, 'shared runtime')!
+	current := os.join_path(kakoune, 'current')
+	os.symlink('releases/fixture', current)!
+	runtime_link := os.join_path(autoload, 'vlang-site-runtime')
+	os.symlink(runtime, runtime_link)!
+	os.write_file(os.join_path(autoload, 'other-plugin.kak'), '# a second consumer')!
+	redirected := os.join_path(prefix, 'opt/vlang-vls')
+	outside := os.join_path(life.root, 'outside release')
+	os.mkdir(outside)!
+	os.write_file(os.join_path(outside, 'payload'), 'outside')!
+	os.symlink(outside, redirected)!
+
+	rows := [
+		'block\t${sha256.hexhash(block)}\t${kakrc}',
+		'link\treleases/fixture\t${current}',
+		'link\t${runtime}\t${runtime_link}',
+		'file\t${sha256.hexhash('shared runtime')}\t${payload}',
+		'file\t${sha256.hexhash('outside')}\t${redirected}/payload',
+	]
+	os.write_file(os.join_path(state, 'manifest.tsv'), rows.join('\n') + '\n')!
+	preview := life.script('uninstall', ['--prefix', prefix])!
+	require(preview.contains('Eligible block:') && os.read_file(target)! == original,
+		'Preview changed the managed block')!
+	output := life.script('uninstall', ['--prefix', prefix, '--apply'])!
+	require(os.is_link(kakrc) && os.readlink(kakrc)! == target
+		&& os.read_file(target)! == '# personal before\n',
+		'Removal changed outside settings or replaced the symlink')!
+	backups := os.ls(life.root)!.filter(it.starts_with('linked kakrc.vlang-backup.'))
+	require(backups.len == 1, 'Removal did not keep exactly one backup')!
+	backup := os.join_path(life.root, backups[0])
+	require(os.read_file(backup)! == original && os.stat(backup)!.mode & 0o777 == 0o600
+		&& os.stat(target)!.mode & 0o777 == 0o600,
+		'Backup contents or settings permissions changed')!
+	require(output.contains('Keep redirected path:') && os.is_file(os.join_path(outside, 'payload'))
+		&& os.is_link(runtime_link) && os.is_link(current) && os.is_file(payload),
+		'Removal changed a redirected file or a shared runtime')!
+}
+
 fn run(kak_path string) ! {
 	kak := os.real_path(os.find_abs_path_of_executable(kak_path)!)
 	root := os.join_path(os.temp_dir(), 'vlang-lifecycle-' + rand.uuid_v4())
@@ -248,6 +307,7 @@ fn run(kak_path string) ! {
 		env:    releasetest.editor_environment(root, prefix, config, kak)!
 	}
 	life.settings_and_ownership()!
+	life.uninstall_integration()!
 	life.checkpoints()!
 	println('ok - owned removal, changed-file preservation, failed setup recovery, persistent settings, literal arguments and buffer checkpoint restoration')
 }

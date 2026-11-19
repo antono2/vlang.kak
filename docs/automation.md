@@ -37,6 +37,8 @@ Preview removal:
 The preview summarizes eligible entries and lists preserved changes. Add
 `--verbose` to inspect every path. Close managed sessions, review the preview,
 then repeat with `--apply`.
+The command can use the installed V compiler even when that compiler is among
+the files selected for removal.
 Only unchanged recorded files/links and empty managed directories are removed.
 An unchanged integration block is removed separately, with a backup of kakrc;
 other settings remain. Modified, replaced and unrecorded files are kept.
