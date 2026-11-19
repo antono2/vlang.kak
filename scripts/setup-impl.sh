@@ -196,7 +196,7 @@ printf 'import %s\nfn main() { _ = json2.Any(0) }\n' "$json_import" > "$probe/pr
 if command -v v >/dev/null 2>&1 && v -check "$probe/probe.v" >/dev/null 2>&1; then compiler_ok=true; fi
 rm -rf "$probe"
 compiler_required=false
-if [ "$build" = true ] || [ "$explorer" = true ] || [ "$vls_mode" = auto ] || [ "$vls_mode" = upstream ]; then
+if [ "$build" = true ] || [ "$install_lsp" = true ] || [ "$explorer" = true ] || [ "$vls_mode" = auto ] || [ "$vls_mode" = upstream ]; then
   compiler_required=true
 fi
 if [ "$managed_v" = system ] && [ "$compiler_ok" = false ] && [ "$compiler_required" = true ]; then
@@ -229,7 +229,7 @@ fi
 }
 
 if [ "$install_lsp" = true ]; then
-  "$script_dir/install-kak-lsp.sh" --version "$lsp_version" --prefix "$prefix"
+  v run "$script_dir/install-kak-lsp.vsh" --version "$lsp_version" --prefix "$prefix"
 fi
 lsp_bin=$prefix/opt/vlang-kak-lsp/current/bin/kak-lsp
 if [ "$install_lsp" = true ]; then lsp_bin=$prefix/opt/vlang-kak-lsp/candidate/bin/kak-lsp; fi
