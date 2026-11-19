@@ -29,6 +29,9 @@ trap lock_release EXIT
 trap 'exit 130' HUP INT TERM
 next=$(mktemp -d "$state/rollback.XXXXXXXX")
 "$script_dir/managed-state.sh" snapshot "$prefix" "$next"
+if [ -z "$recover" ] && [ -f "$selected/personal-paths" ]; then
+  "$script_dir/managed-state.sh" snapshot-personal "$prefix" "$(cat "$selected/config-home")" "$next"
+fi
 "$script_dir/managed-state.sh" restore "$prefix" "$selected"
 old_plugin=
 repo=

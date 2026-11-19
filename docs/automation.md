@@ -97,6 +97,9 @@ A failed setup/update restores the previous tool activation. A successful run
 retains one previous snapshot. `:v-rollback` restores that snapshot, including
 managed configuration and the plugin revision when the checkout is clean;
 with local edits it rolls back tools only. Personal settings are preserved.
+Snapshot capture and restore use V when a working compiler is available. The
+snapshot format also works with the shell recovery commands on editor-only
+installations.
 Rollback swaps snapshots so you can return to the newer combination too.
 Keep sessions open until an update has succeeded. Activation changes version
 links in a short commit phase; power loss or SIGKILL during that phase may
