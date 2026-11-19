@@ -8,8 +8,9 @@ for questions, configuration examples and workflow feedback.
 
 Clone the repository and create a branch. The plugin lives in `rc/vlang.kak`;
 installed explorer and debugger helpers are V programs in `scripts/`. Shell
-scripts manage installation, updates and pane hosts. Python drives automated
-tests and live VLS checks; it is not required for the installed editor helpers.
+scripts manage installation, updates and pane hosts. The core tests use V,
+Kakoune and tmux. The full release suite also uses Python for the debugger and
+terminal-host checks.
 
 For a separate managed development installation:
 
@@ -24,8 +25,8 @@ checkout. Your normal Kakoune configuration remains separate. See
 
 ## Verification
 
-Run `./tests/run.sh` with V and Kakoune on PATH. For a different editor binary,
-set `KAK`; an uninstalled build may also need `KAKOUNE_RUNTIME`.
+Run `./tests/run.sh` with V, Kakoune and tmux on PATH. Set `KAK` to use a
+different editor binary. An uninstalled build may also need `KAKOUNE_RUNTIME`.
 
 For changes affecting the full IDE, run
 `./tests/acceptance.sh /absolute/managed-prefix /absolute/artifact-directory`.

@@ -6,7 +6,6 @@ import time
 
 const tools = ['vlang-kakoune', 'vlang-kak-lsp', 'vlang-vls']
 const activation_timeout = 2 * time.minute
-const activation_poll = 50 * time.millisecond
 const before_activation = '# All builds succeeded. Switch the prepared versions and generate launchers.'
 const activate_link = '    mv -Tf "$root/current.next" "$root/current"'
 const personal_edit = '# edited after interruption\n'
@@ -90,18 +89,7 @@ fn (stack Stack) git(extra []string) !string {
 }
 
 fn (stack Stack) prepare_interrupted_source() !string {
-	os.mkdir(stack.interrupted_repo)!
-	// Copy the working sources without Git metadata or ignored build artifacts.
-	files := capture('git', ['-C', stack.repo, 'ls-files', '--cached', '--others', '--exclude-standard',
-		'-z'], true)!
-	mut args := ['-a', '--parents', '--target-directory', stack.interrupted_repo, '--']
-	for file in files.split('\0') {
-		source := os.join_path(stack.repo, file)
-		if file != '' && (os.exists(source) || os.is_link(source)) {
-			args << file
-		}
-	}
-	capture('cp', args, true, work_folder: stack.repo)!
+	releasetest.copy_source(stack.repo, stack.interrupted_repo)!
 	// Recovery must keep running across checkout of an older rollback command.
 	rollback := capture('git', ['-C', stack.repo, 'show', 'v1.2.0:scripts/rollback.sh'], true)!
 	os.write_file(os.join_path(stack.interrupted_repo, 'scripts/rollback.sh'), rollback)!
@@ -136,22 +124,13 @@ fn (stack Stack) interrupt(phase Interruption, old_revision string, original_imp
 	env['VLANG_KAK_PREVIOUS_PLUGIN_REVISION'] = old_revision
 	mut args := stack.pins.setup_args(stack.prefix)
 	args << '--integrate'
-	mut update := releasetest.start(os.join_path(stack.interrupted_repo, 'scripts/update.sh'), args,
+	releasetest.interrupt_at_marker(os.join_path(stack.interrupted_repo, 'scripts/update.sh'),
+		args, marker,
 		environment: env
-	)!
-	defer { update.close() }
-	deadline := time.sys_mono_now() + u64(activation_timeout)
-	mut log := ''
-	for !os.is_file(marker) && update.is_alive() && time.sys_mono_now() < deadline {
-		log += update.stdout_read() + update.stderr_read()
-		time.sleep(activation_poll)
+		timeout:     activation_timeout
+	) or {
+		return error('${phase} activation: ${err}')
 	}
-	reached := os.is_file(marker) && update.is_alive()
-	if update.is_alive() {
-		update.signal_pgkill()
-		update.wait()
-	}
-	require(reached, 'Update missed the ${phase} activation boundary\n${log}${update.stdout_read()}${update.stderr_read()}')!
 }
 
 fn (stack Stack) reject_snapshots(state string, pending string) ! {
