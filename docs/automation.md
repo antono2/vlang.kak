@@ -187,6 +187,11 @@ ordinary safe restart; use recovery restart explicitly when needed.
 
 ## Optional checks and cleanup
 
+Run `scripts/active-tools.sh "$HOME/.local"` to inspect processes before cleanup.
+Pass your installation prefix if you used `--prefix`. The command prints managed
+executable paths and a `managed-process:PID` line for each process whose
+`VLANG_KAK_PREFIX` exactly matches.
+
 Enable weekly release discovery through `:v-settings`, or set
 `v_update_check_enabled true`. On client creation it starts a background check,
 at most once per seven days, and notifies only for a newly discovered release.

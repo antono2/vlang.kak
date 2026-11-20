@@ -171,6 +171,7 @@ fn (mut suite Suite) run() ! {
 		run_inherited('v', ['fmt', '-verify', path])!
 		run_inherited('v', ['-check', path])!
 	}
+	suite.script('active_tools.vsh', [])!
 	run_inherited('v', ['test', os.join_path(suite.scratch, 'project')])!
 }
 
