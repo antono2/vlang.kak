@@ -62,6 +62,13 @@ fn exercise(prefix string) ! {
 	check_status(prefix, 1, true)!
 	assert os.exists(owner)
 
+	for invalid_pid in ['0', '4294967297'] {
+		os.write_file(owner, '${invalid_pid} 0 setup\n')!
+		assert check_status(prefix, 2, false)!.contains('unknown owner')
+		check_status(prefix, 1, true)!
+		assert os.is_file(owner)
+	}
+
 	// An active PID with a different start time belongs to a different process.
 	os.write_file(owner, '${pid} 0 setup\n')!
 	assert check_status(prefix, 3, false)!.contains('stale setup')
@@ -73,6 +80,14 @@ fn exercise(prefix string) ! {
 	assert check_status(prefix, 0, true)!.contains('Stale lock cleared')
 	assert !os.exists(lock_dir)
 	check_status(prefix, 0, false)!
+	outside := os.join_path(prefix, 'unrelated lock')
+	os.mkdir(outside)!
+	os.write_file(os.join_path(outside, 'owner'), '${pid} 0 setup\n')!
+	os.symlink(outside, lock_dir)!
+	assert check_status(prefix, 2, false)!.contains('redirected path')
+	check_status(prefix, 1, true)!
+	assert os.is_link(lock_dir) && os.ls(outside)! == ['owner']
+	os.rm(lock_dir)!
 
 	repo := os.dir(@DIR)
 	command := owner_setup + 'lock_acquire test; lock_release'
@@ -101,6 +116,18 @@ fn check() ! {
 	os.mkdir(prefix, mode: 0o700)!
 	defer { os.rmdir_all(prefix) or {} }
 	exercise(prefix)!
+	bin := os.join_path(prefix, 'shell-only-tools')
+	os.mkdir(bin)!
+	for name in ['sh', 'dirname', 'readlink', 'awk', 'sed', 'find', 'wc', 'cat', 'rm', 'rmdir',
+		'mkdir', 'sleep'] {
+		os.symlink(os.find_abs_path_of_executable(name)!, os.join_path(bin, name))!
+	}
+	path := os.getenv('PATH')
+	os.setenv('PATH', bin, true)
+	defer { os.setenv('PATH', path, true) }
+	fallback := os.join_path(prefix, 'fallback')
+	os.mkdir(fallback)!
+	exercise(fallback)!
 	println('ok - active, unknown, stale and modified installation locks; PID reuse and owner release')
 }
 
