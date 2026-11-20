@@ -28,8 +28,9 @@ fn check() ! {
 	}
 	compiler_log := os.join_path(root, 'compiler.log')
 	compiler := os.join_path(managed, 'v')
-	write_fixture_tool(compiler, 'printf "%s\\n" "$1" >> ' + os.quoted_path(compiler_log) + '\nexec ' +
-		os.quoted_path(@VEXE) + ' "$@"')!
+	// Health can also build the independent native pane helpers.
+	write_fixture_tool(compiler, 'case "$4" in */diagnostics.vsh) printf "%s\\n" "$1" >> ' +
+		os.quoted_path(compiler_log) + ' ;; esac\nexec ' + os.quoted_path(@VEXE) + ' "$@"')!
 	write_fixture_tool(os.join_path(bin, 'kak'), 'echo fixture-kak')!
 	write_fixture_tool(os.join_path(managed_lsp, 'kak-lsp'), 'echo fixture-kak-lsp')!
 	write_fixture_tool(os.join_path(bin, 'vls'), 'exit 0')!

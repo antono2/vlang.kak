@@ -1,6 +1,9 @@
 #!/bin/sh
 # Bootstrap the cached V dispatcher shared by the editor helpers.
 set -eu
+case ${1:-} in
+    --help|-h) echo 'Usage: helper-cache.sh TOOL [ARGS...] | helper-cache.sh checkpoint DIRECTORY'; exit 0 ;;
+esac
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cache=${XDG_CACHE_HOME:-$HOME/.cache}/vlang.kak
 fallback() {
