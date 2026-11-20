@@ -3,7 +3,7 @@
 set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 for argument do
-  case "$argument" in --help|-h) exec "$script_dir/setup-impl.sh" --help ;; esac
+  case "$argument" in --help|-h) exec cat "$script_dir/setup-help.txt" ;; esac
 done
 . "$script_dir/managed-v.inc"
 if compiler=$(find_maintenance_v "$@"); then

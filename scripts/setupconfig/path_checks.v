@@ -1,7 +1,7 @@
 // Verify the paths setup will claim before building or downloading any tools.
 module setupconfig
 
-import managedfiles { settings_block }
+import managedfiles { repair, settings_block }
 import os
 
 const block_end = '# <<< vlang.kak managed <<<'
@@ -58,4 +58,27 @@ pub fn check_managed(prefix string) ! {
 			return error('Existing unmanaged autoload entry: ${link}. Choose another --prefix.')
 		}
 	}
+}
+
+pub fn verify_paths(phase string, prefix string, repo string, config_home string, integrate bool) ! {
+	if phase != 'managed' && integrate {
+		check_personal(config_home, repo)!
+	}
+	if phase != 'personal' {
+		check_managed(prefix)!
+	}
+}
+
+pub fn prepare_paths(prefix string, repo string, config_home string, integrate bool, repair_links bool, update bool) !int {
+	if repair_links {
+		verify_paths('personal', prefix, repo, config_home, integrate)!
+		repair(os.norm_path(prefix))!
+		verify_paths('managed', prefix, repo, config_home, integrate)!
+	} else {
+		verify_paths('all', prefix, repo, config_home, integrate)!
+	}
+	if update && os.getenv('VLANG_KAK_SKIP_PULL') != '1' {
+		return refresh(repo)
+	}
+	return 0
 }
