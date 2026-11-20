@@ -22,7 +22,8 @@ inside() {
 }
 
 kak_quote() {
-  printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"
+  escaped=$(printf '%s.' "$1" | sed "s/'/''/g")
+  printf "'%s'" "${escaped%.}"
 }
 
 case "${1:-}" in
@@ -44,6 +45,77 @@ case "${1:-}" in
         ;;
       *) echo "Unknown window backend: $requested" >&2; exit 2 ;;
     esac
+    ;;
+  status)
+    [ "$#" -eq 3 ] || exit 2
+    backend=$("$0" detect "$2")
+    printf 'echo %s\n' "$(kak_quote "Window backend: $backend; pane mode: $3")"
+    ;;
+  view)
+    [ "$#" -ge 6 ] || exit 2
+    kind=$2 requested=$3 mode=$4 session=$5 target=$6
+    shift 6
+    side=right
+    fallback=
+    case "$kind" in
+      tree)
+        [ "$#" -eq 1 ] || exit 2
+        fallback=v-tree
+        side=left
+        initial="v-tree-pane-init $(kak_quote "$target") $(kak_quote "$1")"
+        failure='Opening the project tree pane failed'
+        ;;
+      peek)
+        [ "$#" -eq 2 ] || exit 2
+        fallback=v-doc
+        initial="v-peek-definition-init $(kak_quote "$target") $1 $2"
+        failure='Opening the definition pane failed'
+        ;;
+      buffer)
+        [ "$#" -eq 2 ] || exit 2
+        initial="buffer $(kak_quote "$target"); select $1.$2,$1.$2"
+        failure='Opening a Kakoune client failed'
+        ;;
+      *) exit 2 ;;
+    esac
+    if [ -n "$fallback" ]; then
+      case "$mode" in
+        off) printf '%s\n' "$fallback"; exit 0 ;;
+        auto|always) ;;
+        *) echo "fail 'v_pane_mode must be auto, always, or off'"; exit 0 ;;
+      esac
+      if [ -z "$target" ]; then
+        if [ "$kind" = tree ]; then echo v-tree; else echo "fail 'Peek definition needs a saved V file'"; fi
+        exit 0
+      fi
+    fi
+    backend=$("$0" detect "$requested")
+    if [ "$backend" = none ]; then
+      if [ -n "$fallback" ] && [ "$mode" = auto ]; then
+        printf '%s\n' "$fallback"
+      else
+        echo "fail 'No supported window backend is active; run v-window-status'"
+      fi
+    elif ! "$0" open "$backend" "$side" "$session" "$initial"; then
+      if [ -n "$fallback" ] && [ "$mode" = auto ]; then
+        printf '%s\n' "$fallback"
+      else
+        printf 'fail %s\n' "$(kak_quote "$failure")"
+      fi
+    fi
+    ;;
+  checkpoint)
+    [ "$#" -eq 2 ] || exit 2
+    if backend=$("$0" detect "$2"); then
+      printf 'v-window-finish-checkpoint %s\n' "$(kak_quote "$backend")"
+    else
+      echo "fail 'Could not detect a checkpoint pane host'"
+    fi
+    ;;
+  recover)
+    [ "$#" -eq 4 ] || exit 2
+    "$0" open "$2" right "$3" "source $(kak_quote "$4")" ||
+      echo "echo -debug 'A view could not reopen; its checkpoint remains available'"
     ;;
   open)
     [ "$#" -eq 5 ] || { usage >&2; exit 2; }

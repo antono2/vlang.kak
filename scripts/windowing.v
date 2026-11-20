@@ -45,7 +45,7 @@ fn open_native(session string, initial string) ! {
 	}
 	if (display == '' && wayland == '') || terminal == '' {
 		// Use Kakoune's windowing module when the requesting client supplies no desktop command.
-		println("new '${initial.replace("'", "''")}'")
+		println('new ' + kak_quote(initial))
 		return
 	}
 
@@ -141,6 +141,84 @@ fn open(backend string, side string, session string, initial string) ! {
 	}
 }
 
+fn kak_quote(value string) string {
+	return "'" + value.replace("'", "''") + "'"
+}
+
+fn detect_requested(requested string) !string {
+	return detect(if requested == '' { 'auto' } else { requested })
+}
+
+// The existing open command execs the terminal client. Wait for that command
+// in a child so the editor can still receive a fallback command on failure.
+fn try_open(backend string, side string, session string, initial string) bool {
+	mut child := os.new_process(os.executable())
+	defer { child.close() }
+	child.set_args(['open', backend, side, session, initial])
+	child.run()
+	child.wait()
+	return child.code == 0
+}
+
+fn open_view(args []string) ! {
+	if args.len < 5 {
+		return error_with_code('Incomplete Kakoune view request', 2)
+	}
+	kind, requested, mode, session, target := args[0], args[1], args[2], args[3], args[4]
+	if (kind == 'tree' && args.len != 6)
+		|| (kind in ['peek', 'buffer'] && args.len != 7)
+		|| kind !in ['tree', 'peek', 'buffer'] {
+		return error_with_code('Invalid Kakoune view request', 2)
+	}
+	fallback := if kind == 'tree' { 'v-tree' } else { 'v-doc' }
+	can_fallback := kind != 'buffer'
+	if can_fallback {
+		if mode !in ['off', 'auto', 'always'] {
+			println("fail 'v_pane_mode must be auto, always, or off'")
+			return
+		}
+		if mode == 'off' || (kind == 'tree' && target == '') {
+			println(fallback)
+			return
+		}
+		if kind == 'peek' && target == '' {
+			println("fail 'Peek definition needs a saved V file'")
+			return
+		}
+	}
+	backend := detect_requested(requested)!
+	if backend == 'none' {
+		if can_fallback && mode == 'auto' {
+			println(fallback)
+		} else {
+			println("fail 'No supported window backend is active; run v-window-status'")
+		}
+		return
+	}
+	quoted := kak_quote(target)
+	side := if kind == 'tree' { 'left' } else { 'right' }
+	initial, failure := match kind {
+		'tree' {
+			'v-tree-pane-init ${quoted} ${kak_quote(args[5])}', 'Opening the project tree pane failed'
+		}
+		'peek' {
+			'v-peek-definition-init ${quoted} ${args[5]} ${args[6]}', 'Opening the definition pane failed'
+		}
+		else {
+			position := '${args[5]}.${args[6]}'
+			'buffer ${quoted}; select ${position},${position}', 'Opening a Kakoune client failed'
+		}
+	}
+
+	if !try_open(backend, side, session, initial) {
+		if can_fallback && mode == 'auto' {
+			println(fallback)
+		} else {
+			println('fail ' + kak_quote(failure))
+		}
+	}
+}
+
 fn dispatch(args []string) ! {
 	command := args[0] or { '' }
 	match command {
@@ -149,7 +227,36 @@ fn dispatch(args []string) ! {
 		}
 		'detect' {
 			requested := args[1] or { '' }
-			println(detect(if requested == '' { 'auto' } else { requested })!)
+			println(detect_requested(requested)!)
+		}
+		'status' {
+			if args.len != 3 {
+				return error_with_code('Expected a window backend and pane mode', 2)
+			}
+			backend := detect_requested(args[1])!
+			println('echo ' + kak_quote('Window backend: ${backend}; pane mode: ${args[2]}'))
+		}
+		'view' {
+			open_view(args[1..])!
+		}
+		'checkpoint' {
+			if args.len != 2 {
+				return error_with_code('Expected a checkpoint pane host', 2)
+			}
+			backend := detect_requested(args[1]) or {
+				eprintln(err.msg())
+				println("fail 'Could not detect a checkpoint pane host'")
+				return
+			}
+			println('v-window-finish-checkpoint ' + kak_quote(backend))
+		}
+		'recover' {
+			if args.len != 4 {
+				return error_with_code('Expected a pane host, session and checkpoint file', 2)
+			}
+			if !try_open(args[1], 'right', args[2], 'source ' + kak_quote(args[3])) {
+				println("echo -debug 'A view could not reopen; its checkpoint remains available'")
+			}
 		}
 		'open' {
 			if args.len != 5 {
