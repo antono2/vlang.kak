@@ -154,10 +154,22 @@ else
 fi
 
 if [ "$update" = true ] && [ "${VLANG_KAK_SKIP_PULL:-0}" != 1 ]; then
-  if [ -d "$repo_dir/.git" ] && [ -z "$(git -C "$repo_dir" status --porcelain)" ]; then
-    git -C "$repo_dir" pull --ff-only
-  else
-    echo "Keeping local vlang.kak checkout: it has uncommitted changes or is not a Git clone."
+  refresh_status=125
+  if refresh_compiler=$(find_maintenance_v --prefix "$prefix"); then
+    refresh_status=0
+    run_maintenance_program "$refresh_compiler" "$script_dir/setup-repository.vsh" "$repo_dir" || refresh_status=$?
+    if [ "$refresh_status" -eq 125 ]; then
+      echo 'V could not prepare the checkout updater. Using shell Git update.' >&2
+    fi
+  fi
+  if [ "$refresh_status" -eq 125 ]; then
+    if [ -d "$repo_dir/.git" ] && [ -z "$(git -C "$repo_dir" status --porcelain)" ]; then
+      git -C "$repo_dir" pull --ff-only
+    else
+      echo "Keeping local vlang.kak checkout: it has uncommitted changes or is not a Git clone."
+    fi
+  elif [ "$refresh_status" -ne 0 ]; then
+    exit "$refresh_status"
   fi
 fi
 
