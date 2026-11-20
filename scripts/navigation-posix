@@ -1,0 +1,39 @@
+#!/bin/sh
+# Preserve result navigation if the cached helper cannot be built or loaded.
+action=${1:-}
+client=${2:-}
+shift 2 || exit 2
+quote() {
+    escaped=$(printf '%s.' "$1" | sed "s/'/''/g")
+    printf "'%s'" "${escaped%.}"
+}
+escape_map() { printf '%s' "$1" | sed 's/[=\\]/\\&/g'; }
+key=$(escape_map "$client")=
+case $action in
+  remember-doc|remember-results)
+    [ "$#" -eq 2 ] || exit 2
+    view=${action#remember-}
+    origin=$(escape_map "$1.")
+    selection=$(escape_map "$2.")
+    printf 'set-option -add global v_%s_origins %s\n' "$view" "$(quote "$key${origin%.}")"
+    printf 'set-option -add global v_%s_selections %s\n' "$view" "$(quote "$key${selection%.}")"
+    ;;
+  doc|results)
+    origin=
+    selection=
+    field=origin
+    for entry do
+      case "$entry" in
+        '') field=selection ;;
+        "$key"*)
+          value=$(printf '%s.' "${entry#"$key"}" | sed 's/\\\([=\\]\)/\1/g')
+          case "$field" in
+            origin) origin=${value%.} ;;
+            selection) selection=${value%.} ;;
+          esac ;;
+      esac
+    done
+    if [ -n "$origin" ]; then
+      printf 'v-%s-install %s %s\n' "$action" "$(quote "$origin")" "$(quote "$selection")"
+    fi ;;
+esac
