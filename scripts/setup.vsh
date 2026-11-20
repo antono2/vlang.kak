@@ -22,13 +22,137 @@ fn run(script string, args []string, environment map[string]string) int {
 	return child.code
 }
 
-fn prefix_for(args []string) !string {
-	mut prefix := os.join_path(os.home_dir(), '.local')
-	for i, value in args {
-		if value == '--prefix' {
-			prefix = args[i + 1] or { return error_with_code('--prefix requires a directory.', 2) }
+// Empty UI preferences defer to the saved Kakoune configuration.
+struct SetupOptions {
+mut:
+	prefix               string
+	integrate            string
+	explorer             string
+	live_search          string
+	pane_mode            string
+	window_backend       string
+	kakoune_version      string = 'latest'
+	lsp_version          string = 'latest'
+	vls_path             string
+	vls_mode             string = 'auto'
+	vls_ref              string
+	update               bool
+	compiler             string = 'auto'
+	repair               bool
+	build                bool = true
+	install_lsp          bool = true
+	install_dependencies bool
+}
+
+fn parse_options(args []string) !SetupOptions {
+	mut options := SetupOptions{
+		prefix: os.join_path(os.home_dir(), '.local')
+	}
+	mut index := 0
+	for index < args.len {
+		flag := args[index]
+		index++
+		value := if flag in ['--prefix', '--pane-mode', '--window-backend', '--vls', '--vls-ref',
+			'--kakoune-version', '--lsp-version'] {
+			next := args[index] or { return error_with_code('${flag} requires a value.', 2) }
+			index++
+			next
+		} else {
+			''
+		}
+		match flag {
+			'--prefix' {
+				options.prefix = value
+			}
+			'--pane-mode' {
+				options.pane_mode = value
+			}
+			'--window-backend' {
+				options.window_backend = value
+			}
+			'--vls' {
+				options.vls_path = value
+				options.vls_mode = 'external'
+			}
+			'--vls-ref' {
+				options.vls_ref = value
+				options.vls_mode = 'upstream'
+			}
+			'--no-vls' {
+				options.vls_mode = 'skip'
+			}
+			'--vls-upstream' {
+				options.vls_mode = 'upstream'
+			}
+			'--kakoune-version' {
+				options.kakoune_version = value
+			}
+			'--lsp-version' {
+				options.lsp_version = value
+			}
+			'--install-dependencies' {
+				options.install_dependencies = true
+			}
+			'--repair' {
+				options.repair = true
+			}
+			'--system-v' {
+				options.compiler = 'system'
+			}
+			'--managed-v' {
+				options.compiler = 'true'
+			}
+			'--update' {
+				options.update = true
+			}
+			'--integrate' {
+				options.integrate = 'true'
+			}
+			'--explorer' {
+				options.explorer = 'true'
+			}
+			'--no-explorer' {
+				options.explorer = 'false'
+			}
+			'--live-search' {
+				options.live_search = 'true'
+			}
+			'--no-live-search' {
+				options.live_search = 'false'
+			}
+			'--no-build' {
+				options.build = false
+			}
+			'--no-lsp' {
+				options.install_lsp = false
+			}
+			else {
+				return error_with_code('Unknown setup option: ${flag}. See --help.', 2)
+			}
 		}
 	}
+	return options
+}
+
+fn (options SetupOptions) preflight_arguments() []string {
+	mut args := ['--prefix', options.prefix]
+	if !options.build { args << '--no-build' }
+	if !options.install_lsp { args << '--no-lsp' }
+	if options.vls_mode in ['skip', 'external'] { args << '--no-vls' }
+	if options.explorer == 'false' { args << '--no-explorer' }
+	if options.compiler == 'true' { args << '--managed-v' }
+	return args
+}
+
+fn (options SetupOptions) implementation_arguments() []string {
+	// Match the prepared-options argument order in setup-impl.sh.
+	return ['--prepared-options', options.prefix, options.integrate, options.explorer, options.live_search,
+		options.pane_mode, options.window_backend, options.kakoune_version, options.lsp_version,
+		options.vls_path, options.vls_mode, options.vls_ref, options.update.str(), options.compiler,
+		options.repair.str(), options.build.str(), options.install_lsp.str()]
+}
+
+fn canonical_prefix(prefix string) !string {
 	if !os.is_abs_path(prefix) {
 		return error_with_code('Use an absolute installation prefix.', 2)
 	}
@@ -185,21 +309,22 @@ fn setup(args []string) !int {
 	if args.any(it in ['--help', '-h']) {
 		return run('setup-impl.sh', ['--help'], env)
 	}
-	prefix := prefix_for(args)!
+	options := parse_options(args)!
+	prefix := canonical_prefix(options.prefix)!
 	if C.kak_setup_track_signals() != 0 {
 		return error('Could not register setup signal handlers.')
 	}
-	if '--install-dependencies' in args {
+	if options.install_dependencies {
 		status := run('dependencies.sh', ['--apply'], env)
 		if status != 0 || C.kak_setup_was_interrupted() != 0 {
 			return if C.kak_setup_was_interrupted() != 0 { cancelled_status } else { status }
 		}
 	}
-	status := run('preflight.sh', args, env)
+	status := run('preflight.sh', options.preflight_arguments(), env)
 	if status != 0 || C.kak_setup_was_interrupted() != 0 {
 		return if C.kak_setup_was_interrupted() != 0 { cancelled_status } else { status }
 	}
-	return transaction(prefix, args, mut env)
+	return transaction(prefix, options.implementation_arguments(), mut env)
 }
 
 exit(setup(os.args[1..]) or {

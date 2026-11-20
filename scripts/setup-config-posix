@@ -1,0 +1,20 @@
+# Resolve the configuration directory before V can run setup.
+config_home=${VLANG_KAK_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}}
+# Older launchers exported only their isolated XDG directory. Recover the
+# personal path from our generated source line when updating those sessions.
+if [ -z "${VLANG_KAK_CONFIG_HOME:-}" ] &&
+   [ "$config_home" = "$prefix/opt/vlang-kakoune/ide-config" ]; then
+  original_config=$(sed -n "s|^source '\(.*\)/kak/vlang-user.kak'$|\1|p" \
+    "$config_home/kak/kakrc" | tail -n 1 | sed "s/''/'/g")
+  if [ -z "$original_config" ] || [ ! -f "$original_config/kak/vlang-user.kak" ]; then
+    echo 'Cannot locate personal configuration; rerun setup from a regular shell with XDG_CONFIG_HOME set.' >&2
+    exit 1
+  fi
+  config_home=$original_config
+fi
+case "$config_home" in *"$(printf '\t')"*|*'
+'*) echo 'Tabs/newlines in configuration paths are unsupported.' >&2; exit 2 ;; esac
+mkdir -p "$config_home"
+config_home=$(CDPATH= cd -- "$config_home" && pwd)
+settings_file=$prefix/opt/vlang-kakoune/ide-config/kak/kakrc
+if [ ! -f "$settings_file" ]; then settings_file=$config_home/kak/kakrc; fi

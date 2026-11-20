@@ -2,108 +2,37 @@
 # Install or update a user-local V IDE without replacing distribution packages.
 set -eu
 
-usage() {
-  cat <<'EOF'
-Usage: scripts/setup.sh [--update] [--integrate]
-                        [--vls PATH | --vls-upstream | --no-vls]
-                        [--vls-ref GIT_REF] [--prefix DIRECTORY]
-                        [--kakoune-version TAG_OR_COMMIT_OR_master] [--lsp-version TAG]
-                        [--no-build] [--no-lsp] [--managed-v | --system-v] [--install-dependencies]
-                        [--explorer | --no-explorer] [--live-search | --no-live-search]
-                        [--pane-mode auto|always|off]
-                        [--window-backend auto|tmux|zellij|wezterm|kitty|screen|native]
-Installs Kakoune, kak-lsp and upstream VLS under $HOME/.local by default, links this plugin
-into an isolated kak-v configuration. --integrate explicitly opts into adding
-links and a marked block to your regular Kakoune configuration.
---update also fast-forwards a clean vlang.kak checkout.
-EOF
-}
-
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_dir=$(dirname -- "$script_dir")
 . "$script_dir/managed-v.inc"
-prefix=$HOME/.local
-integrate=
-explorer=
-live_search=
-pane_mode=
-window_backend=
-kakoune_version=latest
-lsp_version=latest
-vls_path=
-vls_mode=auto
-vls_ref=
-update=false
-managed_v=auto
-repair=false
-build=true
-install_lsp=true
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --install-dependencies) shift ;;
-    --repair) repair=true; shift ;;
-    --system-v) managed_v=system; shift ;;
-    --managed-v) managed_v=true; shift ;;
-    --update) update=true; shift ;;
-    --integrate) integrate=true; shift ;;
-    --explorer) explorer=true; shift ;;
-    --no-explorer) explorer=false; shift ;;
-    --live-search) live_search=true; shift ;;
-    --no-live-search) live_search=false; shift ;;
-    --pane-mode) pane_mode=$2; shift 2 ;;
-    --window-backend) window_backend=$2; shift 2 ;;
-    --vls) vls_path=$2; vls_mode=external; shift 2 ;;
-    --vls-upstream) vls_mode=upstream; shift ;;
-    --no-vls) vls_mode=skip; shift ;;
-    --vls-ref) vls_ref=$2; vls_mode=upstream; shift 2 ;;
-    --prefix) prefix=$2; shift 2 ;;
-    --kakoune-version) kakoune_version=$2; shift 2 ;;
-    --lsp-version) lsp_version=$2; shift 2 ;;
-    --no-build) build=false; shift ;;
-    --no-lsp) install_lsp=false; shift ;;
-    --help|-h) usage; exit 0 ;;
-    *) usage >&2; exit 2 ;;
-  esac
-done
-config_home=${VLANG_KAK_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}}
-# Older launchers exported only their isolated XDG directory. Recover the
-# personal path from our generated source line when updating those sessions.
-if [ -z "${VLANG_KAK_CONFIG_HOME:-}" ] &&
-   [ "$config_home" = "$prefix/opt/vlang-kakoune/ide-config" ]; then
-  legacy_status=125
-  if legacy_compiler=$(find_maintenance_v --prefix "$prefix"); then
-    legacy_status=0
-    original_config=$(run_maintenance_program "$legacy_compiler" \
-      "$script_dir/setup-legacy-config.vsh" "$config_home") || legacy_status=$?
-    if [ "$legacy_status" -eq 125 ]; then
-      echo 'V could not prepare the legacy config reader. Using shell recovery.' >&2
-    fi
-  fi
-  case "$legacy_status" in
-    0) ;;
-    125)
-      original_config=$(sed -n "s|^source '\(.*\)/kak/vlang-user.kak'$|\1|p" \
-        "$config_home/kak/kakrc" | tail -n 1 | sed "s/''/'/g")
-      if [ -z "$original_config" ] || [ ! -f "$original_config/kak/vlang-user.kak" ]; then
-        echo 'Cannot locate personal configuration; rerun setup from a regular shell with XDG_CONFIG_HOME set.' >&2
-        exit 1
-      fi
-      ;;
-    *) exit "$legacy_status" ;;
-  esac
-  config_home=$original_config
+if [ "${1:-}" = --prepared-options ]; then
+  shift
+  # The prepared payload contains one argument for each field below.
+  [ "$#" -eq 16 ] || { echo 'Incomplete prepared setup options.' >&2; exit 2; }
+  prefix=$1
+  integrate=$2
+  explorer=$3
+  live_search=$4
+  pane_mode=$5
+  window_backend=$6
+  kakoune_version=$7
+  lsp_version=$8
+  vls_path=$9
+  vls_mode=${10}
+  vls_ref=${11}
+  update=${12}
+  managed_v=${13}
+  repair=${14}
+  build=${15}
+  install_lsp=${16}
+else
+  . "$script_dir/setup-options-posix"
 fi
-case "$config_home" in *"$(printf '\t')"*|*'
-'*) echo 'Tabs/newlines in configuration paths are unsupported.' >&2; exit 2 ;; esac
-mkdir -p "$config_home"
-config_home=$(CDPATH= cd -- "$config_home" && pwd)
-settings_file=$prefix/opt/vlang-kakoune/ide-config/kak/kakrc
-if [ ! -f "$settings_file" ]; then settings_file=$config_home/kak/kakrc; fi
 defaults_status=125
 if defaults_compiler=$(find_maintenance_v --prefix "$prefix"); then
   defaults_status=0
   setup_defaults=$(run_maintenance_program "$defaults_compiler" "$script_dir/setup-defaults.vsh" \
-    "$settings_file" "$config_home/kak/kakrc" "$integrate" "$explorer" "$live_search" \
+    --resolve-config "$prefix" "$integrate" "$explorer" "$live_search" \
     "$pane_mode" "$window_backend") || defaults_status=$?
   if [ "$defaults_status" -eq 125 ]; then
     echo 'V could not prepare the setup defaults command. Using shell defaults.' >&2
@@ -113,6 +42,8 @@ case "$defaults_status" in
   0)
     # Read one value per line without treating kakrc contents as shell code.
     {
+      IFS= read -r config_home
+      IFS= read -r settings_file
       IFS= read -r integrate
       IFS= read -r explorer
       IFS= read -r live_search
@@ -122,7 +53,10 @@ case "$defaults_status" in
 $setup_defaults
 EOF
     ;;
-  125) . "$script_dir/setup-defaults-posix" ;;
+  125)
+    . "$script_dir/setup-config-posix"
+    . "$script_dir/setup-defaults-posix"
+    ;;
   *) exit "$defaults_status" ;;
 esac
 case "$prefix" in
@@ -131,35 +65,33 @@ case "$prefix" in
 esac
 prefix=$(mkdir -p "$prefix" && CDPATH= cd -- "$prefix" && pwd)
 
-# Validate user-facing paths before any download or build.
-check_setup_paths() {
-  setup_paths_phase=$1
-  if setup_paths_compiler=$(find_maintenance_v --prefix "$prefix"); then
-    setup_paths_status=0
-    run_maintenance_program "$setup_paths_compiler" "$script_dir/setup-paths.vsh" \
-      "$setup_paths_phase" "$prefix" "$repo_dir" "$config_home" "$integrate" || setup_paths_status=$?
-    [ "$setup_paths_status" -eq 125 ] || return "$setup_paths_status"
-    echo 'V could not prepare the setup path checks. Using shell path checks.' >&2
-  fi
-  . "$script_dir/setup-paths-posix"
-  case "$setup_paths_phase" in all|personal) check_personal_paths ;; esac
-  case "$setup_paths_phase" in all|managed) check_managed_paths ;; esac
-}
-if [ "$repair" = true ]; then
-  check_setup_paths personal
-  "$script_dir/managed-state.sh" repair-links "$prefix"
-  check_setup_paths managed
-else
-  check_setup_paths all
-fi
-
-if [ "$update" = true ] && [ "${VLANG_KAK_SKIP_PULL:-0}" != 1 ]; then
-  if [ -d "$repo_dir/.git" ] && [ -z "$(git -C "$repo_dir" status --porcelain)" ]; then
-    git -C "$repo_dir" pull --ff-only
-  else
-    echo "Keeping local vlang.kak checkout: it has uncommitted changes or is not a Git clone."
+# Validate or repair the installation, then refresh the checkout if requested.
+preparation_status=125
+if preparation_compiler=$(find_maintenance_v --prefix "$prefix"); then
+  preparation_status=0
+  run_maintenance_program "$preparation_compiler" "$script_dir/setup-paths.vsh" --prepare \
+    "$prefix" "$repo_dir" "$config_home" "$integrate" "$repair" "$update" || preparation_status=$?
+  if [ "$preparation_status" -eq 125 ]; then
+    echo 'V could not prepare the path checks and checkout update. Using shell preparation.' >&2
   fi
 fi
+case "$preparation_status" in
+  0) ;;
+  125)
+    . "$script_dir/setup-paths-posix"
+    check_personal_paths
+    if [ "$repair" = true ]; then "$script_dir/managed-state.sh" repair-links "$prefix"; fi
+    check_managed_paths
+    if [ "$update" = true ] && [ "${VLANG_KAK_SKIP_PULL:-0}" != 1 ]; then
+      if [ -d "$repo_dir/.git" ] && [ -z "$(git -C "$repo_dir" status --porcelain)" ]; then
+        git -C "$repo_dir" pull --ff-only
+      else
+        echo "Keeping local vlang.kak checkout: it has uncommitted changes or is not a Git clone."
+      fi
+    fi
+    ;;
+  *) exit "$preparation_status" ;;
+esac
 
 setup_vls() {
   if vls_compiler=$(find_maintenance_v --prefix "$2"); then
@@ -212,17 +144,37 @@ if [ "$install_managed_v" = true ]; then
   managed_v=true
 fi
 
+# Let V prepare and activate the tool stack once a compiler is available.
+if compiler=$(find_maintenance_v --prefix "$prefix"); then
+  install_status=0
+  # Runtime and kak-lsp paths are resolved during preparation.
+  run_maintenance_program "$compiler" "$script_dir/setup-configuration.vsh" --install \
+    "$prefix" "$repo_dir" "$config_home" '' '' "$integrate" \
+    "$managed_v" "$compiler_policy" "$explorer" "$live_search" "$pane_mode" "$window_backend" "$build" \
+    "$vls_mode" "$vls_path" "$install_lsp" "$kakoune_version" "$lsp_version" "$vls_ref" || install_status=$?
+  [ "$install_status" -eq 125 ] || exit "$install_status"
+  echo 'V could not prepare tool installation. Using shell setup.' >&2
+fi
+
 if [ "$build" = true ]; then
   v run "$script_dir/build-kakoune.vsh" --version "$kakoune_version" --prefix "$prefix"
   kak_runtime=$prefix/opt/vlang-kakoune/candidate/share/kak
 else
-  kak_path=$(command -v kak || true)
-  [ -n "$kak_path" ] || { echo "Kakoune is not installed." >&2; exit 1; }
-  if [ -d "$prefix/opt/vlang-kakoune/current/share/kak" ]; then
-    kak_runtime=$prefix/opt/vlang-kakoune/current/share/kak
-  else
-    kak_runtime=${KAKOUNE_RUNTIME:-$(dirname "$(dirname "$(readlink -f "$kak_path")")")/share/kak}
+  runtime_status=125
+  if runtime_compiler=$(find_maintenance_v --prefix "$prefix"); then
+    runtime_status=0
+    runtime_path=$(run_maintenance_program "$runtime_compiler" "$script_dir/setup-runtime.vsh" "$prefix") || runtime_status=$?
+    if [ "$runtime_status" -eq 125 ]; then
+      echo 'V could not prepare runtime discovery. Using shell runtime discovery.' >&2
+    fi
   fi
+  case "$runtime_status" in
+    0) ;;
+    125) runtime_path=$(. "$script_dir/setup-runtime-posix") ;;
+    *) exit "$runtime_status" ;;
+  esac
+  # Protect trailing newlines in a path passed through command substitution.
+  kak_runtime=${runtime_path%.}
 fi
 [ -d "$kak_runtime/rc" ] || {
   echo "Kakoune runtime not found at $kak_runtime" >&2
@@ -261,20 +213,8 @@ if [ "$integrate" = true ] && [ -n "${VLANG_KAK_TRANSACTION:-}" ]; then
   "$script_dir/managed-state.sh" snapshot-personal "$prefix" "$config_home" "$VLANG_KAK_TRANSACTION"
 fi
 
-# All builds succeeded. Switch the prepared versions and generate launchers.
-activation_status=125
-if compiler=$(find_maintenance_v --prefix "$prefix"); then
-  activation_status=0
-  run_maintenance_program "$compiler" "$script_dir/setup-activation.vsh" "$prefix" "$vls_mode" "$vls_path" || activation_status=$?
-  if [ "$activation_status" -eq 125 ]; then
-    echo 'V could not prepare tool activation. Using shell activation.' >&2
-  fi
-fi
-case "$activation_status" in
-  0) ;;
-  125) . "$script_dir/setup-activation-posix" ;;
-  *) exit "$activation_status" ;;
-esac
+# All builds succeeded. Activate and configure the compiler-free fallback.
+. "$script_dir/setup-activation-posix"
 managed_kak=false
 if [ "$build" = true ] || [ -d "$prefix/opt/vlang-kakoune/current/share/kak" ]; then
   kak_runtime=$prefix/opt/vlang-kakoune/current/share/kak
@@ -282,22 +222,7 @@ if [ "$build" = true ] || [ -d "$prefix/opt/vlang-kakoune/current/share/kak" ]; 
 fi
 if [ "$install_lsp" = true ]; then lsp_bin=$prefix/opt/vlang-kak-lsp/current/bin/kak-lsp; fi
 
-# Generate the configuration through V when the selected compiler can run it.
-config_status=125
-if compiler=$(find_maintenance_v --prefix "$prefix"); then
-  config_status=0
-  run_maintenance_program "$compiler" "$script_dir/setup-configuration.vsh" \
-    "$prefix" "$repo_dir" "$config_home" "$kak_runtime" "$lsp_bin" "$integrate" \
-    "$managed_v" "$compiler_policy" "$explorer" "$live_search" "$pane_mode" "$window_backend" "$managed_kak" || config_status=$?
-  if [ "$config_status" -eq 125 ]; then
-    echo 'V could not prepare the configuration writer. Using shell configuration.' >&2
-  fi
-fi
-case "$config_status" in
-  0) user_config=$config_home/kak/vlang-user.kak; ide_launcher=$prefix/bin/kak-v ;;
-  125) . "$script_dir/setup-configuration-posix" ;;
-  *) exit "$config_status" ;;
-esac
+. "$script_dir/setup-configuration-posix"
 if [ "$explorer" = true ]; then
   "$script_dir/explorer.sh" --prepare
 fi

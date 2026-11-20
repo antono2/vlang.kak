@@ -8,6 +8,27 @@ fn script(path string, contents string) ! {
 	os.chmod(path, 0o755)!
 }
 
+fn check_options(program string, root string, environment map[string]string) ! {
+	prefix := os.join_path(root, 'option fixture')
+	launcher := os.join_path(prefix, 'bin', 'kak-v')
+	os.mkdir_all(os.dir(launcher))!
+	mut env := environment.clone()
+	env['FIXTURE_LAUNCHER'] = launcher
+	capture(program, ['--prefix', prefix, '--no-build', '--no-lsp', '--no-explorer', '--explorer',
+		'--managed-v', '--system-v', '--vls-ref', '--prefix', '--vls', '--install-dependencies',
+		'--window-backend', 'native', '--no-live-search', '--live-search'], true, environment: env)!
+	assert os.read_lines(env['FIXTURE_PREFLIGHT'])! == ['--prefix', prefix, '--no-build', '--no-lsp',
+		'--no-vls']
+	assert os.read_lines(env['FIXTURE_OPTIONS'])! == ['--prepared-options', prefix, '', 'true',
+		'true', '', 'native', 'latest', 'latest', '--install-dependencies', 'external', '--prefix',
+		'false', 'system', 'false', 'false', 'false']
+
+	missing := os.join_path(root, 'invalid option prefix')
+	result := execute(program, ['--prefix', missing, '--vls'], false, environment: env)!
+	assert result.code == 2 && result.stderr.contains('--vls requires a value')
+	assert !os.exists(missing)
+}
+
 fn check() ! {
 	root := os.join_path(os.temp_dir(), 'vlang-setup-transaction-' + rand.uuid_v4())
 	os.mkdir(root, mode: 0o700)!
@@ -21,8 +42,11 @@ fn check() ! {
 	for name in ['managedfiles', 'managedsnapshot'] {
 		os.cp_all(os.join_path(repo_scripts, name), os.join_path(source, name), false)!
 	}
-	script(os.join_path(source, 'preflight.sh'), 'exit 0\n')!
-	script(os.join_path(source, 'setup-impl.sh'), r'case "$FIXTURE_ACTION" in
+	script(os.join_path(source, 'preflight.sh'),
+		r'printf "%s\n" "$@" > "$FIXTURE_PREFLIGHT"' + '\n')!
+	script(os.join_path(source, 'dependencies.sh'), 'exit 99\n')!
+	script(os.join_path(source, 'setup-impl.sh'), r'printf "%s\n" "$@" > "$FIXTURE_OPTIONS"
+case "$FIXTURE_ACTION" in
 success) printf "active\n" > "$FIXTURE_LAUNCHER" ;;
 fail) printf "failed activation\n" > "$FIXTURE_LAUNCHER"; exit 17 ;;
 cancel) printf "cancelled activation\n" > "$FIXTURE_LAUNCHER"; kill -TERM "$PPID" ;;
@@ -50,6 +74,9 @@ esac
 	mut env := os.environ()
 	env['FIXTURE_LAUNCHER'] = launcher
 	env['FIXTURE_ACTION'] = 'success'
+	env['FIXTURE_PREFLIGHT'] = os.join_path(root, 'preflight-arguments')
+	env['FIXTURE_OPTIONS'] = os.join_path(root, 'setup-arguments')
+	check_options(program, root, env)!
 	capture(program, args, true, environment: env)!
 	assert os.read_file(launcher)! == 'active\n' && os.read_file(previous)! == 'previous\n'
 	assert os.read_lines(os.join_path(state, 'unowned-releases'))! == [cached]

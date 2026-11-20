@@ -8,7 +8,8 @@ import x.json2
 
 const timeout = 15 * time.second
 const poll = 30 * time.millisecond
-const restart_timeout = 20 * time.second
+// An in-editor update can compile its helpers before restarting.
+const restart_timeout = time.minute
 const quit_timeout = 5 * time.second
 const ready_file = 'ready'
 

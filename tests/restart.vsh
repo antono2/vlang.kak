@@ -2,52 +2,16 @@
 import editorui { quote }
 import os
 import rand
+import releasetest { capture_result }
 import time
 
-const setup_timeout = 20 * time.second
-const process_poll = 20 * time.millisecond
+const setup_timeout = time.minute
 const cursor_expression = '%val{buffile} %val{cursor_line} %val{cursor_column}'
 const pid_expression = '%val{client_pid}'
 const setting_expression = '%opt{release_test_setting}'
 const personal_text = 'declare-option str release_test_setting preserved\n'
 const first_text = 'first line\nsecond line\n'
 const no_install = ['--no-build', '--no-lsp']
-
-struct CommandResult {
-	code   int
-	output string
-	errors string
-}
-
-fn run_command(program string, args []string) !CommandResult {
-	mut child := os.new_process(program)
-	child.set_args(args)
-	child.set_redirect_stdio()
-	child.run()
-	defer { child.close() }
-	// Setup and the update command expect EOF rather than interactive input.
-	os.fd_close(child.stdio_fd[0])
-	child.stdio_fd[0] = -1
-	deadline := time.sys_mono_now() + u64(setup_timeout)
-	mut output := ''
-	mut errors := ''
-	for child.is_alive() && time.sys_mono_now() < deadline {
-		output += child.stdout_read()
-		errors += child.stderr_read()
-		time.sleep(process_poll)
-	}
-	if child.is_alive() {
-		child.signal_kill()
-		child.status = .running
-		child.wait()
-		return error('${program} timed out\n${output}${errors}')
-	}
-	return CommandResult{
-		code:   child.code
-		output: output + child.stdout_read()
-		errors: errors + child.stderr_read()
-	}
-}
 
 fn require(condition bool, message string) ! {
 	if !condition {
@@ -83,8 +47,10 @@ fn exercise(root string, kak string) ! {
 	vls := setup_tools(root, kak)!
 	mut setup_args := no_install.clone()
 	setup_args << ['--prefix', prefix, '--vls', vls]
-	setup := run_command(os.join_path(repo, 'scripts', 'setup.sh'), setup_args)!
-	require(setup.code == 0, 'Setup failed\n${setup.output}${setup.errors}')!
+	setup := capture_result(os.join_path(repo, 'scripts', 'setup.sh'), setup_args,
+		timeout: setup_timeout
+	)!
+	require(setup.code == 0, 'Setup failed\n${setup.stdout}${setup.stderr}')!
 
 	personal := os.join_path(root, 'config', 'kak', 'vlang-user.kak')
 	os.write_file(personal, personal_text)!
@@ -104,17 +70,19 @@ fn exercise(root string, kak string) ! {
 	// Exercise the V entry point directly so a compilation failure cannot hide behind the fallback.
 	compiler := os.find_abs_path_of_executable('v')!
 	helper := os.join_path(repo, 'scripts', 'update-session.vsh')
-	refused := run_command(compiler, ['run', helper, prefix, editor.session_name(),
-		editor.client_name(), original_pid, '--prefix', root])!
-	require(refused.code == 2 && refused.errors.contains('keeps the current installation prefix'),
-		'V update handoff accepted an alternate prefix\n${refused.output}${refused.errors}')!
+	refused := capture_result(compiler, ['run', helper, prefix, editor.session_name(),
+		editor.client_name(), original_pid, '--prefix', root], timeout: setup_timeout)!
+	require(refused.code == 2 && refused.stderr.contains('keeps the current installation prefix'),
+		'V update handoff accepted an alternate prefix\n${refused.stdout}${refused.stderr}')!
 
 	mut failure_args := [prefix, editor.session_name(), editor.client_name(), original_pid, '--vls',
 		os.join_path(root, 'missing-vls')]
 	failure_args << no_install
-	failed := run_command(os.join_path(repo, 'scripts', 'update-session.sh'), failure_args)!
-	require(failed.code != 0 && failed.errors.contains('VLS is not executable'),
-		'Failed update was not reported\n${failed.output}${failed.errors}')!
+	failed := capture_result(os.join_path(repo, 'scripts', 'update-session.sh'), failure_args,
+		timeout: setup_timeout
+	)!
+	require(failed.code != 0 && failed.stderr.contains('VLS is not executable'),
+		'Failed update was not reported\n${failed.stdout}${failed.stderr}')!
 	require(editor.value(pid_expression)! == original_pid, 'Failed update restarted Kakoune')!
 
 	editor.restart('v-update --no-build --no-lsp')!

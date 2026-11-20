@@ -6,7 +6,9 @@ import time
 
 const tools = ['vlang-kakoune', 'vlang-kak-lsp', 'vlang-vls']
 const activation_timeout = 2 * time.minute
-const before_activation = '# All builds succeeded. Switch the prepared versions and generate launchers.'
+const finalizer_source = 'scripts/setup-configuration.vsh'
+const before_activation = 'setupconfig.activate(os.real_path(before.prefix), vls_mode, vls_path)'
+const activation_source = 'scripts/setupconfig/activation.v'
 const personal_edit = '# edited after interruption\n'
 const kakrc_edit = '# kakrc edited after interruption\n'
 
@@ -99,26 +101,29 @@ fn (stack Stack) prepare_interrupted_source() !string {
 	return stack.git(['rev-parse', 'HEAD'])
 }
 
-fn (stack Stack) interrupt(phase Interruption, old_revision string, original_impl string) ! {
+fn (stack Stack) interrupt(phase Interruption, old_revision string, finalizer string) ! {
 	marker := os.join_path(stack.root, 'activation-barrier')
 	if os.exists(marker) {
 		os.rm(marker)!
 	}
 	// Block only inside the test checkout after recording the precise boundary.
-	barrier := '\n    touch ${os.quoted_path(marker)}\n    while :; do sleep 1; done\n'
-	require(original_impl.count(before_activation) == 1,
+	barrier := "if marker := os.getenv_opt('VLANG_KAK_TEST_BARRIER') {\n\t\tos.write_file(marker, '')!\n\t\tfor { time.sleep(time.second) }\n\t}\n\t"
+	require(finalizer.count(before_activation) == 1,
 		'Cannot instrument the pre-activation boundary')!
-	os.write_file(os.join_path(stack.interrupted_repo, 'scripts/setup-impl.sh'), if phase == .before {
-		original_impl.replace_once(before_activation, barrier + before_activation)
+	os.write_file(os.join_path(stack.interrupted_repo, finalizer_source), if phase == .before {
+		finalizer.replace_once('import os\n', 'import os\nimport time\n').replace_once(before_activation,
+
+			barrier + before_activation)
 	} else {
-		original_impl
+		finalizer
 	})!
-	activation := os.read_file(os.join_path(stack.repo, 'scripts/setup-activation.vsh'))!
-	os.write_file(os.join_path(stack.interrupted_repo, 'scripts/setup-activation.vsh'), if phase == .partial {
+	activation := os.read_file(os.join_path(stack.repo, activation_source))!
+	activation_with_barrier := if phase == .partial {
 		releasetest.instrument_tool_activation(activation, marker)!
 	} else {
 		activation
-	})!
+	}
+	os.write_file(os.join_path(stack.interrupted_repo, activation_source), activation_with_barrier)!
 	os.write_file(os.join_path(stack.interrupted_repo, 'scripts/rollback.sh'), os.read_file(os.join_path(stack.repo,
 		'scripts/rollback.sh'))!)!
 	stack.git(['add', '.'])!
@@ -126,6 +131,7 @@ fn (stack Stack) interrupt(phase Interruption, old_revision string, original_imp
 
 	mut env := os.environ()
 	env['VLANG_KAK_PREVIOUS_PLUGIN_REVISION'] = old_revision
+	env['VLANG_KAK_TEST_BARRIER'] = marker
 	mut args := stack.pins.setup_args(stack.prefix)
 	args << '--integrate'
 	releasetest.interrupt_at_marker(os.join_path(stack.interrupted_repo, 'scripts/update.sh'),
@@ -198,7 +204,7 @@ fn (stack Stack) exercise() ! {
 	links := stack.links()!
 	launcher := os.read_bytes(os.join_path(stack.prefix, 'bin/kak-v'))!
 	old_revision := stack.prepare_interrupted_source()!
-	implementation := os.read_file(os.join_path(stack.interrupted_repo, 'scripts/setup-impl.sh'))!
+	finalizer := os.read_file(os.join_path(stack.interrupted_repo, finalizer_source))!
 	config := os.join_path(stack.root, 'config/kak')
 	os.mkdir_all(config)!
 	personal := os.join_path(config, 'vlang-user.kak')
@@ -208,7 +214,7 @@ fn (stack Stack) exercise() ! {
 	kakrc := os.join_path(config, 'kakrc')
 	os.symlink(kakrc_target, kakrc)!
 	for phase in [Interruption.before, .partial] {
-		stack.interrupt(phase, old_revision, implementation)!
+		stack.interrupt(phase, old_revision, finalizer)!
 		stack.recover(phase, old_revision, links, launcher, personal, kakrc, kakrc_target)!
 	}
 	println('ok - SIGKILL before/within update activation, stale lock recovery and preservation of personal edits')

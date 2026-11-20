@@ -1,8 +1,11 @@
-// Render the isolated launcher and optional integration from the selected tools.
+// Activate the prepared tools and publish the configuration and ownership records.
 import editorui { quote }
 import managedfiles { settings_block }
+import managedrecord
+import managedsnapshot
 import os
 import rand
+import setupconfig
 
 const launcher_template = $embed_file('setup-ide-launcher.sh.in')
 const block_start = '# >>> vlang.kak managed >>>'
@@ -27,8 +30,9 @@ struct Setup {
 	managed_kak     bool
 }
 
-fn selected(args []string) !Setup {
-	if args.len != 13 || !args[..4].all(os.is_abs_path(it)) {
+fn selected(args []string, prepare_tools bool) !Setup {
+	if args.len != 13 || !args[..3].all(os.is_abs_path(it))
+		|| (!prepare_tools && !os.is_abs_path(args[3])) {
 		return error('Expected the setup paths and selected configuration options.')
 	}
 	if ![args[5], args[8], args[9], args[12]].all(it in ['true', 'false'])
@@ -264,11 +268,87 @@ fn (setup Setup) write_configuration() ! {
 	publish(launcher, text, 0o755)!
 }
 
-setup := selected(os.args[1..]) or {
-	eprintln(err)
-	exit(2)
+fn finish_setup(before Setup, vls_mode string, vls_path string, install_lsp bool) ! {
+	setupconfig.activate(os.real_path(before.prefix), vls_mode, vls_path) or {
+		return error(err.msg())
+	}
+	current := os.join_path(before.prefix, 'opt', 'vlang-kakoune', 'current', 'share', 'kak')
+	managed := before.managed_kak || os.is_dir(current)
+	setup := Setup{
+		...before
+		managed_kak: managed
+		runtime:     if managed { current } else { before.runtime }
+		lsp:         if install_lsp {
+			os.join_path(before.prefix, 'opt', 'vlang-kak-lsp', 'current', 'bin', 'kak-lsp')
+		} else {
+			before.lsp
+		}
+	}
+	setup.write_configuration() or { return error(err.msg()) }
+	if setup.explorer == 'true' {
+		setupconfig.run_tool(os.join_path(setup.repo, 'scripts', 'explorer.sh'), [
+			'--prepare',
+		])!
+	}
+	if os.exists_in_system_path('gdb') && os.exists_in_system_path('v') {
+		setupconfig.run_tool(os.join_path(setup.repo, 'scripts', 'debug.sh'), [
+			'--prepare',
+		])!
+	} else {
+		println('Debugging: install GDB 14 or newer with Python support, then use Space B.')
+	}
+	println('Explorer: ${setup.explorer}. Live search: ${setup.live_search}. Pane mode: ${setup.pane_mode}. Customize ${setup.config_home}/kak/vlang-user.kak.')
+	println('Launch with ${setup.prefix}/bin/kak-v or run scripts/check.sh.')
+	managedrecord.record(setup.prefix, setup.config_home, vls_mode) or { return error(err.msg()) }
 }
-setup.write_configuration() or {
-	eprintln(err)
-	exit(1)
+
+fn install(setup Setup, options setupconfig.ToolOptions) ! {
+	tools := setupconfig.prepare_tools(setup.prefix, setup.repo, options)!
+	// Capture integrated settings after builds, including edits made while they ran.
+	transaction := os.getenv('VLANG_KAK_TRANSACTION')
+	if setup.integrate == 'true' && transaction != '' {
+		managedsnapshot.capture_personal(os.real_path(setup.config_home), os.abs_path(transaction)) or {
+			return error(err.msg())
+		}
+	}
+	finish_setup(Setup{
+		...setup
+		runtime: tools.runtime
+		lsp:     tools.lsp
+	}, options.vls_mode, tools.vls_path, options.install_lsp)!
+}
+
+fn main() {
+	prepare_tools := (os.args[1] or { '' }) == '--install'
+	args := if prepare_tools { os.args[2..] } else { os.args[1..] }
+	if prepare_tools && (args.len != 19
+		|| args[13] !in ['upstream', 'skip', 'external']
+		|| args[15] !in ['true', 'false']) {
+		eprintln('Expected configuration options and tool installation choices.')
+		exit(2)
+	}
+	setup := selected(if prepare_tools { args[..13] } else { args }, prepare_tools) or {
+		eprintln(err)
+		exit(2)
+	}
+	if prepare_tools {
+		install(setup, setupconfig.ToolOptions{
+			build:           setup.managed_kak
+			install_lsp:     args[15] == 'true'
+			explorer:        setup.explorer == 'true'
+			kakoune_version: args[16]
+			lsp_version:     args[17]
+			vls_mode:        args[13]
+			vls_path:        args[14]
+			vls_ref:         args[18]
+		}) or {
+			eprintln(err)
+			exit(if err.code() > 0 && err.code() != 125 { err.code() } else { 1 })
+		}
+	} else {
+		setup.write_configuration() or {
+			eprintln(err)
+			exit(1)
+		}
+	}
 }

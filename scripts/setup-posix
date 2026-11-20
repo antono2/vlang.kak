@@ -4,20 +4,21 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_dir=$(dirname "$script_dir")
 . "$script_dir/install-lock.inc"
-prefix=$HOME/.local
-previous=
-for argument do
-  if [ "$previous" = --prefix ]; then prefix=$argument; fi
-  case "$argument" in --help|-h) exec "$script_dir/setup-impl.sh" --help ;; esac
-  previous=$argument
-done
+. "$script_dir/setup-options-posix"
 case "$prefix" in *:*|*"$(printf '\t')"*|*"'"*|*'
 '*) echo 'Colons/quotes/tabs/newlines in installation prefixes are unsupported.' >&2; exit 2 ;; esac
 case "$prefix" in /*) ;; *) echo 'Use an absolute installation prefix.' >&2; exit 2 ;; esac
-for argument do
-  [ "$argument" != --install-dependencies ] || "$script_dir/dependencies.sh" --apply
-done
-"$script_dir/preflight.sh" "$@"
+if [ "$install_dependencies" = true ]; then "$script_dir/dependencies.sh" --apply; fi
+setup_preflight() {
+  set -- --prefix "$prefix"
+  if [ "$build" = false ]; then set -- "$@" --no-build; fi
+  if [ "$install_lsp" = false ]; then set -- "$@" --no-lsp; fi
+  case "$vls_mode" in skip|external) set -- "$@" --no-vls ;; esac
+  if [ "$explorer" = false ]; then set -- "$@" --no-explorer; fi
+  if [ "$managed_v" = true ]; then set -- "$@" --managed-v; fi
+  "$script_dir/preflight.sh" "$@"
+}
+setup_preflight
 state=$prefix/opt/vlang-state
 mkdir -p "$state"
 lock_acquire setup
@@ -72,4 +73,6 @@ fi
 VLANG_KAK_STAGE=1
 VLANG_KAK_TRANSACTION=$snapshot
 export VLANG_KAK_STAGE VLANG_KAK_TRANSACTION
-"$script_dir/setup-impl.sh" "$@"
+"$script_dir/setup-impl.sh" --prepared-options "$prefix" "$integrate" "$explorer" \
+  "$live_search" "$pane_mode" "$window_backend" "$kakoune_version" "$lsp_version" \
+  "$vls_path" "$vls_mode" "$vls_ref" "$update" "$managed_v" "$repair" "$build" "$install_lsp"
