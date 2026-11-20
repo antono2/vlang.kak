@@ -172,6 +172,7 @@ fn (mut suite Suite) run() ! {
 	suite.script('update_release.vsh', [])!
 	scripts := os.real_path(os.join_path(@DIR, '..', 'scripts'))
 	suite.script('helper_cache.vsh', [])!
+	suite.script('session_checkpoint.vsh', [])!
 	suite.script('explorer.vsh', [os.join_path(scripts, 'explorer.sh')])!
 	suite.script('windowing.vsh', [os.join_path(scripts, 'windowing.sh')])!
 	suite.script('setup_activation.vsh', [])!
