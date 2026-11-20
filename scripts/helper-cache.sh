@@ -8,7 +8,7 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cache=${XDG_CACHE_HOME:-$HOME/.cache}/vlang.kak
 fallback() {
     case "${1:-}:${2:-}" in
-        windowing:*|history:*|explorer:prompt|explorer:candidates)
+        windowing:*|history:*|explorer:prompt|explorer:candidates|explorer:search)
             tool=$1; shift; exec "$script_dir/$tool-posix" "$@" ;;
         checkpoint:--read) shift 2; exec "$script_dir/session-checkpoint-posix" "$@" ;;
     esac
@@ -20,7 +20,7 @@ source=$script_dir/helper-cache.vsh
 if ! command -v v >/dev/null 2>&1; then
     # An existing install can still have a usable binary in the old cache.
     case "${1:-}:${2:-}" in
-        explorer:prompt|explorer:candidates) ;;
+        explorer:prompt|explorer:candidates|explorer:search) ;;
         debug:*|explorer:*|preferences:*)
             tool=$1
             helper_source=$script_dir/$tool.v
@@ -50,7 +50,7 @@ prepare() (
 )
 if [ ! -x "$dispatcher" ] || [ -L "$dispatcher" ] || [ "$source" -nt "$dispatcher" ]; then
     case "${1:-}:${2:-}" in
-        windowing:*|history:*|checkpoint:--read|explorer:prompt|explorer:candidates)
+        windowing:*|history:*|checkpoint:--read|explorer:prompt|explorer:candidates|explorer:search)
             prepare >/dev/null 2>&1 || fallback "$@" ;;
         *) prepare ;;
     esac

@@ -494,70 +494,16 @@ define-command v-files -docstring 'Open a file with Kakoune path completion' %{
 define-command -hidden -params 1 v-search-preview %{
   evaluate-commands %sh{
     [ "$kak_opt_v_live_search_enabled" = true ] || exit
-    [ -n "$1" ] || { printf 'info -title %s %s\n' "'Project search'" "'Type a pattern; Enter opens all results'"; exit; }
-    case "$kak_buffile" in
-      /*) file=$kak_buffile ;;
-      '') file=$PWD/ ;;
-      *) file=$PWD/$kak_buffile ;;
-    esac
-    root=${file%/*}
-    [ -n "$root" ] || root=/
-    current=$root
-    while :; do
-      if [ -f "$current/v.mod" ] || [ -d "$current/.git" ]; then
-        root=$current
-        break
-      fi
-      parent=${current%/*}
-      [ -n "$parent" ] || parent=/
-      [ "$parent" != "$current" ] || break
-      current=$parent
-    done
-    if command -v rg >/dev/null 2>&1; then
-      matches=$(cd "$root" && rg -n --no-heading --color never -e "$1" . 2>/dev/null | head -n 12)
-    else
-      matches=$(cd "$root" && grep -RHn --exclude-dir=.git -e "$1" . 2>/dev/null | head -n 12)
-    fi
-    [ -n "$matches" ] || matches='No matches yet'
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    printf 'info -title %s %s\n' "$(kak_quote 'Project search · Enter for all')" \
-      "$(kak_quote "$(printf '%s\n' "$matches" | cut -c 1-140)")"
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/explorer.sh" search "$kak_buffile" preview "$1" "$kak_opt_grepcmd"
   }
 }
 define-command v-search -docstring 'Search project files: enter a pattern; the project directory is chosen automatically' %{
   prompt -on-change %{ v-search-preview %val{text} } 'Search project pattern (regex): ' %{
     evaluate-commands %sh{
       [ -n "$kak_text" ] || exit
-      case "$kak_buffile" in
-        /*) file=$kak_buffile ;;
-        '') file=$PWD/ ;;
-        *) file=$PWD/$kak_buffile ;;
-      esac
-      root=${file%/*}
-      [ -n "$root" ] || root=/
-      current=$root
-      while :; do
-        if [ -f "$current/v.mod" ] || [ -d "$current/.git" ]; then
-          root=$current
-          break
-        fi
-        parent=${current%/*}
-        [ -n "$parent" ] || parent=/
-        [ "$parent" != "$current" ] || break
-        current=$parent
-      done
-      kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-      if [ "$kak_opt_grepcmd" = 'grep -RHn' ]; then
-        if command -v rg >/dev/null 2>&1; then
-          printf 'set-option window grepcmd %s\n' "$(kak_quote 'rg -n --no-heading')"
-        else
-          printf 'set-option window grepcmd %s\n' "$(kak_quote 'grep -RHn --exclude-dir=.git')"
-        fi
-      fi
-      printf 'grep -e %s %s\n' "$(kak_quote "$kak_text")" "$(kak_quote "$root")"
-      if [ "$kak_opt_grepcmd" = 'grep -RHn' ]; then
-        printf 'unset-option window grepcmd\n'
-      fi
+      source=$(readlink -f "$kak_opt_v_plugin_source")
+      "${source%/rc/vlang.kak}/scripts/explorer.sh" search "$kak_buffile" results "$kak_text" "$kak_opt_grepcmd"
     }
   }
 }

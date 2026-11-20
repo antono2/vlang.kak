@@ -49,6 +49,9 @@ fn check_project_paths(helper string, root string) ! {
 	os.mkdir(folder)!
 	file := os.join_path(folder, "it's café.v")
 	os.write_file(file, 'module main\n')!
+	pattern := "-needle 'quoted'"
+	line := '// ' + pattern + ' ' + 'x'.repeat(180) + ' beyond-preview'
+	os.write_file(os.join_path(worktree, 'tracked.v'), (line + '\n').repeat(14))!
 	mut env := os.environ()
 	env['XDG_CACHE_HOME'] = os.join_path(root, 'native-cache')
 	capture(helper, ['--prepare'], true, environment: env)!
@@ -56,7 +59,7 @@ fn check_project_paths(helper string, root string) ! {
 	// A controlled PATH makes both lanes use Git rather than ripgrep.
 	bin := os.join_path(root, 'no-compiler')
 	os.mkdir(bin)!
-	for name in ['cksum', 'dirname', 'find', 'git', 'sed'] {
+	for name in ['cksum', 'cut', 'dirname', 'find', 'git', 'grep', 'head', 'sed'] {
 		os.symlink(os.find_abs_path_of_executable(name)!, os.join_path(bin, name))!
 	}
 	env['PATH'] = bin
@@ -69,6 +72,29 @@ fn check_project_paths(helper string, root string) ! {
 		assert file in files && os.join_path(worktree, 'tracked.v') in files
 		assert os.join_path(worktree, 'ignored.v') !in files
 			&& os.join_path(worktree, '.git') !in files
+		preview := capture(helper, ['search', file, 'preview', pattern, 'grep -RHn'], true,
+			environment: lane
+		)!
+		assert preview.starts_with("info -title 'Project search · Enter for all' ")
+		assert preview.count('tracked.v:') == 12 && preview.contains("-needle ''quoted''")
+		assert !preview.contains('beyond-preview')
+		missing := capture(helper, ['search', file, 'preview', 'absent-needle', 'grep -RHn'], true,
+			environment: lane
+		)!
+		assert missing.ends_with("'No matches yet'\n")
+		empty := capture(helper, ['search', file, 'preview', '', 'grep -RHn'], true,
+			environment: lane
+		)!
+		assert empty.contains('Type a pattern; Enter opens all results')
+		custom := capture(helper, ['search', file, 'results', pattern, 'custom-grep'], true,
+			environment: lane
+		)!
+		assert custom == "grep -e '-needle ''quoted''' '${worktree.replace("'", "''")}'\n"
+		default := capture(helper, ['search', file, 'results', pattern, 'grep -RHn'], true,
+			environment: lane
+		)!
+		assert default == "set-option window grepcmd 'grep -RHn --exclude-dir=.git'\n" + custom +
+			'unset-option window grepcmd\n'
 	}
 	assert !os.exists(fallback['XDG_CACHE_HOME'])
 	plain := os.join_path(root, 'plain folder')
@@ -129,4 +155,4 @@ check(os.args[1]) or {
 	eprintln(err)
 	exit(1)
 }
-println('ok - built-in project explorer and native/POSIX project paths')
+println('ok - built-in explorer and native/POSIX project paths and search')

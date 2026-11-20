@@ -2,6 +2,12 @@
 
 All notable changes to `vlang.kak` will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- Start `:v-search` at the project root from nested files in linked Git worktrees.
+
 ## 1.2.1 - 2026-10-02
 
 ### Added

@@ -69,7 +69,7 @@ fn exercise(kak string) ! {
 	source := os.join_path(project, 'main.v')
 	target := os.join_path(folder, "it's.v")
 	plugin := os.join_path(os.dir(@DIR), 'rc', 'vlang.kak')
-	os.write_file(source, 'module main\nfn main() {}\n')!
+	os.write_file(source, 'module main\nfn main() {}\n// root_browsing_marker\n')!
 	os.write_file(os.join_path(project, 'v.mod'), "Module { name: 'browsing' }\n")!
 	os.write_file(target, 'module main\n// ${marker}\nfn helper() {}\n')!
 	os.write_file(os.join_path(config, 'kakrc'),
@@ -132,6 +132,12 @@ fn exercise(kak string) ! {
 	editor.keys('<ret>')
 	editor.wait_value('${buffer_file} %val{cursor_line}', '${target} 2', false,
 		'search opened the matching source line')!
+
+	offset = editor.offset()
+	editor.keys('<space>/root_browsing_marker')
+	editor.wait_info(offset, 'main.v:3:// root_browsing_marker')!
+	editor.keys('<esc>')
+	editor.wait_value(buffer_file, target, false, 'nested search found the project root')!
 
 	editor.remote('edit ${quote(source)}')!
 	offset = editor.offset()
