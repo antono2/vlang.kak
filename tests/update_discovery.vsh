@@ -1,6 +1,7 @@
 // Exercise release discovery with an isolated, read-only Git fixture.
 import os
 import rand
+import releasetest { capture }
 import time
 
 const listed_release = 'v99.0.10'
@@ -8,6 +9,8 @@ const installed_release = 'v1.0.0'
 const release_commit = '0000000000000000000000000000000000000002'
 const installed_commit = '0000000000000000000000000000000000000001'
 const expected_operations = ['ls-remote tags', 'describe', 'rev-parse', 'ls-remote release']
+const fixture_timeout = 15 * time.second
+const fixture_poll = 20 * time.millisecond
 
 fn fake_git(args []string) ! {
 	operations_path := os.getenv('DISCOVERY_GIT_LOG')
@@ -62,7 +65,57 @@ fn fake_git(args []string) ! {
 	if scenario == 'network_failure' && operation == 'ls-remote release' {
 		return error('Simulated release lookup failure')
 	}
+	if scenario == 'interrupted' && operation == 'ls-remote tags' {
+		barrier := os.getenv('DISCOVERY_BARRIER')
+		os.write_file(barrier, '')!
+		wait_for_file(barrier + '.continue')!
+	}
 	println(response)
+}
+
+fn wait_for_file(path string) ! {
+	deadline := time.sys_mono_now() + u64(fixture_timeout)
+	for time.sys_mono_now() < deadline {
+		if os.is_file(path) {
+			return
+		}
+		time.sleep(fixture_poll)
+	}
+	return error('Release discovery did not reach ${path}')
+}
+
+fn check_interruption(root string, original map[string]string) ! {
+	program := os.join_path(root, 'native-discovery')
+	source := os.join_path(@DIR, '..', 'scripts', 'check-updates.vsh')
+	capture(os.find_abs_path_of_executable('v')!, ['-skip-running', '-o', program, source], true)!
+	state := os.join_path(root, 'interrupted state')
+	barrier := os.join_path(root, 'git started')
+	mut env := original.clone()
+	env['DISCOVERY_SCENARIO'] = 'interrupted'
+	env['DISCOVERY_BARRIER'] = barrier
+	mut child := os.new_process(program)
+	child.set_args([state])
+	child.set_environment(env)
+	child.use_pgroup = true
+	child.set_redirect_stdio()
+	child.run()
+	defer {
+		if child.is_alive() {
+			child.signal_pgkill()
+			child.wait()
+		}
+		child.close()
+	}
+	wait_for_file(barrier)!
+	lock_path := os.join_path(state, 'check-lock')
+	assert os.is_dir(lock_path)
+	child.signal_term()
+	os.write_file(barrier + '.continue', '')!
+	child.wait()
+	assert child.code == 143
+	assert !os.exists(lock_path)
+	assert !os.exists(os.join_path(state, 'update-status'))
+	assert !os.exists(os.join_path(state, 'update-checked'))
 }
 
 fn discovery(env map[string]string, args []string) !string {
@@ -129,6 +182,7 @@ fn check() ! {
 	assert failure.contains('Simulated release lookup failure')
 	assert os.read_file(status)! == previous_status && os.read_file(stamp)! == previous_stamp
 	assert !os.exists(lock_path)
+	check_interruption(root, env)!
 	// Exercise the supported editor-only setup with no compiler on PATH.
 	for tool in ['dirname', 'mkdir', 'rmdir', 'find', 'sed', 'sort', 'tail', 'cut', 'date', 'cat'] {
 		os.symlink(os.find_abs_path_of_executable(tool)!, os.join_path(bin, tool))!
@@ -136,9 +190,15 @@ fn check() ! {
 	env['PATH'] = bin
 	env['VLANG_KAK_PREFIX'] = os.join_path(root, 'fallback')
 	env.delete('DISCOVERY_SCENARIO')
+	fallback_lock := os.join_path(env['VLANG_KAK_PREFIX'], 'opt', 'vlang-state', 'check-lock')
+	os.mkdir_all(fallback_lock)!
+	previous_operations := os.read_file(operations_path)!
+	assert discovery(env, [])! == ''
+	assert os.read_file(operations_path)! == previous_operations
+	os.rmdir(fallback_lock)!
 	assert discovery(env, ['--background'])!.contains('Release available: ${listed_release}')
 	assert discovery(env, ['--background'])! == ''
-	println('ok - optional release discovery is read-only, locked and limited to one weekly check')
+	println('ok - release discovery shares a lock across both paths and releases it on failure or interruption')
 }
 
 if os.file_name(os.args[0]) == 'git' {

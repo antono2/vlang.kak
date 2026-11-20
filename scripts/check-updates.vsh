@@ -1,7 +1,13 @@
 // Compare installed and published releases and record successful checks.
 import os
 import releaseinfo { Release, git_at, latest_release, release_commit, stable_version }
+import setupconfig { make_directory }
 import time
+
+#include "@DIR/maintenance-signals.h"
+
+fn C.kak_track_maintenance_signals() int
+fn C.kak_maintenance_signal() int
 
 const check_interval = 7 * 24 * time.hour
 
@@ -30,23 +36,48 @@ fn available_status(tag string, installed string) string {
 }
 
 fn check(state string, background bool) ! {
+	make_directory(state)!
+	lock_path := state + '/check-lock'
+	// Both paths use the same directory so editor-only and V installs serialize.
+	os.mkdir(lock_path) or { return }
+	defer { os.rmdir(lock_path) or { eprintln(err) } }
+	if C.kak_maintenance_signal() != 0 {
+		return
+	}
 	stamp := os.join_path(state, 'update-checked')
 	if background && os.is_file(stamp)
 		&& time.utc().unix() - os.file_last_mod_unix(stamp) < i64(check_interval / time.second) {
 		return
 	}
-	status := update_status(latest_release()!)!
+	release := latest_release()!
+	if C.kak_maintenance_signal() != 0 {
+		return
+	}
+	status := update_status(release)!
+	if C.kak_maintenance_signal() != 0 {
+		return
+	}
 	os.write_file(os.join_path(state, 'update-status'), status + '\n')!
 	os.write_file(stamp, time.utc().format_rfc3339() + '\n')!
 	println(status)
 }
 
-// The launcher supplies the state directory and holds its lock.
-if os.args.len !in [2, 3] || (os.args.len == 3 && os.args[2] != '--background') {
-	eprintln('Usage: check-updates.sh [--background]')
-	exit(2)
-}
-check(os.args[1], os.args.len == 3) or {
-	eprintln(err)
-	exit(1)
+fn main() {
+	if os.args.len !in [2, 3] || (os.args.len == 3 && os.args[2] != '--background') {
+		eprintln('Usage: check-updates.sh [--background]')
+		exit(2)
+	}
+	if C.kak_track_maintenance_signals() != 0 {
+		eprintln('Could not register release check signal handlers.')
+		exit(1)
+	}
+	mut status := 0
+	check(os.args[1], os.args.len == 3) or {
+		if C.kak_maintenance_signal() == 0 {
+			eprintln(err)
+		}
+		status = 1
+	}
+	signum := C.kak_maintenance_signal()
+	exit(if signum == 0 { status } else { 128 + signum })
 }

@@ -4,10 +4,10 @@ import managedsnapshot
 import os
 import rand
 
-#include "@DIR/setup-signals.h"
+#include "@DIR/maintenance-signals.h"
 
-fn C.kak_setup_track_signals() int
-fn C.kak_setup_was_interrupted() int
+fn C.kak_track_maintenance_signals() int
+fn C.kak_maintenance_signal() int
 
 const managed_tools = ['kakoune', 'kak-lsp', 'vls', 'v']
 const cancelled_status = 130
@@ -279,13 +279,13 @@ fn transaction(prefix string, args []string, mut env map[string]string) !int {
 	managedsnapshot.capture(prefix, snapshot)!
 	save_plugin_revision(repo, snapshot)!
 	os.write_file(os.join_path(snapshot, 'ready'), '')!
-	if C.kak_setup_was_interrupted() != 0 {
+	if C.kak_maintenance_signal() != 0 {
 		return cancelled_status
 	}
 	env['VLANG_KAK_STAGE'] = '1'
 	env['VLANG_KAK_TRANSACTION'] = snapshot
 	status := run('setup-impl.sh', args, env)
-	interrupted := C.kak_setup_was_interrupted() != 0
+	interrupted := C.kak_maintenance_signal() != 0
 	if status == 0 && !interrupted {
 		retain_previous(state, snapshot) or {
 			failure := err
@@ -311,18 +311,18 @@ fn setup(args []string) !int {
 	}
 	options := parse_options(args)!
 	prefix := canonical_prefix(options.prefix)!
-	if C.kak_setup_track_signals() != 0 {
+	if C.kak_track_maintenance_signals() != 0 {
 		return error('Could not register setup signal handlers.')
 	}
 	if options.install_dependencies {
 		status := run('dependencies.sh', ['--apply'], env)
-		if status != 0 || C.kak_setup_was_interrupted() != 0 {
-			return if C.kak_setup_was_interrupted() != 0 { cancelled_status } else { status }
+		if status != 0 || C.kak_maintenance_signal() != 0 {
+			return if C.kak_maintenance_signal() != 0 { cancelled_status } else { status }
 		}
 	}
 	status := run('preflight.sh', options.preflight_arguments(), env)
-	if status != 0 || C.kak_setup_was_interrupted() != 0 {
-		return if C.kak_setup_was_interrupted() != 0 { cancelled_status } else { status }
+	if status != 0 || C.kak_maintenance_signal() != 0 {
+		return if C.kak_maintenance_signal() != 0 { cancelled_status } else { status }
 	}
 	return transaction(prefix, options.implementation_arguments(), mut env)
 }
