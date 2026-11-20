@@ -17,16 +17,19 @@ fn fingerprint(path string) !string {
 
 fn helper_fingerprint(source string, tool string) !string {
 	mut contents := fingerprint(source)!
-	dependency := match tool {
-		'history' { 'managedfiles' }
-		'explorer', 'task' { 'projectroot' }
-		else { '' }
+	dependencies := match tool {
+		'history' { ['managedfiles'] }
+		'explorer', 'task' { ['projectroot'] }
+		'windowing' { ['windowhost'] }
+		'context' { ['projectroot', 'windowhost'] }
+		else { []string{} }
 	}
 
-	if dependency != '' {
+	for dependency in dependencies {
 		module_dir := os.join_path(@DIR, dependency)
 		for name in os.ls(module_dir)!.filter(it.ends_with('.v')).sorted() {
-			contents += '\n' + name + '\n' + fingerprint(os.join_path(module_dir, name))!
+			contents += '\n' + dependency + '/' + name + '\n' +
+				fingerprint(os.join_path(module_dir, name))!
 		}
 	}
 	return contents
@@ -109,7 +112,7 @@ fn materialize_checkpoint(writer string, directory string) ! {
 
 fn run(args []string) ! {
 	if args.len < 2
-		|| args[1] !in ['debug', 'explorer', 'preferences', 'windowing', 'checkpoint', 'history', 'task'] {
+		|| args[1] !in ['debug', 'explorer', 'preferences', 'windowing', 'checkpoint', 'history', 'task', 'context'] {
 		return error('Expected a helper cache directory and tool name.')
 	}
 	cache, tool := args[0], args[1]
@@ -127,7 +130,7 @@ fn run(args []string) ! {
 		materialize_checkpoint(writer, args[2])!
 		return
 	}
-	fallback := tool in ['windowing', 'history', 'task']
+	fallback := tool in ['windowing', 'history', 'task', 'context']
 		|| (tool == 'explorer' && args.len > 2 && args[2] in ['prompt', 'candidates', 'search'])
 	destination := prepare_helper(cache, tool, fallback) or {
 		if fallback {

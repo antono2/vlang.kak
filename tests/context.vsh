@@ -2,6 +2,7 @@
 import editorui { quote }
 import os
 import rand
+import releasetest { capture }
 import time
 
 fn check_items(text string, items []string, present bool) ! {
@@ -10,6 +11,63 @@ fn check_items(text string, items []string, present bool) ! {
 			return error('Unexpected visibility of ${item} in ${text}')
 		}
 	}
+}
+
+fn check_helpers(root string, file string) ! {
+	helper := os.join_path(os.dir(@DIR), 'scripts', 'helper-cache.sh')
+	mut native := os.environ()
+	native['XDG_CACHE_HOME'] = os.join_path(root, 'native-menus')
+	capture(helper, ['context', '--prepare'], true, environment: native)!
+	cache := os.join_path(native['XDG_CACHE_HOME'], 'vlang.kak')
+	assert os.ls(cache)!.any(it.starts_with('context-') && os.is_executable(os.join_path(cache, it)))
+	no_compiler := os.join_path(root, 'compiler-free')
+	os.mkdir(no_compiler)!
+	for program in ['basename', 'cksum', 'dirname', 'git', 'grep', 'readlink', 'sed', 'sh'] {
+		os.symlink(os.find_abs_path_of_executable(program)!, os.join_path(no_compiler, program))!
+	}
+	mut fallback := native.clone()
+	fallback['PATH'] = no_compiler
+	fallback['XDG_CACHE_HOME'] = os.join_path(root, 'fallback-menus')
+	for lane in [native, fallback] {
+		mut env := lane.clone()
+		env['kak_buffile'] = file
+		env['kak_bufname'] = file
+		env['kak_opt_filetype'] = 'v'
+		env['kak_modified'] = 'false'
+		env['kak_opt_readonly'] = 'false'
+		env['kak_opt_v_debug_enabled'] = 'true'
+		env['kak_opt_v_debug_adapter'] = 'sh'
+		env['kak_opt_v_debug_build'] = 'true'
+		env['kak_opt_v_window_backend'] = 'auto'
+		env['kak_opt_v_context_keys'] = 'true'
+		env['kak_opt_v_plugin_source'] = os.join_path(os.dir(@DIR), 'rc', 'vlang.kak')
+		env['VLANG_KAK_RESTART_ALLOWED'] = '1'
+		env['VLANG_KAK_PREFIX'] = root
+		env['kak_opt_v_debug_phase'] = 'idle'
+		idle := capture(helper, ['context', 'editor one'], true, environment: env)!
+		check_items(idle, ['Debug V test', 'Test at cursor', 'trigger-user-hook VKeysApplied'],
+			true)!
+		check_items(idle, ['unmap window v-maintenance u', "unmap -- window v-maintenance 'u'"],
+			false)!
+		multiple :=
+			capture(helper, ['context', 'editor one', 'editor two'], true, environment: env)!
+		assert multiple.contains('unmap window v-maintenance u')
+			|| multiple.contains("unmap -- window v-maintenance 'u'")
+		env['kak_opt_v_debug_phase'] = 'running'
+		running := capture(helper, ['context', 'editor one'], true, environment: env)!
+		check_items(running, ['Pause debugging', 'Send program input', 'Stop debugging'], true)!
+		check_items(running, ['Continue debugging', 'Run to cursor'], false)!
+		env['kak_opt_v_debug_phase'] = 'stopped'
+		env['kak_opt_v_debug_has_watches'] = 'true'
+		stopped := capture(helper, ['context', 'editor one'], true, environment: env)!
+		check_items(stopped, ['Continue debugging', 'Run to cursor', 'Remove watch'], true)!
+		signature :=
+			stopped.split_into_lines()[1].all_after("set-option window v_keys_context '").trim_right("'")
+		assert signature != ''
+		env['kak_opt_v_keys_context'] = signature
+		assert capture(helper, ['context', 'editor one'], true, environment: env)! == ''
+	}
+	assert !os.exists(fallback['XDG_CACHE_HOME'])
 }
 
 fn menu(mut editor editorui.Client, expected string, group string) !string {
@@ -110,6 +168,47 @@ fn task_and_overrides(mut editor editorui.Client, root string, source string) ! 
 	check_items(os.read_file(debug)!, ['Rerun this task', 'error while parsing kakrc'], false)!
 }
 
+fn check_restart_menu(kak string, root string, source string) ! {
+	// The managed launcher advertises a restart only for one live client.
+	os.setenv('VLANG_KAK_RESTART_ALLOWED', '1', true)
+	defer { os.unsetenv('VLANG_KAK_RESTART_ALLOWED') }
+	mut editor := editorui.open(kak, root, source)!
+	defer { editor.close() }
+	editor.wait_value('%val{client_list}', editor.client_name(), false, 'first client registered')!
+	editor.remote('v-refresh-keys')!
+	menu(mut editor, 'Restart V IDE', 'U') or {
+		return error('Initial single-client menu: ' + err.msg())
+	}
+	editor.keys('<esc>')
+	ready := os.join_path(root, 'menu-peer-ready')
+	mut peer := os.new_process(kak)
+	peer.set_args(['-c', editor.session_name(), '-ui', 'json', source, '-e',
+		'rename-client menu-peer; echo -to-file ${quote(ready)} ready'])
+	peer.set_redirect_stdio()
+	peer.run()
+	defer {
+		if peer.is_alive() {
+			peer.signal_term()
+			peer.wait()
+		}
+		peer.close()
+	}
+	wait_for_run(mut editor, ready, '')!
+	assert editor.value('%val{client_list}')!.fields().sorted() == [
+		editor.client_name(), 'menu-peer']
+	editor.remote('v-refresh-keys')!
+	text := menu(mut editor, 'Show pane backend', 'U')!
+	check_items(text, ['Restart V IDE', 'Update and restart'], false)!
+	editor.keys('<esc>')
+	editor.remote('evaluate-commands -client menu-peer %{ quit }')!
+	editor.wait_value('%val{client_list}', editor.client_name(), false, 'peer disconnected')!
+	editor.remote('v-refresh-keys')!
+	menu(mut editor, 'Restart V IDE', 'U') or {
+		return error('Single-client menu after disconnect: ' + err.msg())
+	}
+	editor.keys('<esc>')
+}
+
 fn exercise(kak string) ! {
 	root := os.join_path(os.temp_dir(), 'vlang-context-' + rand.uuid_v4())
 	os.mkdir(root)!
@@ -123,12 +222,17 @@ fn exercise(kak string) ! {
 	test := os.join_path(root, 'main_test.v')
 	os.write_file(source, 'module main\nfn main() {}\n')!
 	os.write_file(test, 'module main\nfn test_one() { assert true }\n')!
+	check_helpers(root, test)!
 	os.unsetenv('VLANG_KAK_RESTART_ALLOWED')
 	mut editor := editorui.open(kak, root, source)!
 	defer { editor.close() }
 	prelude(mut editor, test)!
 	task_and_overrides(mut editor, root, source)!
-	println('ok - context-aware Space menus, saved-test gating, task rerun/return and personal overrides')
+	restart_root := os.join_path(root, 'restart')
+	os.mkdir(restart_root)!
+	os.cp_all(os.join_path(root, 'config'), os.join_path(restart_root, 'config'), false)!
+	check_restart_menu(kak, restart_root, source)!
+	println('ok - context menus, saved tests, task return, overrides, and single-client restart')
 }
 
 if os.args.len != 2 {

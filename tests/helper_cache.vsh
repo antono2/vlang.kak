@@ -71,6 +71,10 @@ fn check() ! {
 
 	pane := os.join_path(scripts, 'windowing.sh')
 	pane_source := os.join_path(scripts, 'windowing.v')
+	pane_dependencies := os.join_path(scripts, 'windowhost')
+	os.mkdir(pane_dependencies)!
+	os.cp(os.join_path(tools, 'windowhost', 'detect.v'),
+		os.join_path(pane_dependencies, 'detect.v'))!
 	posix := os.join_path(scripts, 'windowing-posix')
 	os.write_file(posix, '#!/bin/sh\nprintf "POSIX pane\\n"\n')!
 	os.chmod(posix, 0o755)!
