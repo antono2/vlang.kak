@@ -114,7 +114,9 @@ The same V code manages setup snapshots and restores the previous activation whe
 setup fails or receives an interrupt. First-time setup can use the shell bootstrap.
 Rollback swaps snapshots so you can return to the newer combination too.
 Keep sessions open until an update has succeeded. Activation changes version
-links in a short commit phase; power loss or SIGKILL during that phase may
+links using V when a working compiler is available. Setup validates every
+prepared release before switching the active links.
+Power loss or SIGKILL during activation may
 require explicit rollback. Separate standalone tool installers activate their
 own tool, rather than participating in the complete setup transaction.
 

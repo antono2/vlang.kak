@@ -20,7 +20,9 @@ pub fn read_assignments(path string) !map[string]string {
 		if line == '' || line.starts_with('#') {
 			continue
 		}
-		name, value := line.split_once('=') or { return error('Invalid release pin in ${path}: ${line}') }
+		name, value := line.split_once('=') or {
+			return error('Invalid release pin in ${path}: ${line}')
+		}
 		values[name] = value
 	}
 	return values
@@ -159,6 +161,20 @@ pub fn editor_environment(root string, prefix string, config string, kak string)
 	env['VLANG_KAK_SKIP_PULL'] = '1'
 	env.delete('VLANG_KAK_CONFIG_HOME')
 	return env
+}
+
+// Pause an isolated fixture after the first activation rename to test recovery.
+pub fn instrument_tool_activation(source string, marker string) !string {
+	boundary := 'os.rename_dir(staged, destination)!'
+	if source.count(boundary) != 1 || !source.contains('import os\n') {
+		return error('Cannot instrument the managed tool activation boundary')
+	}
+	marker_literal := marker.replace_each(['\\', '\\\\', "'", "\\'", '$', '\\$', '\n', '\\n', '\r',
+		'\\r'])
+	barrier := "\n\tif destination.ends_with('/opt/vlang-kakoune/current') {\n\t\tos.write_file('${marker_literal}', '')!\n\t\tfor { time.sleep(time.second) }\n\t}"
+	return source.replace_once('import os\n', 'import os\nimport time\n').replace_once(boundary,
+
+		boundary + barrier)
 }
 
 pub fn interrupt_at_marker(program string, args []string, marker string, options ProcessOptions) ! {

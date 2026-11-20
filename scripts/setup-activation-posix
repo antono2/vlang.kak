@@ -1,0 +1,48 @@
+# Activate selected tools when V is unavailable to compile the native command.
+activation_link_available() {
+  if [ -e "$1" ] && [ ! -L "$1" ]; then
+    echo "Existing unmanaged path: $1" >&2
+    return 1
+  fi
+}
+for tool in kakoune kak-lsp vls v; do
+  root=$prefix/opt/vlang-$tool
+  activation_link_available "$root/candidate"
+  if [ -L "$root/candidate" ]; then
+    target=$(readlink -f "$root/candidate" || true)
+    if [ ! -d "$root/candidate" ] || [ "$(dirname "$target")" != "$(readlink -f "$root/releases")" ]; then
+      echo "Prepared release is unavailable or redirected: $root/candidate" >&2
+      exit 1
+    fi
+    activation_link_available "$root/current"
+  fi
+done
+if [ "$vls_mode" != skip ]; then
+  activation_link_available "$prefix/bin/vls"
+  if [ "$vls_mode" = upstream ]; then
+    vls_root=$prefix/opt/vlang-vls
+    active=current
+    [ ! -L "$vls_root/candidate" ] || active=candidate
+    target=$vls_root/$active/bin/vls
+  else
+    target=$vls_path
+  fi
+  if [ ! -f "$target" ] || [ ! -x "$target" ]; then
+    echo "VLS is not executable: $target" >&2
+    exit 1
+  fi
+fi
+for tool in kakoune kak-lsp vls v; do
+  root=$prefix/opt/vlang-$tool
+  if [ -L "$root/candidate" ]; then
+    target=$(readlink "$root/candidate")
+    ln -sfn "$target" "$root/current.next"
+    mv -Tf "$root/current.next" "$root/current"
+    rm "$root/candidate"
+  fi
+done
+if [ "$vls_mode" = upstream ]; then
+  ln -sfn "$prefix/opt/vlang-vls/current/bin/vls" "$prefix/bin/vls"
+elif [ "$vls_mode" = external ]; then
+  ln -sfn "$vls_path" "$prefix/bin/vls"
+fi

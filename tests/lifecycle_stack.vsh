@@ -7,7 +7,6 @@ import time
 const tools = ['vlang-kakoune', 'vlang-kak-lsp', 'vlang-vls']
 const activation_timeout = 2 * time.minute
 const before_activation = '# All builds succeeded. Switch the prepared versions and generate launchers.'
-const activate_link = '    mv -Tf "$root/current.next" "$root/current"'
 const personal_edit = '# edited after interruption\n'
 const kakrc_edit = '# kakrc edited after interruption\n'
 
@@ -63,7 +62,8 @@ fn (stack Stack) links() !map[string]string {
 fn (stack Stack) prepare(source string) ! {
 	for tool in tools {
 		current := os.real_path(os.join_path(source, 'opt', tool, 'current'))
-		copy_tree(current, os.join_path(stack.prefix, 'opt', tool, 'releases', os.file_name(current)))!
+		copy_tree(current, os.join_path(stack.prefix, 'opt', tool, 'releases',
+			os.file_name(current)))!
 	}
 	os.setenv('XDG_CONFIG_HOME', os.join_path(stack.root, 'config'), true)
 	os.setenv('XDG_CACHE_HOME', os.join_path(stack.root, 'cache'), true)
@@ -106,17 +106,21 @@ fn (stack Stack) interrupt(phase Interruption, old_revision string, original_imp
 	}
 	// Block only inside the test checkout after recording the precise boundary.
 	barrier := '\n    touch ${os.quoted_path(marker)}\n    while :; do sleep 1; done\n'
-	anchor := if phase == .before { before_activation } else { activate_link }
-	replacement := if phase == .before {
-		barrier + anchor
+	require(original_impl.count(before_activation) == 1,
+		'Cannot instrument the pre-activation boundary')!
+	os.write_file(os.join_path(stack.interrupted_repo, 'scripts/setup-impl.sh'), if phase == .before {
+		original_impl.replace_once(before_activation, barrier + before_activation)
 	} else {
-		anchor + '\n    if [ "$tool" = kakoune ]; then ' + barrier + '    fi'
-	}
-	require(original_impl.count(anchor) == 1, 'Cannot instrument the ${phase} activation boundary')!
-	os.write_file(os.join_path(stack.interrupted_repo, 'scripts/setup-impl.sh'),
-		original_impl.replace(anchor, replacement))!
-	os.write_file(os.join_path(stack.interrupted_repo, 'scripts/rollback.sh'),
-		os.read_file(os.join_path(stack.repo, 'scripts/rollback.sh'))!)!
+		original_impl
+	})!
+	activation := os.read_file(os.join_path(stack.repo, 'scripts/setup-activation.vsh'))!
+	os.write_file(os.join_path(stack.interrupted_repo, 'scripts/setup-activation.vsh'), if phase == .partial {
+		releasetest.instrument_tool_activation(activation, marker)!
+	} else {
+		activation
+	})!
+	os.write_file(os.join_path(stack.interrupted_repo, 'scripts/rollback.sh'), os.read_file(os.join_path(stack.repo,
+		'scripts/rollback.sh'))!)!
 	stack.git(['add', '.'])!
 	stack.git(['commit', '-qm', 'candidate ${phase}'])!
 
@@ -128,9 +132,7 @@ fn (stack Stack) interrupt(phase Interruption, old_revision string, original_imp
 		args, marker,
 		environment: env
 		timeout:     activation_timeout
-	) or {
-		return error('${phase} activation: ${err}')
-	}
+	) or { return error('${phase} activation: ${err}') }
 }
 
 fn (stack Stack) reject_snapshots(state string, pending string) ! {
@@ -157,7 +159,8 @@ fn (stack Stack) recover(phase Interruption, old_revision string, before map[str
 		require(after == before, 'Tools changed before the activation boundary')!
 	} else {
 		require(after['vlang-kakoune'] != before['vlang-kakoune']
-			&& after['vlang-kak-lsp'] == before['vlang-kak-lsp'] && after['vlang-vls'] == before['vlang-vls'],
+			&& after['vlang-kak-lsp'] == before['vlang-kak-lsp']
+			&& after['vlang-vls'] == before['vlang-vls'],
 			'Partial activation must switch only Kakoune')!
 	}
 	state := os.join_path(stack.prefix, 'opt/vlang-state')
@@ -174,18 +177,20 @@ fn (stack Stack) recover(phase Interruption, old_revision string, before map[str
 	stack.script('rollback', ['--recover', pending], false)!
 	stack.script('lock', ['--clear-stale'], true)!
 	stack.reject_snapshots(state, pending)!
-	capture(os.join_path(stack.interrupted_repo, 'scripts/rollback.sh'),
-		['--prefix', stack.prefix, '--recover', pending], true)!
+	capture(os.join_path(stack.interrupted_repo, 'scripts/rollback.sh'), ['--prefix', stack.prefix,
+		'--recover', pending], true)!
 	require(stack.git(['rev-parse', 'HEAD'])! == old_revision,
 		'Recovery did not check out the previous plugin revision')!
 	stack.require_active(before, launcher)!
 	require(os.read_file(personal)!.contains(personal_edit) && os.readlink(kakrc)! == kakrc_target
-		&& os.read_file(kakrc_target)!.contains(kakrc_edit), 'Recovery lost personal edits or the kakrc symlink')!
+		&& os.read_file(kakrc_target)!.contains(kakrc_edit),
+		'Recovery lost personal edits or the kakrc symlink')!
 	require(!os.exists(pending), 'Recovery retained the completed pending snapshot')!
 }
 
 fn (stack Stack) require_active(links map[string]string, launcher []u8) ! {
-	require(stack.links()! == links && os.read_bytes(os.join_path(stack.prefix, 'bin/kak-v'))! == launcher,
+	require(stack.links()! == links
+		&& os.read_bytes(os.join_path(stack.prefix, 'bin/kak-v'))! == launcher,
 		'Active tool links or launcher bytes changed')!
 }
 
@@ -215,7 +220,8 @@ fn (stack Stack) exercise() ! {
 	stack.setup(['--pane-mode', 'off'], true)!
 	require(os.read_file(generated)!.contains('v_pane_mode off'), 'Setup did not apply pane mode')!
 	stack.script('rollback', [], true)!
-	require(os.read_file(generated)!.contains('v_pane_mode auto'), 'Rollback did not restore pane mode')!
+	require(os.read_file(generated)!.contains('v_pane_mode auto'),
+		'Rollback did not restore pane mode')!
 	plugin := os.join_path(ide_config, 'autoload/vlang.kak')
 	os.rm(plugin)!
 	capture(os.join_path(stack.repo, 'scripts/health.sh'), ['--repair'], true)!
