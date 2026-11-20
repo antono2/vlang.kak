@@ -1,0 +1,9 @@
+# Find the Kakoune runtime before a V compiler is available.
+kak_path=$(command -v kak || true)
+[ -n "$kak_path" ] || { echo "Kakoune is not installed." >&2; exit 1; }
+if [ -d "$prefix/opt/vlang-kakoune/current/share/kak" ]; then
+  runtime=$prefix/opt/vlang-kakoune/current/share/kak
+else
+  runtime=${KAKOUNE_RUNTIME:-$(dirname "$(dirname "$(readlink -f "$kak_path")")")/share/kak}
+fi
+printf '%s.' "$runtime"

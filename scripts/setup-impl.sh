@@ -216,13 +216,21 @@ if [ "$build" = true ]; then
   v run "$script_dir/build-kakoune.vsh" --version "$kakoune_version" --prefix "$prefix"
   kak_runtime=$prefix/opt/vlang-kakoune/candidate/share/kak
 else
-  kak_path=$(command -v kak || true)
-  [ -n "$kak_path" ] || { echo "Kakoune is not installed." >&2; exit 1; }
-  if [ -d "$prefix/opt/vlang-kakoune/current/share/kak" ]; then
-    kak_runtime=$prefix/opt/vlang-kakoune/current/share/kak
-  else
-    kak_runtime=${KAKOUNE_RUNTIME:-$(dirname "$(dirname "$(readlink -f "$kak_path")")")/share/kak}
+  runtime_status=125
+  if runtime_compiler=$(find_maintenance_v --prefix "$prefix"); then
+    runtime_status=0
+    runtime_path=$(run_maintenance_program "$runtime_compiler" "$script_dir/setup-runtime.vsh" "$prefix") || runtime_status=$?
+    if [ "$runtime_status" -eq 125 ]; then
+      echo 'V could not prepare runtime discovery. Using shell runtime discovery.' >&2
+    fi
   fi
+  case "$runtime_status" in
+    0) ;;
+    125) runtime_path=$(. "$script_dir/setup-runtime-posix") ;;
+    *) exit "$runtime_status" ;;
+  esac
+  # Protect trailing newlines in a path passed through command substitution.
+  kak_runtime=${runtime_path%.}
 fi
 [ -d "$kak_runtime/rc" ] || {
   echo "Kakoune runtime not found at $kak_runtime" >&2
