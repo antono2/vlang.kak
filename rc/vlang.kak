@@ -461,18 +461,14 @@ define-command v-project-files -docstring 'Find a project file using path comple
 define-command -hidden -params 1 v-tree-start %{
   evaluate-commands %sh{
     source=$(readlink -f "$kak_opt_v_plugin_source")
-    script=${source%/rc/vlang.kak}/scripts/explorer.sh
-    [ -f "$script" ] || { echo "fail 'Project explorer helper is missing'"; exit; }
-    state=$(mktemp "${TMPDIR:-/tmp}/vlang-kak-tree.XXXXXXXX.json") || exit
-    "$script" init "$state" "$1" || {
-      rm -f "$state"
+    "${source%/rc/vlang.kak}/scripts/explorer.sh" begin-tree "$1" "$kak_client" ||
       echo "fail 'Project explorer could not start; check V on PATH and *debug*'"
-      exit
-    }
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    printf 'edit -scratch %s\nset-option buffer v_tree_state %s\nset-option buffer v_tree_origin %s\n' \
-      "$(kak_quote "*v-tree-$kak_client*")" "$(kak_quote "$state")" "$(kak_quote "$1")"
   }
+}
+define-command -hidden -params 3 v-tree-install %{
+  edit -scratch %arg{1}
+  set-option buffer v_tree_state %arg{2}
+  set-option buffer v_tree_origin %arg{3}
   set-option buffer filetype v-tree
   hook -once buffer BufClose .* %{ nop %sh{
     source=$(readlink -f "$kak_opt_v_plugin_source")
@@ -488,52 +484,37 @@ define-command -hidden -params 1 v-tree-start %{
   map buffer normal q ':v-tree-close<ret>' -docstring 'Return to source or close tree pane'
 }
 define-command v-tree -docstring 'Open the interactive project explorer' %{
-  evaluate-commands %sh{
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    printf 'try %%{ buffer %s\nset-option buffer v_tree_origin %s } catch %%{ v-tree-start %s }\n' \
-      "$(kak_quote "*v-tree-$kak_client*")" "$(kak_quote "$kak_buffile")" \
-      "$(kak_quote "$kak_buffile")"
-  }
+  v-tree-open %val{buffile}
   v-tree-refresh
+}
+define-command -hidden -params 1 v-tree-open %{
+  try %{
+    buffer "*v-tree-%val{client}*"
+    set-option buffer v_tree_origin %arg{1}
+  } catch %{
+    v-tree-start %arg{1}
+  }
 }
 define-command -hidden v-tree-refresh %{
   evaluate-commands %sh{
     source=$(readlink -f "$kak_opt_v_plugin_source")
-    script=${source%/rc/vlang.kak}/scripts/explorer.sh
-    content=$("$script" render "$kak_opt_v_tree_state" "$kak_opt_v_tree_origin" "$kak_opt_v_tree_is_pane") || {
+    "${source%/rc/vlang.kak}/scripts/explorer.sh" render-tree "$kak_opt_v_tree_state" "$kak_opt_v_tree_origin" "$kak_opt_v_tree_is_pane" ||
       echo "fail 'Project explorer could not render; check *debug*'"
-      exit
-    }
-    printf "set-register v '%s'\n" "$(printf %s "$content" | sed "s/'/''/g")"
   }
+  v-refresh-keys
+}
+define-command -hidden -params 1 v-tree-install-content %{
+  set-register v %arg{1}
   set-option buffer readonly false
   execute-keys <percent>
   execute-keys c<c-r>v<esc>
   set-option buffer readonly true
-  evaluate-commands %sh{
-    source=$(readlink -f "$kak_opt_v_plugin_source")
-    script=${source%/rc/vlang.kak}/scripts/explorer.sh
-    "$script" focus "$kak_opt_v_tree_state"
-  }
-  v-refresh-keys
 }
 define-command -hidden -params 1 v-tree-action %{
   evaluate-commands %sh{
     source=$(readlink -f "$kak_opt_v_plugin_source")
-    script=${source%/rc/vlang.kak}/scripts/explorer.sh
-    result=$("$script" action "$kak_opt_v_tree_state" "$kak_cursor_line" "$1") || exit
-    if [ "$kak_opt_v_tree_is_pane" = true ] && [ "$1" = open ] &&
-       [ -n "$kak_opt_v_tree_target_client" ]; then
-      case "$result" in
-        'edit -existing -- '*)
-          kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-          printf 'evaluate-commands -client %s %s\n' \
-            "$(kak_quote "$kak_opt_v_tree_target_client")" "$(kak_quote "$result")"
-          exit
-          ;;
-      esac
-    fi
-    printf '%s\n' "$result"
+    "${source%/rc/vlang.kak}/scripts/explorer.sh" action "$kak_opt_v_tree_state" "$kak_cursor_line" "$1" \
+      "$kak_opt_v_tree_is_pane" "$kak_opt_v_tree_target_client"
   }
 }
 define-command -hidden v-tree-hidden %{
@@ -544,15 +525,10 @@ define-command -hidden v-tree-hidden %{
   }
 }
 define-command -hidden v-tree-close %{
-  evaluate-commands %sh{
-    if [ "$kak_opt_v_tree_is_pane" = true ]; then
-      printf 'quit\n'
-    else
-      kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-      printf 'buffer %s\n' "$(kak_quote "$kak_opt_v_tree_origin")"
-    fi
-  }
+  evaluate-commands "v-tree-close-%opt{v_tree_is_pane}"
 }
+define-command -hidden v-tree-close-true %{ quit }
+define-command -hidden v-tree-close-false %{ buffer %opt{v_tree_origin} }
 define-command -hidden -params 2 v-tree-pane-init %{
   edit -existing -- %arg{1}
   v-tree
