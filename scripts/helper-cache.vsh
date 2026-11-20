@@ -88,7 +88,12 @@ fn compile_helper(cache string, source string, expected string, destination stri
 }
 
 fn prepare_helper(cache string, tool string, quiet bool) !string {
-	name := if tool == 'checkpoint' { 'session-checkpoint.vsh' } else { tool + '.v' }
+	name := match tool {
+		'checkpoint' { 'session-checkpoint.vsh' }
+		'settings' { 'settings.vsh' }
+		else { tool + '.v' }
+	}
+
 	source := os.join_path(@DIR, name)
 	content := helper_fingerprint(source, tool)!
 	// Include the source path because a compiled helper can embed its checkout.
@@ -112,7 +117,7 @@ fn materialize_checkpoint(writer string, directory string) ! {
 
 fn run(args []string) ! {
 	if args.len < 2
-		|| args[1] !in ['debug', 'explorer', 'preferences', 'windowing', 'checkpoint', 'history', 'task', 'context'] {
+		|| args[1] !in ['debug', 'explorer', 'preferences', 'windowing', 'checkpoint', 'history', 'task', 'context', 'settings'] {
 		return error('Expected a helper cache directory and tool name.')
 	}
 	cache, tool := args[0], args[1]
@@ -131,6 +136,7 @@ fn run(args []string) ! {
 		return
 	}
 	fallback := tool in ['windowing', 'history', 'task', 'context']
+		|| (tool == 'settings' && args.len > 2 && args[2] in ['--file', '--menu'])
 		|| (tool == 'explorer' && args.len > 2 && args[2] in ['prompt', 'candidates', 'search'])
 	destination := prepare_helper(cache, tool, fallback) or {
 		if fallback {

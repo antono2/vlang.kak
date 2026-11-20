@@ -1,4 +1,4 @@
-// Persist a single IDE setting in the marked block of the user's Kakoune configuration.
+// Render personal settings commands and persist changes in the user's Kakoune configuration.
 import os
 import rand
 import strings
@@ -19,7 +19,9 @@ fn allowed(name string, value string) bool {
 		'v_window_backend' {
 			value in ['auto', 'tmux', 'zellij', 'wezterm', 'kitty', 'screen', 'native']
 		}
-		else { false }
+		else {
+			false
+		}
 	}
 }
 
@@ -54,6 +56,7 @@ fn settings_text(original string, name string, value string) !string {
 					}
 				}
 			}
+
 			result.writeln(line)
 		}
 	}
@@ -69,7 +72,7 @@ fn settings_text(original string, name string, value string) !string {
 	return result.str()
 }
 
-fn persist(name string, value string) ! {
+fn settings_directory() string {
 	mut home := os.getenv('VLANG_KAK_CONFIG_HOME')
 	if home == '' {
 		home = os.getenv('XDG_CONFIG_HOME')
@@ -77,7 +80,34 @@ fn persist(name string, value string) ! {
 	if home == '' {
 		home = os.join_path(os.home_dir(), '.config')
 	}
-	config := os.join_path(home, 'kak')
+	return os.join_path(home, 'kak')
+}
+
+fn quote(value string) string {
+	return "'" + value.replace("'", "''") + "'"
+}
+
+fn toggle_item(label string, name string, current string) string {
+	next := if current == 'true' { 'false' } else { 'true' }
+	return ' ' + quote('${label}: ${current} (toggle)') + ' ' + quote('v-setting ${name} ${next}')
+}
+
+fn render_menu(explorer string, search string, update string, pane string) string {
+	mut menu := strings.new_builder(512)
+	menu.write_string('menu')
+	menu.write_string(toggle_item('Explorer', 'v_explorer_enabled', explorer))
+	menu.write_string(toggle_item('Live search', 'v_live_search_enabled', search))
+	menu.write_string(toggle_item('Weekly release check', update_option, update))
+	for value in ['auto', 'always', 'off'] {
+		menu.write_string(' ' + quote('Pane mode: ${value} (current: ${pane})') + ' ' +
+			quote('v-setting v_pane_mode ${value}'))
+	}
+	menu.write_string(" 'Edit all personal settings' 'v-settings-file' 'Project run/debug settings' 'v-project-settings'")
+	return menu.str()
+}
+
+fn persist(name string, value string) ! {
+	config := settings_directory()
 	os.mkdir_all(config)!
 	lock_dir := os.join_path(config, '.vlang-settings-lock')
 	os.mkdir(lock_dir) or { return error('Settings are being edited by another command.') }
@@ -116,7 +146,17 @@ fn persist(name string, value string) ! {
 
 fn run(args []string) ! {
 	if args.len > 0 && args[0] in ['--help', '-h'] {
-		println('Usage: settings.sh SETTING VALUE')
+		println('Usage: settings.sh SETTING VALUE | --file | --menu EXPLORER SEARCH UPDATE PANE')
+		return
+	}
+	if args == ['--file'] {
+		path := os.join_path(settings_directory(), 'vlang-user.kak')
+		println('edit -existing ${quote(path)}')
+		return
+	}
+	if args.len == 5 && args[0] == '--menu' && allowed('v_explorer_enabled', args[1])
+		&& allowed('v_live_search_enabled', args[2]) && allowed(update_option, args[3]) {
+		println(render_menu(args[1], args[2], args[3], args[4]))
 		return
 	}
 	if args.len < 2 || !allowed(args[0], args[1]) {

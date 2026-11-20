@@ -1,4 +1,5 @@
 // Check that setup and migration preserve personal files, symlinks and settings.
+import editorui { quote }
 import os
 import rand
 import releasetest { capture, capture_result, execute }
@@ -219,6 +220,52 @@ fn check_persisted_settings(root string, search_path string) ! {
 	assert os.ls(root)!.filter(it.starts_with('personal.kak.vlang-backup.')).len == backups.len
 }
 
+fn check_settings_menu(root string, kak string, search_path string, native bool) ! {
+	os.mkdir(root)!
+	config := os.join_path(root, "personal config's")
+	file := os.join_path(config, 'kak', 'vlang-user.kak')
+	os.mkdir_all(os.dir(file))!
+	os.write_file(file, personal_settings)!
+	plugin := os.real_path(os.join_path(@DIR, '..', 'rc', 'vlang.kak'))
+	cache := os.join_path(root, 'cache')
+	env := {
+		'PATH':                  search_path
+		'VLANG_KAK_CONFIG_HOME': config
+		'XDG_CACHE_HOME':        cache
+	}
+	mut original := map[string]string{}
+	for name, value in env {
+		original[name] = os.getenv(name)
+		os.setenv(name, value, true)
+	}
+	defer {
+		for name, value in original {
+			os.setenv(name, value, true)
+		}
+	}
+	mut editor := editorui.open(kak, root, os.join_path(root, 'notes.txt'))!
+	defer { editor.close() }
+	editor.remote('source ${quote(plugin)}') or { return error('${root}: ${err}') }
+	editor.remote('set-option global v_live_search_enabled false; set-option global v_pane_mode off')!
+	offset := editor.offset()
+	editor.remote('v-settings')!
+	editor.wait_event(offset, 'menu_show', ['Explorer: true (toggle)', 'Live search: false (toggle)',
+		'Weekly release check: false (toggle)', 'Pane mode: always (current: off)',
+		'Edit all personal settings', 'Project run/debug settings'])!
+	editor.keys('<ret>')
+	editor.wait_value('%opt{v_explorer_enabled}', 'false', false, 'Explorer to be disabled')!
+	assert os.read_file(file)!.contains('set-option global v_explorer_enabled false')
+	editor.remote('v-settings-file')!
+	assert editor.value('%val{buffile}')! == file
+	helper_cache := os.join_path(cache, 'vlang.kak')
+	if native {
+		assert os.ls(helper_cache)!.any(it.starts_with('settings-')
+			&& os.is_executable(os.join_path(helper_cache, it)))
+	} else {
+		assert !os.exists(helper_cache)
+	}
+}
+
 fn run(kak string) ! {
 	root := os.join_path(os.temp_dir(), 'vlang-settings-' + rand.uuid_v4())
 	os.mkdir(root, mode: 0o700)!
@@ -228,10 +275,14 @@ fn run(kak string) ! {
 	// Reproduce a stock editor environment with the POSIX tools but without V.
 	posix_tools := os.join_path(root, 'posix-tools')
 	os.mkdir(posix_tools)!
-	for tool in ['dirname', 'mkdir', 'readlink', 'touch', 'mktemp', 'awk', 'cp', 'cat', 'rm', 'rmdir'] {
+	for tool in ['dirname', 'mkdir', 'readlink', 'touch', 'mktemp', 'awk', 'cp', 'cat', 'rm', 'rmdir',
+		'cksum', 'sed', 'sh'] {
 		os.symlink(os.find_abs_path_of_executable(tool)!, os.join_path(posix_tools, tool))!
 	}
 	check_persisted_settings(os.join_path(root, 'posix'), posix_tools)!
+	check_settings_menu(os.join_path(root, 'native-editor'), kak, os.getenv('PATH'), true)!
+	check_settings_menu(os.join_path(root, 'posix-editor'), kak, posix_tools, false)!
+	println('ok - Kakoune opens the settings menu and escaped settings path with and without V')
 	println('ok - settings persistence and refusal paths agree with and without V')
 	println('ok - setup preserves personal settings, symlinks, conflicts and legacy update paths')
 }
