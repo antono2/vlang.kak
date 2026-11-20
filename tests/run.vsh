@@ -163,6 +163,8 @@ fn (mut suite Suite) run() ! {
 	suite.script('setup_transaction.vsh', [])!
 	suite.script('install_lock.vsh', [])!
 	suite.script('setup_checks.vsh', [])!
+	suite.script('setup_compiler.vsh', [])!
+	suite.script('setup_vls.vsh', [])!
 	suite.script('update_discovery.vsh', [])!
 	suite.script('update_release.vsh', [])!
 	scripts := os.real_path(os.join_path(@DIR, '..', 'scripts'))
@@ -175,6 +177,7 @@ fn (mut suite Suite) run() ! {
 		run_inherited('v', ['fmt', '-verify', path])!
 		run_inherited('v', ['-check', path])!
 	}
+	suite.script('active_tools.vsh', [])!
 	run_inherited('v', ['test', os.join_path(suite.scratch, 'project')])!
 }
 

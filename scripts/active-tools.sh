@@ -2,11 +2,16 @@
 # List executable paths under the prefix and live managed environments.
 set -eu
 case ${1:-} in --help|-h) echo 'Usage: active-tools.sh PREFIX'; exit 0 ;; esac
-prefix=$1
-for process in /proc/[0-9]*; do
-  executable=$(readlink "$process/exe" 2>/dev/null || true)
-  case "$executable" in "$prefix/opt/vlang-"*) printf '%s\n' "$executable" ;; esac
-  if [ -r "$process/environ" ] && awk -v expected="VLANG_KAK_PREFIX=$prefix" 'BEGIN { RS="\0" } $0==expected {found=1} END {exit !found}' "$process/environ" 2>/dev/null; then
-    printf 'managed-process:%s\n' "${process##*/}"
-  fi
-done
+if [ "$#" -ne 1 ]; then
+  echo 'Usage: active-tools.sh PREFIX' >&2
+  exit 2
+fi
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$script_dir/managed-v.inc"
+if compiler=$(find_maintenance_v --prefix "$1"); then
+  status=0
+  run_maintenance_program "$compiler" "$script_dir/active-tools.vsh" "$1" || status=$?
+  [ "$status" -eq 125 ] || exit "$status"
+  echo 'V could not prepare the process inspector. Using shell inspection.' >&2
+fi
+. "$script_dir/active-tools-posix"

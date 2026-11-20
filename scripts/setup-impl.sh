@@ -161,54 +161,55 @@ if [ "$update" = true ] && [ "${VLANG_KAK_SKIP_PULL:-0}" != 1 ]; then
   fi
 fi
 
+setup_vls() {
+  if vls_compiler=$(find_maintenance_v --prefix "$2"); then
+    vls_status=0
+    run_maintenance_program "$vls_compiler" "$script_dir/setup-vls.vsh" "$@" || vls_status=$?
+    [ "$vls_status" -eq 125 ] || return "$vls_status"
+    echo 'V could not prepare VLS selection. Using shell VLS selection.' >&2
+  fi
+  . "$script_dir/setup-vls-posix"
+}
 if [ "$vls_mode" = auto ]; then
-  if [ -L "$prefix/bin/vls" ] &&
-     [ "$(readlink -f "$prefix/bin/vls")" != "$(readlink -f "$prefix/opt/vlang-vls/current/bin/vls" 2>/dev/null || true)" ]; then
-    vls_mode=skip
+  vls_mode=$(setup_vls select "$prefix")
+  if [ "$vls_mode" = skip ]; then
     echo 'Keeping externally linked VLS. Use --vls-upstream to switch to managed upstream VLS.'
-  else
-    vls_mode=upstream
   fi
 fi
 
-# Prefer an existing compiler that can compile the helpers and current VLS.
-# A fallback lives in the managed prefix and never replaces the system compiler.
-compiler_policy=auto
-case "$managed_v" in true) compiler_policy=managed ;; system) compiler_policy=system ;; esac
-if [ "$managed_v" = auto ]; then
-  if [ -f "$settings_file" ] && grep -q '^# vlang.kak compiler-policy: system$' "$settings_file"; then managed_v=system; compiler_policy=system
-  elif [ -x "$prefix/opt/vlang-v/current/v" ]; then managed_v=true; fi
+# Resolve compiler policy before installing or building any tools.
+compiler_plan_status=125
+if compiler=$(find_maintenance_v --prefix "$prefix"); then
+  compiler_plan_status=0
+  compiler_plan=$(run_maintenance_program "$compiler" "$script_dir/setup-compiler.vsh" \
+    "$prefix" "$settings_file" "$managed_v" "$build" "$install_lsp" "$explorer" "$vls_mode") || compiler_plan_status=$?
+  if [ "$compiler_plan_status" -eq 125 ]; then
+    echo 'V could not prepare the compiler selector. Using shell compiler selection.' >&2
+  fi
 fi
-if [ "$managed_v" = system ]; then
-  old_ifs=$IFS; IFS=:
-  filtered=
-  for part in $PATH; do
-    case "$part" in "$prefix/opt/vlang-v/current"|"$prefix/opt/vlang-v/candidate") continue ;; esac
-    filtered=${filtered:+$filtered:}$part
-  done
-  IFS=$old_ifs; PATH=$filtered; export PATH
-elif [ -x "$prefix/opt/vlang-v/current/v" ]; then PATH="$prefix/opt/vlang-v/current:$PATH"; export PATH; fi
-compiler_ok=false
-probe=$(mktemp -d)
-json_import=x.json2
-case "$vls_mode" in auto|upstream) json_import=json2 ;; esac
-printf 'import %s\nfn main() { _ = json2.Any(0) }\n' "$json_import" > "$probe/probe.v"
-if command -v v >/dev/null 2>&1 && v -check "$probe/probe.v" >/dev/null 2>&1; then compiler_ok=true; fi
-rm -rf "$probe"
-compiler_required=false
-if [ "$build" = true ] || [ "$install_lsp" = true ] || [ "$explorer" = true ] || [ "$vls_mode" = auto ] || [ "$vls_mode" = upstream ]; then
-  compiler_required=true
-fi
-if [ "$managed_v" = system ] && [ "$compiler_ok" = false ] && [ "$compiler_required" = true ]; then
-  echo 'Selected system V cannot compile the requested stack; use --managed-v or supply a compatible compiler on PATH.' >&2; exit 1
-fi
-if [ "$managed_v" = true ] || { [ "$managed_v" != system ] && [ "$compiler_ok" = false ] && [ "$compiler_required" = true ]; }; then
+case "$compiler_plan_status" in
+  0)
+    # The first three lines are fixed values. The final dot preserves even a
+    # trailing newline in PATH through POSIX command substitution.
+    line_break='
+'
+    compiler_policy=${compiler_plan%%"$line_break"*}
+    compiler_plan=${compiler_plan#*"$line_break"}
+    managed_v=${compiler_plan%%"$line_break"*}
+    compiler_plan=${compiler_plan#*"$line_break"}
+    install_managed_v=${compiler_plan%%"$line_break"*}
+    compiler_plan=${compiler_plan#*"$line_break"}
+    PATH=${compiler_plan%.}
+    export PATH
+    ;;
+  125) . "$script_dir/setup-compiler-posix" ;;
+  *) exit "$compiler_plan_status" ;;
+esac
+if [ "$install_managed_v" = true ]; then
   "$script_dir/install-v.sh" "$prefix"
   PATH="$prefix/opt/vlang-v/candidate:$PATH"
   export PATH
   managed_v=true
-elif [ "$managed_v" != system ] && [ -x "$prefix/opt/vlang-v/current/v" ]; then
-  PATH="$prefix/opt/vlang-v/current:$PATH"; export PATH
 fi
 
 if [ "$build" = true ]; then
@@ -240,14 +241,7 @@ fi
 if [ "$vls_mode" = upstream ]; then
   v run "$script_dir/install-vls.vsh" --ref "$vls_ref" --prefix "$prefix"
 elif [ "$vls_mode" = external ]; then
-  [ -x "$vls_path" ] || { echo "VLS is not executable: $vls_path" >&2; exit 1; }
-  vls_path=$(readlink -f "$vls_path")
-  mkdir -p "$prefix/bin"
-  if [ -e "$prefix/bin/vls" ] && [ ! -L "$prefix/bin/vls" ]; then
-    echo "Existing unmanaged VLS at $prefix/bin/vls; choose another --prefix." >&2
-    exit 1
-  fi
-  : # Linked during activation below.
+  vls_path=$(setup_vls external "$prefix" "$vls_path")
 fi
 if [ "$vls_mode" = skip ] && ! PATH="$prefix/bin:$PATH" command -v vls >/dev/null 2>&1; then
   echo "VLS is not on PATH. Pass --vls /path/to/vls after building it." >&2

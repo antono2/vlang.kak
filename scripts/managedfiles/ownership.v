@@ -78,14 +78,17 @@ pub fn digest(path string) !string {
 	return hash.sum([]u8{}).hex()
 }
 
+// Linux exposes one numeric directory for each running process.
+pub fn process_ids() ![]string {
+	return os.ls('/proc')!.filter(it != '' && it.bytes().all(it.is_digit()))
+}
+
 pub fn active_executables(prefix string) ![]string {
 	mut active := []string{}
-	for entry in os.ls('/proc')! {
-		if entry != '' && entry.bytes().all(it.is_digit()) {
-			binary := os.readlink('/proc/${entry}/exe') or { continue }
-			if binary.starts_with(prefix + '/opt/vlang-') {
-				active << binary
-			}
+	for pid in process_ids()! {
+		binary := os.readlink('/proc/${pid}/exe') or { continue }
+		if binary.starts_with(prefix + '/opt/vlang-') {
+			active << binary
 		}
 	}
 	return active

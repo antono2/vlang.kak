@@ -1,0 +1,37 @@
+# Prefer an existing compiler that can compile the helpers and current VLS.
+# A fallback lives in the managed prefix and never replaces the system compiler.
+compiler_policy=auto
+case "$managed_v" in true) compiler_policy=managed ;; system) compiler_policy=system ;; esac
+if [ "$managed_v" = auto ]; then
+  if [ -f "$settings_file" ] && grep -q '^# vlang.kak compiler-policy: system$' "$settings_file"; then managed_v=system; compiler_policy=system
+  elif [ -x "$prefix/opt/vlang-v/current/v" ]; then managed_v=true; fi
+fi
+if [ "$managed_v" = system ]; then
+  old_ifs=$IFS; IFS=:
+  filtered=
+  for part in $PATH; do
+    case "$part" in "$prefix/opt/vlang-v/current"|"$prefix/opt/vlang-v/candidate") continue ;; esac
+    filtered=${filtered:+$filtered:}$part
+  done
+  IFS=$old_ifs; PATH=$filtered; export PATH
+elif [ -x "$prefix/opt/vlang-v/current/v" ]; then PATH="$prefix/opt/vlang-v/current:$PATH"; export PATH; fi
+compiler_ok=false
+probe=$(mktemp -d)
+json_import=x.json2
+case "$vls_mode" in auto|upstream) json_import=json2 ;; esac
+printf 'import %s\nfn main() { _ = json2.Any(0) }\n' "$json_import" > "$probe/probe.v"
+if command -v v >/dev/null 2>&1 && v -check "$probe/probe.v" >/dev/null 2>&1; then compiler_ok=true; fi
+rm -rf "$probe"
+compiler_required=false
+if [ "$build" = true ] || [ "$install_lsp" = true ] || [ "$explorer" = true ] || [ "$vls_mode" = auto ] || [ "$vls_mode" = upstream ]; then
+  compiler_required=true
+fi
+if [ "$managed_v" = system ] && [ "$compiler_ok" = false ] && [ "$compiler_required" = true ]; then
+  echo 'Selected system V cannot compile the requested stack; use --managed-v or supply a compatible compiler on PATH.' >&2; exit 1
+fi
+install_managed_v=false
+if [ "$managed_v" = true ] || { [ "$managed_v" != system ] && [ "$compiler_ok" = false ] && [ "$compiler_required" = true ]; }; then
+  install_managed_v=true
+elif [ "$managed_v" != system ] && [ -x "$prefix/opt/vlang-v/current/v" ]; then
+  PATH="$prefix/opt/vlang-v/current:$PATH"; export PATH
+fi
