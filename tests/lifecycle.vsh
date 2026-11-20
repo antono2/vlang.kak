@@ -383,7 +383,7 @@ fn (life Lifecycle) checkpoints() ! {
 	position := os.join_path(life.root, 'selection')
 	recovery_type := os.join_path(life.root, 'recovery-type')
 	after_close := os.join_path(life.root, 'after-close')
-	life.editor('v-session-restore ${quote(checkpoint)}; write ${quote(source_copy)}; ' +
+	life.editor('v-session-restore; write ${quote(source_copy)}; ' +
 		'echo -to-file ${quote(position)} %val{selections_desc}; buffer notes; write ${quote(scratch_copy)}; ' +
 		'buffer recovered-report; echo -to-file ${quote(recovery_type)} %opt{filetype}; ' +
 		'execute-keys -with-maps q; echo -to-file ${quote(after_close)} %val{buflist}; quit!', [],

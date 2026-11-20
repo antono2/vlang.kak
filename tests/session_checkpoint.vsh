@@ -4,6 +4,39 @@ import os
 import rand
 import releasetest { capture, execute }
 
+fn check_publication(root string, launcher string, lane map[string]string, native bool) ! {
+	cache := os.join_path(root, 'published checkpoints')
+	os.mkdir(cache)!
+	previous := os.join_path(cache, 'previous')
+	os.mkdir(previous)!
+	latest := os.join_path(cache, 'latest')
+	os.symlink(previous, latest)!
+	begin := capture(launcher, ['begin', cache], true, environment: lane)!
+	directories := os.ls(cache)!.filter(it.starts_with('checkpoint.'))
+	assert directories.len == 1
+	directory := os.join_path(cache, directories[0])
+	assert begin == "set-option global v_session_checkpoint '${directory.replace("'", "''")}'\n"
+	assert (os.stat(directory)!.mode & 0o777) == 0o700
+	writer := os.join_path(directory, 'session-checkpoint')
+	assert os.is_executable(writer) == native
+	mut env := lane.clone()
+	env['kak_opt_v_session_checkpoint'] = directory
+	env['kak_client'] = 'owner'
+	env['kak_bufname'] = 'scratch'
+	env['kak_selections_desc'] = '1.1,1.1'
+	execute(launcher, ['finish', 'tmux'], false, environment: env)!
+	assert os.readlink(latest)! == previous
+	os.write_file(os.join_path(directory, 'buffers.kak'), '# test buffers\n')!
+	assert capture(launcher, ['client'], true, environment: env)! == ''
+	output := capture(launcher, ['finish', 'tmux'], true, environment: env)!
+	assert output.contains('Session checkpoint saved')
+	assert os.readlink(latest)! == directory
+	assert os.read_file(os.join_path(latest, 'backend'))! == 'tmux\n'
+	assert !os.exists(writer)
+	assert os.ls(cache)!.all(!it.starts_with('.latest'))
+	assert capture(launcher, ['restore', latest], true, environment: env)!.contains('client-')
+}
+
 fn check() ! {
 	root := os.join_path(os.temp_dir(), "recovery reader's " + rand.uuid_v4())
 	os.mkdir(root, mode: 0o700)!
@@ -43,7 +76,8 @@ fn check() ! {
 	env['XDG_CACHE_HOME'] = os.join_path(root, 'cache')
 	compiler_free := os.join_path(root, 'compiler-free')
 	os.mkdir(compiler_free)!
-	for name in ['cat', 'dirname', 'mktemp', 'mv', 'rm', 'sed'] {
+	for name in ['cat', 'cut', 'dirname', 'ln', 'mkdir', 'mktemp', 'mv', 'readlink', 'rm', 'rmdir',
+		'sed', 'sha256sum'] {
 		os.symlink(os.find_abs_path_of_executable(name)!, os.join_path(compiler_free, name))!
 	}
 	mut fallback_env := env.clone()
@@ -67,6 +101,9 @@ fn check() ! {
 		bad := execute(launcher, ['restore', checkpoint], false, environment: lane)!
 		assert bad.stdout == "fail 'Invalid checkpoint client identity'\n"
 		os.write_file(identity, main_id + '\n')!
+		publication := os.join_path(root, 'publication-${i}')
+		os.mkdir(publication)!
+		check_publication(publication, launcher, lane, i == 0)!
 		assert os.exists(fallback_marker) == (i > 0)
 	}
 
@@ -74,7 +111,7 @@ fn check() ! {
 	os.write_file(os.join_path(scripts, 'session-checkpoint.vsh'), 'invalid helper source')!
 	assert capture(launcher, ['restore', checkpoint], true, environment: env)! == expected
 	assert os.exists(fallback_marker)
-	println('ok - native and POSIX session recovery preserve commands and refuse partial restart state')
+	println('ok - native and POSIX checkpoints publish completed saves and preserve recovery commands')
 }
 
 check() or {
