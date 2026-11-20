@@ -51,6 +51,9 @@ fn (fixture SetupFixture) setup(options []string, failure string) ! {
 	} else if child.code == 0 || !errors.contains(failure) {
 		return error('Setup did not report ${failure}\n${output}${errors}')
 	}
+	if errors.contains('Using shell path checks.') {
+		return error('Setup did not use the V path checks\n${output}${errors}')
+	}
 }
 
 fn check(root string, kak string) ! {
@@ -138,6 +141,18 @@ fn check(root string, kak string) ! {
 	os.write_file(target, malformed)!
 	fixture.setup(['--integrate'], 'Malformed managed block')!
 	assert os.read_file(target)! == malformed && !os.exists(link)
+	// A stray end marker also fails before the personal file can be changed.
+	orphan := original_settings + '# <<< vlang.kak managed <<<\n'
+	os.write_file(target, orphan)!
+	fixture.setup(['--integrate'], 'Malformed managed block')!
+	assert os.read_file(target)! == orphan && !os.exists(link)
+	os.rm(kakrc)!
+	missing := os.join_path(root, 'missing-kakrc')
+	os.symlink(missing, kakrc)!
+	fixture.setup(['--integrate'], 'Broken kakrc link')!
+	assert os.is_link(kakrc) && !os.exists(missing)
+	os.rm(kakrc)!
+	os.symlink(target, kakrc)!
 	os.write_file(target, original_settings)!
 	fixture.setup(['--integrate'], '')!
 	assert os.read_file(target)!.starts_with(original_settings)
