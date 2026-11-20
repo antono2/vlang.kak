@@ -142,7 +142,8 @@ fn open(backend string, side string, session string, initial string) ! {
 }
 
 fn dispatch(args []string) ! {
-	match args[0] {
+	command := args[0] or { '' }
+	match command {
 		'--help', '-h' {
 			println(usage)
 		}
@@ -159,7 +160,7 @@ fn dispatch(args []string) ! {
 		else {
 			return error_with_code(usage, 2)
 		}
-	} or { '' }
+	}
 }
 
 fn main() {
