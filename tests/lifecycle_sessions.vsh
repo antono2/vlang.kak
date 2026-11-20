@@ -6,6 +6,7 @@ import releasetest { capture }
 import time
 
 const editor_timeout = 20 * time.second
+const update_timeout = time.minute
 const shutdown_timeout = 10 * time.second
 const poll_interval = 100 * time.millisecond
 const activation_anchor = 'managedrecord.record(setup.prefix, setup.config_home, vls_mode)'
@@ -101,7 +102,7 @@ fn (session Session) interrupt_update() ! {
 	args << ['--pane-mode', 'off']
 	releasetest.interrupt_at_marker(os.join_path(fixture, 'scripts/update.sh'), args, barrier,
 		environment: env
-		timeout:     editor_timeout
+		timeout:     update_timeout
 	)!
 }
 
