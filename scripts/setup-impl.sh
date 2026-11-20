@@ -65,47 +65,33 @@ case "$prefix" in
 esac
 prefix=$(mkdir -p "$prefix" && CDPATH= cd -- "$prefix" && pwd)
 
-# Validate user-facing paths before any download or build.
-check_setup_paths() {
-  setup_paths_phase=$1
-  if setup_paths_compiler=$(find_maintenance_v --prefix "$prefix"); then
-    setup_paths_status=0
-    run_maintenance_program "$setup_paths_compiler" "$script_dir/setup-paths.vsh" \
-      "$setup_paths_phase" "$prefix" "$repo_dir" "$config_home" "$integrate" || setup_paths_status=$?
-    [ "$setup_paths_status" -eq 125 ] || return "$setup_paths_status"
-    echo 'V could not prepare the setup path checks. Using shell path checks.' >&2
-  fi
-  . "$script_dir/setup-paths-posix"
-  case "$setup_paths_phase" in all|personal) check_personal_paths ;; esac
-  case "$setup_paths_phase" in all|managed) check_managed_paths ;; esac
-}
-if [ "$repair" = true ]; then
-  check_setup_paths personal
-  "$script_dir/managed-state.sh" repair-links "$prefix"
-  check_setup_paths managed
-else
-  check_setup_paths all
-fi
-
-if [ "$update" = true ] && [ "${VLANG_KAK_SKIP_PULL:-0}" != 1 ]; then
-  refresh_status=125
-  if refresh_compiler=$(find_maintenance_v --prefix "$prefix"); then
-    refresh_status=0
-    run_maintenance_program "$refresh_compiler" "$script_dir/setup-repository.vsh" "$repo_dir" || refresh_status=$?
-    if [ "$refresh_status" -eq 125 ]; then
-      echo 'V could not prepare the checkout updater. Using shell Git update.' >&2
-    fi
-  fi
-  if [ "$refresh_status" -eq 125 ]; then
-    if [ -d "$repo_dir/.git" ] && [ -z "$(git -C "$repo_dir" status --porcelain)" ]; then
-      git -C "$repo_dir" pull --ff-only
-    else
-      echo "Keeping local vlang.kak checkout: it has uncommitted changes or is not a Git clone."
-    fi
-  elif [ "$refresh_status" -ne 0 ]; then
-    exit "$refresh_status"
+# Validate or repair the installation, then refresh the checkout if requested.
+preparation_status=125
+if preparation_compiler=$(find_maintenance_v --prefix "$prefix"); then
+  preparation_status=0
+  run_maintenance_program "$preparation_compiler" "$script_dir/setup-paths.vsh" --prepare \
+    "$prefix" "$repo_dir" "$config_home" "$integrate" "$repair" "$update" || preparation_status=$?
+  if [ "$preparation_status" -eq 125 ]; then
+    echo 'V could not prepare the path checks and checkout update. Using shell preparation.' >&2
   fi
 fi
+case "$preparation_status" in
+  0) ;;
+  125)
+    . "$script_dir/setup-paths-posix"
+    check_personal_paths
+    if [ "$repair" = true ]; then "$script_dir/managed-state.sh" repair-links "$prefix"; fi
+    check_managed_paths
+    if [ "$update" = true ] && [ "${VLANG_KAK_SKIP_PULL:-0}" != 1 ]; then
+      if [ -d "$repo_dir/.git" ] && [ -z "$(git -C "$repo_dir" status --porcelain)" ]; then
+        git -C "$repo_dir" pull --ff-only
+      else
+        echo "Keeping local vlang.kak checkout: it has uncommitted changes or is not a Git clone."
+      fi
+    fi
+    ;;
+  *) exit "$preparation_status" ;;
+esac
 
 setup_vls() {
   if vls_compiler=$(find_maintenance_v --prefix "$2"); then

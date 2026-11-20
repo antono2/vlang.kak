@@ -37,7 +37,28 @@ fn check(root string) ! {
 	assert git(local, ['rev-parse', 'HEAD'])! == first
 	assert os.read_file(notes)! == 'keep my changes'
 	os.rm(notes)!
-	capture(updater, [local], true)!
+
+	preparer := os.join_path(root, 'prepare-installation')
+	capture(os.find_abs_path_of_executable('v')!, ['-skip-running', '-o', preparer,
+		os.join_path(scripts, 'setup-paths.vsh')], true)!
+	prefix := os.join_path(root, 'installation prefix')
+	config := os.join_path(root, 'personal configuration')
+	state := os.join_path(prefix, 'opt', 'vlang-state')
+	vls := os.join_path(prefix, 'bin', 'vls')
+	kakrc := os.join_path(config, 'kak', 'kakrc')
+	os.mkdir_all(state)!
+	os.mkdir_all(os.dir(kakrc))!
+	os.write_file(os.join_path(state, 'manifest.tsv'), 'link\t/bin/true\t${vls}\n')!
+	os.symlink(os.join_path(root, 'absent kakrc'), kakrc)!
+	args := ['--prepare', prefix, local, config, 'true', 'true', 'true']
+	mut env := os.environ()
+	env['VLANG_KAK_SKIP_PULL'] = '0'
+	refused := execute(preparer, args, false, environment: env)!
+	assert refused.stderr.contains('Broken kakrc link:')
+	assert !os.is_link(vls) && git(local, ['rev-parse', 'HEAD'])! == first
+	os.rm(kakrc)!
+	capture(preparer, args, true, environment: env)!
+	assert os.readlink(vls)! == '/bin/true'
 	assert git(local, ['rev-parse', 'HEAD'])! == next
 	assert os.read_file(os.join_path(local, 'sample.txt'))! == 'next'
 
