@@ -176,7 +176,9 @@ classification. `:v-project-settings` shows the stored values and their location
 
 ## Session recovery
 
-Normal `:v-restart` continues to require saved files and one client.
+Normal `:v-restart` requires saved files and one client. The cached V helper
+writes the launcher’s restart file and remembers the cursor position. Editor-only
+installations can use the POSIX writer.
 `:v-session-save` makes a private checkpoint of source/scratch text and each
 client's buffer and complete selections. It does not save project files or run
 write hooks. Generated `*debug*` contents are excluded. Other auxiliary output is restored

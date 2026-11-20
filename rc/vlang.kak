@@ -859,40 +859,10 @@ define-command -hidden -params .. v-update-one-client %{
 
 define-command -hidden -params .. v-update-save-state %{
   evaluate-commands %sh{
-    state=${VLANG_KAK_RESTART_STATE:-}
-    [ -n "$state" ] || {
-      printf 'fail "Restart requires the managed kak-v launcher"\n'
-      exit
-    }
-    temporary=$state.tmp
-    printf 'nop\n' > "$temporary" || {
-      printf 'fail "Cannot write Kakoune restart state"\n'
-      exit
-    }
-    kak_quote() {
-      printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"
-    }
-    for name do
-      if [ -f "$name" ]; then
-        quoted=$(kak_quote "$name")
-        printf 'try %%{ buffer %s } catch %%{ edit -- %s }\n' \
-          "$quoted" "$quoted" >> "$temporary"
-      fi
-    done
-    resume_file=$kak_buffile
-    resume_line=$kak_cursor_line
-    resume_column=$kak_cursor_column
-    if [ ! -f "$resume_file" ]; then
-      resume_file=$kak_opt_v_update_resume_file
-      resume_line=$kak_opt_v_update_resume_line
-      resume_column=$kak_opt_v_update_resume_column
-    fi
-    if [ -f "$resume_file" ]; then
-      printf 'buffer %s\nselect %s.%s,%s.%s\n' \
-        "$(kak_quote "$resume_file")" \
-        "$resume_line" "$resume_column" "$resume_line" "$resume_column" >> "$temporary"
-    fi
-    mv "$temporary" "$state" || printf 'fail "Cannot install Kakoune restart state"\n'
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    : "$kak_buffile" "$kak_cursor_line" "$kak_cursor_column" \
+      "$kak_opt_v_update_resume_file" "$kak_opt_v_update_resume_line" "$kak_opt_v_update_resume_column"
+    "${source%/rc/vlang.kak}/scripts/session-buffer.sh" restart-files "$@"
   }
 }
 
