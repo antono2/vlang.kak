@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build one checkpoint writer for all buffers and clients in a session save.
+# Use the cached V writer for all buffers and clients in a session save.
 set -eu
 case ${1:-} in
   --help|-h) echo 'Usage: session-buffer.sh [buffer|client|main|--prepare DIRECTORY]'; exit 0 ;;
@@ -7,7 +7,7 @@ case ${1:-} in
     [ "$#" = 2 ] || exit 2
     if command -v v >/dev/null 2>&1; then
       script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-      if ! v -skip-running -o "$2/session-checkpoint" "$script_dir/session-checkpoint.vsh"; then
+      if ! "$script_dir/helper-cache.sh" checkpoint "$2"; then
         rm -f -- "$2/session-checkpoint"
         echo 'V checkpoint writer could not build; using the POSIX writer.' >&2
       fi
