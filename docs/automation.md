@@ -14,6 +14,8 @@ its own PATH. Your existing V compiler and shell configuration remain intact.
 compiler from your external PATH. Setup remembers the choice. Its source tree is retained
 because V needs its libraries when compiling. It is updated to the tested pin
 on later setup/update runs.
+Managed compiler installation uses V when a working compiler is available.
+The first compiler installation can still bootstrap through the shell.
 
 `./scripts/dependencies.sh` previews the system package commands for Debian and
 Ubuntu. `--apply`, or `setup.sh --install-dependencies`, explicitly requests those

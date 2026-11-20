@@ -70,9 +70,11 @@ jobs:
         if: matrix.kakoune == 'packaged'
         run: v run tests/check_kakoune_proposal.vsh
 
-      - name: Test VLS installation and activation with a local source repository
+      - name: Test V and VLS installation and activation with local source repositories
         if: matrix.kakoune == 'packaged'
-        run: v run tests/check_vls_installer.vsh
+        run: |
+          v run tests/check_v_installer.vsh
+          v run tests/check_vls_installer.vsh
 
       - name: Test installation diagnostics and compiler fallback
         if: matrix.kakoune == 'packaged'
@@ -114,7 +116,7 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: /home/runner/.cache/vlang-kak-ci/v-toolchain/opt/vlang-v/releases
-          key: v-ubuntu24-${{ runner.arch }}-${{ steps.compiler-cache.outputs.gcc }}-${{ steps.compiler-cache.outputs.pins }}-${{ hashFiles('scripts/install-v.sh') }}
+          key: v-ubuntu24-${{ runner.arch }}-${{ steps.compiler-cache.outputs.gcc }}-${{ steps.compiler-cache.outputs.pins }}-${{ hashFiles('scripts/install-v.sh', 'scripts/install-v.vsh', 'scripts/install-v-posix') }}
 
       - name: Build or reuse the pinned V compiler
         env:
