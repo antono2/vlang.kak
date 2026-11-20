@@ -1477,26 +1477,10 @@ define-command -params 1 -file-completion v-project-directory -docstring 'Rememb
 define-command -params 1 -file-completion v-project-target -docstring 'Remember the V file or directory to run/debug' %{ v-project-preference target %arg{1} }
 define-command v-project-reset -docstring 'Clear stored run/debug preferences for this project' %{ v-project-preference reset }
 define-command v-project-settings -docstring 'Show project run/debug preferences and how to change them' %{
-  evaluate-commands %sh{
-    source=$(readlink -f "$kak_opt_v_plugin_source")
-    script=${source%/rc/vlang.kak}/scripts/preferences.sh
-    quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/'\\\\''/g")"; }
-    command="$(quote "$script") show $(quote "$kak_buffile")"
-    printf "v-make-command '%s'\n" "$(printf %s "$command" | sed "s/'/''/g")"
-  }
+  v-project-preference show-command
 }
 define-command v-project-targets -docstring 'List runnable V entry points for this project' %{
-  evaluate-commands %sh{
-    source=$(readlink -f "$kak_opt_v_plugin_source")
-    helper=${source%/rc/vlang.kak}/scripts/preferences.sh
-    printf 'menu '
-    "$helper" targets "$kak_buffile" | while IFS= read -r path; do
-      label=$(printf %s "$path" | sed "s/'/''/g")
-      command=$(printf "v-project-target '%s'" "$label" | sed "s/'/''/g")
-      printf "'%s' '%s' " "$label" "$command"
-    done
-    printf "'Choose another V target…' 'prompt -file-completion Target: %{ v-project-target %%val{text} }'\n"
-  }
+  v-project-preference targets-menu
 }
 hook -group v-project-preferences global WinDisplay .* %{ try %{ evaluate-commands %sh{
   [ "$kak_opt_filetype" = v ] && [ -n "$kak_buffile" ] || exit

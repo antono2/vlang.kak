@@ -1,4 +1,4 @@
-// Stores per-project run arguments, working directory and target with guarded updates.
+// Store per-project run/debug preferences and build Kakoune's target menu.
 module main
 
 import os
@@ -33,13 +33,56 @@ fn root_for(path string) string {
 	return dir
 }
 
+fn runnable_targets(root string) []string {
+	mut targets := []string{}
+	for path in os.walk_ext(root, '.v') {
+		if path.contains('/.git/') || path.ends_with('_test.v') || !os.is_file(path) {
+			continue
+		}
+		content := os.read_file(path) or { continue }
+		if content.contains('fn main(') {
+			targets << path
+		}
+	}
+	return targets
+}
+
+fn target_menu(paths []string) string {
+	mut menu := ['menu']
+	for path in paths.sorted() {
+		// Keep each label on one line while passing the original path to the command.
+		label := path.replace_each(['\\', '\\\\', '\n', '\\n', '\r', '\\r', '\t', '\\t'])
+		menu << [quote(label), quote('v-project-target ' + quote(path))]
+	}
+	menu << [quote('Choose another V target…'),
+		quote('prompt -file-completion Target: %{ v-project-target %val{text} }')]
+	return menu.join(' ')
+}
+
 fn main() {
 	if os.args.len < 3 {
 		eprintln('Usage: preferences COMMAND FILE [VALUE...]')
 		exit(2)
 	}
 	command := os.args[1]
+	if command == 'show-command' {
+		helper := os.join_path(@DIR, 'preferences.sh')
+		println('v-make-command ' + quote(os.quoted_path(helper) + ' show ' +
+			os.quoted_path(os.args[2])))
+		return
+	}
 	root := root_for(os.args[2])
+	if command in ['targets', 'targets-menu'] {
+		paths := runnable_targets(root)
+		if command == 'targets-menu' {
+			println(target_menu(paths))
+		} else {
+			for path in paths {
+				println(path)
+			}
+		}
+		return
+	}
 	config := os.getenv_opt('VLANG_KAK_CONFIG_HOME') or { os.getenv_opt('XDG_CONFIG_HOME') or { os.join_path(os.home_dir(), '.config') } }
 	directory := os.join_path(config, 'vlang.kak', 'projects')
 	file := os.join_path(directory, sha256.hexhash(root) + '.json')
@@ -86,16 +129,6 @@ fn main() {
 	} else if command == 'show' {
 		println('Project: ${root}\nPreferences: ${file}\nWorking directory: ${project.cwd}\nTarget: ${project.target}\nArguments: ${project.args}')
 		println('\nUse :v-project-arguments ARG... (Kakoune quoting), :v-project-directory PATH, :v-project-target PATH or :v-project-reset.')
-		return
-	} else if command == 'targets' {
-		files := os.walk_ext(root, '.v')
-		for path in files {
-			if path.contains('/.git/') || path.ends_with('_test.v') {
-				continue
-			}
-			content := os.read_file(path) or { continue }
-			if content.contains('fn main(') { println(path) }
-		}
 		return
 	} else if command == 'load' && !os.exists(file) {
 		return

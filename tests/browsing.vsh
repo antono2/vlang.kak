@@ -1,4 +1,4 @@
-// Exercise the real file tree and live search in Kakoune's JSON UI.
+// Exercise browsing, project targets and live search in Kakoune's JSON UI.
 import editorui { quote }
 import os
 import rand
@@ -57,6 +57,52 @@ fn search_row(mut editor editorui.Client, path string) !int {
 	return editor.diagnostic('Search results did not contain the expected row')
 }
 
+fn check_project_targets(mut editor editorui.Client, root string, project string, quoted_file string) ! {
+	target := os.join_path(project, "a quote's %{ \$HOME\nlast.v")
+	test := os.join_path(project, 'excluded_test.v')
+	os.write_file(target, 'module main\nfn main() {}\n')!
+	os.write_file(test, 'module main\nfn main() {}\n')!
+	mut offset := editor.offset()
+	editor.remote('v-project-targets')!
+	menu := editor.wait_event(offset, 'menu_show', ['last.v', 'Choose another V target'])!
+	require(!menu.contains('excluded_test.v'), 'A test file appeared in the runnable target menu')!
+	editor.keys('<ret>')
+	editor.wait_value('%opt{v_project_target}', target, false,
+		'selection preserved the complete target filename')!
+	editor.remote('edit ${quote(quoted_file)}')!
+	editor.wait_value('%opt{v_project_target}', target, false,
+		'the target was stored under the project root')!
+	editor.remote('v-project-settings')!
+	editor.wait_value('%val{bufname}', '*make*', false,
+		'project settings opened in the task buffer')!
+	report := os.join_path(root, 'project-settings')
+	deadline := time.sys_mono_now() + u64(15 * time.second)
+	for time.sys_mono_now() < deadline {
+		editor.remote('write -force ${quote(report)}')!
+		if os.read_file(report)!.contains('Target: ' + target) {
+			break
+		}
+		time.sleep(50 * time.millisecond)
+	}
+	require(os.read_file(report)!.contains('Target: ' + target),
+		'Project settings did not display the stored target path')!
+
+	empty := os.join_path(root, 'no runnable sources')
+	os.mkdir(empty)!
+	os.write_file(os.join_path(empty, 'v.mod'), "Module { name: 'empty' }\n")!
+	file := os.join_path(empty, 'helper.v')
+	os.write_file(file, 'module example\nfn helper() {}\n')!
+	editor.remote('edit ${quote(file)}')!
+	offset = editor.offset()
+	editor.remote('v-project-targets')!
+	editor.wait_event(offset, 'menu_show', ['Choose another V target'])!
+	offset = editor.offset()
+	editor.keys('<ret>')
+	editor.wait_event(offset, 'draw_status', ['Target:'])!
+	editor.keys('<esc>')
+	println('ok - rendered project targets preserve quoted and multiline filenames and offer a manual path')
+}
+
 fn exercise(kak string) ! {
 	root := os.join_path(os.temp_dir(), 'vlang-browsing-' + rand.uuid_v4())
 	os.mkdir(root)!
@@ -64,6 +110,8 @@ fn exercise(kak string) ! {
 	project := os.join_path(root, 'project with spaces')
 	folder := os.join_path(project, 'nested')
 	config := os.join_path(root, 'config', 'kak')
+	os.setenv('VLANG_KAK_CONFIG_HOME', os.dir(config), true)
+	os.setenv('XDG_CACHE_HOME', os.join_path(root, 'cache'), true)
 	os.mkdir_all(folder)!
 	os.mkdir_all(config)!
 	source := os.join_path(project, 'main.v')
@@ -147,6 +195,7 @@ fn exercise(kak string) ! {
 	editor.keys('<esc>')
 	editor.remote('nop')!
 	require(editor.value(buffer_file)! == source, 'Empty search changed the source file')!
+	check_project_targets(mut editor, root, project, target)!
 	println('ok - rendered tree, project prompts and completion, and live search')
 }
 

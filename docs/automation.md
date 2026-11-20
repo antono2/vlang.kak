@@ -146,8 +146,7 @@ also works on editor-only installations without V. Changed links and replacement
 files are kept. It does not install system packages. `:v-diagnostic-report`
 prepares a report containing versions and paths;
 review it before copying it into an issue. The live VLS checker remains available
-as `scripts/check.sh --live-lsp` and requires Python only for that development
-check.
+as `scripts/check.sh --live-lsp` and uses V to run the development check.
 
 ## Settings and project tasks
 
@@ -169,10 +168,11 @@ v-project-target /absolute/path/to/main.v
 
 Arguments apply to project run and debugging, working directories are remembered
 and the selected target changes the default run/debug target. Custom run commands
-retain their own target syntax. `:v-project-targets` offers V files containing a
-`fn main(` entry point; this lightweight scan is a suggestion, not a compiler's
-classification. `:v-project-settings` shows the stored values and their location;
-`:v-project-reset` clears them. Reopening project buffers applies their settings.
+retain their own target syntax. `:v-project-targets` lists V files containing
+`fn main(` in path order. Choose **Choose another V target…** to enter a path
+with file completion. `:v-project-settings` shows the stored values and their
+location. `:v-project-reset` clears them. Reopening project buffers applies
+their settings.
 
 ## Session recovery
 
