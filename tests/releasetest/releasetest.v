@@ -196,8 +196,14 @@ pub fn interrupt_at_marker(program string, args []string, marker string, options
 	}
 }
 
+@[params]
+pub struct LogOptions {
+pub:
+	echo bool
+}
+
 // Drain both streams while the child runs so a long test can write directly to disk.
-pub fn log_command(program string, args []string, mut log os.File) !int {
+pub fn log_command(program string, args []string, mut log os.File, options LogOptions) !int {
 	mut child := start(program, args)!
 	defer {
 		if child.is_alive() {
@@ -219,6 +225,12 @@ pub fn log_command(program string, args []string, mut log os.File) !int {
 		}
 		log.write_string(out)!
 		log.write_string(diagnostics)!
+		if options.echo {
+			print(out)
+			print(diagnostics)
+			flush_stdout()
+			log.flush()
+		}
 	}
 	return child.code
 }
@@ -234,4 +246,14 @@ pub fn run_inherited(program string, args []string) ! {
 	if child.code != 0 {
 		return error('${program} ${args.join(' ')} exited ${child.code}')
 	}
+}
+
+// GitHub Actions environment files also accept paths containing spaces.
+pub fn append_line(path string, line string) ! {
+	if line.contains_any('\r\n') {
+		return error('Expected a single line for ${path}')
+	}
+	mut file := os.open_append(path)!
+	defer { file.close() }
+	file.writeln(line)!
 }
