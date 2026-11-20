@@ -2,8 +2,52 @@
 # Keep checkpoints available in editor installations without V.
 set -eu
 umask 077
-directory=$kak_opt_v_session_checkpoint
 quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
+fail() { printf 'fail %s\n' "$(quote "$1")"; exit 1; }
+client_source() {
+  # A client ID is a SHA-256 digest encoded as 64 lowercase hex characters.
+  case $1 in *[!0-9a-f]*) fail 'Invalid checkpoint client identity' ;; esac
+  [ "${#1}" -eq 64 ] || fail 'Invalid checkpoint client identity'
+  client_file=$directory/client-$1.kak
+  [ -f "$client_file" ] || fail 'Checkpoint client instructions are missing'
+}
+case $1 in
+  restore|restart)
+    mode=$1
+    directory=${2:-}
+    state=${3:-}
+    expected=2
+    if [ "$mode" = restart ]; then expected=3; fi
+    if [ "$#" -ne "$expected" ] || [ -z "$directory" ] || { [ "$mode" = restart ] && [ -z "$state" ]; }; then
+      fail 'Expected a checkpoint directory and restart state when restarting'
+    fi
+    [ -f "$directory/buffers.kak" ] || fail 'No session checkpoint found'
+    identity=$(cat "$directory/main-client") || fail 'Checkpoint main client is missing'
+    client_source "$identity"
+    commands=$(printf 'source %s\nsource %s' "$(quote "$directory/buffers.kak")" "$(quote "$client_file")")
+    if [ "$mode" = restore ]; then printf '%s\n' "$commands"; exit 0; fi
+    backend=$(cat "$directory/backend") || fail 'Checkpoint pane host is missing'
+    [ -f "$directory/clients" ] || fail 'Checkpoint client list is missing'
+    found_main=false
+    extra_views=false
+    while IFS= read -r other || [ -n "$other" ]; do
+      if [ "$other" = "$identity" ]; then found_main=true; continue; fi
+      extra_views=true
+      client_source "$other"
+      commands="$commands
+$(printf 'v-session-open-client %s %s' "$(quote "$client_file")" "$(quote "$backend")")"
+    done < "$directory/clients"
+    [ "$found_main" = true ] || fail 'Checkpoint main client is missing from its client list'
+    if [ "$extra_views" = true ] && { [ -z "$backend" ] || [ "$backend" = none ]; }; then
+      fail 'Restoring extra views requires a supported pane host; checkpoint saved'
+    fi
+    temporary=$(mktemp -- "$state.XXXXXXXX") || fail 'Could not write restart state'
+    trap 'rm -f -- "$temporary"' EXIT
+    printf '%s\n' "$commands" > "$temporary" && mv -fT -- "$temporary" "$state" ||
+      fail 'Could not write restart state'
+    exit 0 ;;
+esac
+directory=$kak_opt_v_session_checkpoint
 case $1 in
   client)
     identity=$(printf %s "$kak_client" | sha256sum | cut -d ' ' -f 1)

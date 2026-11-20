@@ -1,6 +1,7 @@
-// Write recovery instructions and client selections from Kakoune's environment.
+// Write and replay recovery instructions for buffers and client selections.
 import crypto.sha256
 import os
+import rand
 
 fn quote(value string) string {
 	return "'" + value.replace("'", "''") + "'"
@@ -54,6 +55,59 @@ fn save_client(directory string, name string) ! {
 	write_checkpoint(directory, 'clients', 'a', identity + '\n')!
 }
 
+fn client_source(directory string, identity string) !string {
+	if identity.len != sha256.size * 2 || !identity.bytes().all(it.is_digit()
+		|| (it >= `a` && it <= `f`)) {
+		return error('Invalid checkpoint client identity')
+	}
+	path := os.join_path(directory, 'client-${identity}.kak')
+	if !os.is_file(path) {
+		return error('Checkpoint client instructions are missing')
+	}
+	return path
+}
+
+fn replay(directory string, state string) ! {
+	buffers := os.join_path(directory, 'buffers.kak')
+	if !os.is_file(buffers) {
+		return error('No session checkpoint found')
+	}
+	identity := os.read_file(os.join_path(directory, 'main-client')) or {
+		return error('Checkpoint main client is missing')
+	}
+	main_id := identity.trim_right('\n')
+	main_client := client_source(directory, main_id)!
+	mut commands := 'source ${quote(buffers)}\nsource ${quote(main_client)}\n'
+	if state == '' {
+		print(commands)
+		return
+	}
+	backend := os.read_file(os.join_path(directory, 'backend')) or {
+		return error('Checkpoint pane host is missing')
+	}
+	clients := os.read_lines(os.join_path(directory, 'clients')) or {
+		return error('Checkpoint client list is missing')
+	}
+	if main_id !in clients {
+		return error('Checkpoint main client is missing from its client list')
+	}
+	host := backend.trim_right('\n')
+	for other in clients {
+		path := client_source(directory, other)!
+		if path != main_client {
+			if host in ['', 'none'] {
+				return error('Restoring extra views requires a supported pane host; checkpoint saved')
+			}
+			commands += 'v-session-open-client ${quote(path)} ${quote(host)}\n'
+		}
+	}
+	stage := os.join_path(os.dir(state), '.restart-' + rand.uuid_v4())
+	os.mkdir(stage, mode: 0o700)!
+	defer { os.rmdir_all(stage) or {} }
+	write_checkpoint(stage, 'state.kak', 'w', commands)!
+	os.rename_dir(os.join_path(stage, 'state.kak'), state)!
+}
+
 fn run(args []string) ! {
 	directory := os.getenv('kak_opt_v_session_checkpoint')
 	if directory == '' || args.len != 1 {
@@ -61,17 +115,39 @@ fn run(args []string) ! {
 	}
 	name := os.getenv('kak_bufname')
 	match args[0] {
-		'buffer' { save_buffer(directory, name)! }
-		'client' { save_client(directory, name)! }
-		'main' {
-			write_checkpoint(directory, 'main-client', 'w',
-				sha256.hexhash(os.getenv('kak_client')) + '\n')!
+		'buffer' {
+			save_buffer(directory, name)!
 		}
-		else { return error('Unknown checkpoint command: ${args[0]}') }
+		'client' {
+			save_client(directory, name)!
+		}
+		'main' {
+			identity := sha256.hexhash(os.getenv('kak_client'))
+			write_checkpoint(directory, 'main-client', 'w', identity + '\n')!
+		}
+		else {
+			return error('Unknown checkpoint command: ${args[0]}')
+		}
 	}
 }
 
-run(os.args[1..]) or {
+args := os.args[1..]
+if args.len > 0 && args[0] in ['restore', 'restart'] {
+	restart := args[0] == 'restart'
+	expected := if restart { 3 } else { 2 }
+	directory := args[1] or { '' }
+	state := args[2] or { '' }
+	if args.len != expected || directory == '' || (restart && state == '') {
+		println("fail 'Expected a checkpoint directory and restart state when restarting'")
+		exit(2)
+	}
+	replay(directory, state) or {
+		println('fail ${quote(err.msg())}')
+		exit(1)
+	}
+	exit(0)
+}
+run(args) or {
 	eprintln(err)
 	exit(1)
 }

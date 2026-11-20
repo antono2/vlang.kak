@@ -2076,11 +2076,8 @@ define-command -params 0..1 -file-completion v-session-restore -docstring 'Resto
   v-session-require-clean %val{buflist}
   evaluate-commands %sh{
     directory=${1:-${XDG_CACHE_HOME:-$HOME/.cache}/vlang.kak/sessions/latest}
-    [ -f "$directory/buffers.kak" ] || { echo "fail 'No session checkpoint found'"; exit; }
-    # Restore into a fresh session to avoid replacing newer edits.
-    printf "source '%s'\n" "$(printf %s "$directory/buffers.kak" | sed "s/'/''/g")"
-    identity=$(cat "$directory/main-client")
-    printf "source '%s'\n" "$(printf %s "$directory/client-$identity.kak" | sed "s/'/''/g")"
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/session-buffer.sh" restore "$directory"
   }
 }
 define-command -hidden v-restart-recover-now %{
@@ -2091,16 +2088,8 @@ define-command -hidden v-restart-recover-now %{
   v-session-save
   evaluate-commands %sh{
     quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    directory=$kak_opt_v_session_checkpoint
-    identity=$(cat "$directory/main-client")
-    backend=$(cat "$directory/backend")
-    count=$(wc -l < "$directory/clients")
-    if [ "$count" -gt 1 ] && [ "$backend" = none ]; then echo "fail 'Restoring extra views requires a supported pane host; checkpoint saved'"; exit; fi
-    printf 'source %s\nsource %s\n' "$(quote "$directory/buffers.kak")" "$(quote "$directory/client-$identity.kak")" > "$VLANG_KAK_RESTART_STATE"
-    while IFS= read -r other; do
-      [ "$other" != "$identity" ] || continue
-      printf 'v-session-open-client %s %s\n' "$(quote "$directory/client-$other.kak")" "$(quote "$backend")" >> "$VLANG_KAK_RESTART_STATE"
-    done < "$directory/clients"
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    if ! "${source%/rc/vlang.kak}/scripts/session-buffer.sh" restart "$kak_opt_v_session_checkpoint" "${VLANG_KAK_RESTART_STATE:-}"; then exit; fi
     eval "set -- $kak_quoted_client_list"
     for client do
       [ "$client" != "$kak_client" ] || continue

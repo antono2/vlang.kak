@@ -2,15 +2,15 @@
 # Bootstrap the cached V dispatcher shared by the editor helpers.
 set -eu
 case ${1:-} in
-    --help|-h) echo 'Usage: helper-cache.sh TOOL [ARGS...] | helper-cache.sh checkpoint DIRECTORY'; exit 0 ;;
+    --help|-h) echo 'Usage: helper-cache.sh TOOL [ARGS...] | helper-cache.sh checkpoint DIRECTORY | helper-cache.sh checkpoint --read MODE DIRECTORY [STATE]'; exit 0 ;;
 esac
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cache=${XDG_CACHE_HOME:-$HOME/.cache}/vlang.kak
 fallback() {
-    if [ "${1:-}" = windowing ]; then
-        shift
-        exec "$script_dir/windowing-posix" "$@"
-    fi
+    case "${1:-}:${2:-}" in
+        windowing:*) shift; exec "$script_dir/windowing-posix" "$@" ;;
+        checkpoint:--read) shift 2; exec "$script_dir/session-checkpoint-posix" "$@" ;;
+    esac
     exit 1
 }
 signature=$(printf '%s' "$script_dir" | cksum) || fallback "$@"
@@ -47,10 +47,9 @@ prepare() (
     trap - EXIT HUP INT TERM
 )
 if [ ! -x "$dispatcher" ] || [ -L "$dispatcher" ] || [ "$source" -nt "$dispatcher" ]; then
-    if [ "${1:-}" = windowing ]; then
-        prepare >/dev/null 2>&1 || fallback "$@"
-    else
-        prepare
-    fi
+    case "${1:-}:${2:-}" in
+        windowing:*|checkpoint:--read) prepare >/dev/null 2>&1 || fallback "$@" ;;
+        *) prepare ;;
+    esac
 fi
 exec "$dispatcher" "$cache" "$@"

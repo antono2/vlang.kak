@@ -42,7 +42,7 @@ fn compile_helper(cache string, source string, expected string, destination stri
 	mut child := os.new_process(compiler)
 	defer { child.close() }
 	child.set_args(args)
-	quiet := tool == 'windowing'
+	quiet := tool == 'windowing' || tool == 'checkpoint'
 	if quiet {
 		child.set_redirect_stdio()
 	}
@@ -97,6 +97,12 @@ fn run(args []string) ! {
 	}
 	cache, tool := args[0], args[1]
 	if tool == 'checkpoint' {
+		if args.len > 3 && args[2] == '--read' {
+			writer := prepare_helper(cache, tool) or {
+				return os.execvp(os.join_path(@DIR, 'session-checkpoint-posix'), args[3..])
+			}
+			return os.execvp(writer, args[3..])
+		}
 		if args.len != 3 || !os.is_dir(args[2]) {
 			return error('Expected an existing session checkpoint directory.')
 		}

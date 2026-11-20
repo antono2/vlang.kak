@@ -187,6 +187,10 @@ Each save takes a private copy for its buffers and clients and removes it when
 the save finishes. The editor uses the POSIX writer if V is unavailable or
 cannot prepare the cached writer.
 
+Restore and recovery restart use the same cached V helper, with a POSIX path
+for compiler-free installations. Recovery restart checks the saved client
+instructions before replacing the launcher's restart file.
+
 `:v-restart-recover` asks for confirmation, then restarts the owning `kak-v`
 client, restores the checkpoint and reopens additional views through the current
 pane host. The views keep their buffers/selections; their previous pane geometry
