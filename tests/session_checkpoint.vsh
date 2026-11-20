@@ -58,8 +58,8 @@ fn check_saved_file_restart(root string, launcher string, lane map[string]string
 	second_quoted := second.replace("'", "''")
 	assert os.read_file(state)! ==
 		"nop\ntry %{ buffer '${first_quoted}' } catch %{ edit -- '${first_quoted}' }\n" +
-			"try %{ buffer '${second_quoted}' } catch %{ edit -- '${second_quoted}' }\n" +
-			"buffer '${first_quoted}'\nselect 2.3,2.3\n"
+		"try %{ buffer '${second_quoted}' } catch %{ edit -- '${second_quoted}' }\n" +
+		"buffer '${first_quoted}'\nselect 2.3,2.3\n"
 	assert !os.is_link(state) && os.read_file(target)! == 'original\n'
 	assert (os.stat(state)!.mode & 0o777) == 0o600
 	env['kak_buffile'] = second
@@ -75,17 +75,17 @@ fn check_saved_file_restart(root string, launcher string, lane map[string]string
 fn check_session_actions(launcher string, lane map[string]string) ! {
 	mut env := lane.clone()
 	env['kak_client'] = 'owner'
-	names := ['owner', "other's %{\n"]
+	mut args := ['', 'owner', "other's %{\n"]
 	for action, command in {
 		'save-buffers':  'v-session-save-buffer'
 		'save-clients':  'v-session-save-client'
 		'check-buffers': 'v-session-check-buffer'
 	} {
-		assert capture(launcher, [action, ...names], true, environment: env)! ==
-			"${command} 'owner'\n${command} 'other''s %{\n'\n"
+		args[0] = action
+		assert capture(launcher, args, true, environment: env)! == "${command} 'owner'\n${command} 'other''s %{\n'\n"
 	}
-	assert capture(launcher, ['close-clients', ...names], true, environment: env)! ==
-		"evaluate-commands -client 'other''s %{\n' %{ quit! }\n"
+	args[0] = 'close-clients'
+	assert capture(launcher, args, true, environment: env)! == "evaluate-commands -client 'other''s %{\n' %{ quit! }\n"
 	assert capture(launcher, ['close-clients', 'owner'], true, environment: env)! == ''
 	assert capture(launcher, ['check-buffers'], true, environment: env)! == ''
 }
