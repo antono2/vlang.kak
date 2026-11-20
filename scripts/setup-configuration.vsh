@@ -1,8 +1,10 @@
-// Render the isolated launcher and optional integration from the selected tools.
+// Activate the prepared tools and publish the configuration and ownership records.
 import editorui { quote }
 import managedfiles { settings_block }
+import managedrecord
 import os
 import rand
+import setupconfig
 
 const launcher_template = $embed_file('setup-ide-launcher.sh.in')
 const block_start = '# >>> vlang.kak managed >>>'
@@ -264,11 +266,75 @@ fn (setup Setup) write_configuration() ! {
 	publish(launcher, text, 0o755)!
 }
 
-setup := selected(os.args[1..]) or {
-	eprintln(err)
-	exit(2)
+fn prepare_helper(repo string, name string) int {
+	mut child := os.new_process(os.join_path(repo, 'scripts', name))
+	defer { child.close() }
+	child.set_args(['--prepare'])
+	child.run()
+	child.wait()
+	// The shell bootstrap reserves 125 for helper compilation failures.
+	return if child.code < 0 || child.code == 125 { 1 } else { child.code }
 }
-setup.write_configuration() or {
-	eprintln(err)
-	exit(1)
+
+fn finish_setup(before Setup, vls_mode string, vls_path string, install_lsp bool) ! {
+	setupconfig.activate(os.real_path(before.prefix), vls_mode, vls_path) or {
+		return error(err.msg())
+	}
+	current := os.join_path(before.prefix, 'opt', 'vlang-kakoune', 'current', 'share', 'kak')
+	managed := before.managed_kak || os.is_dir(current)
+	setup := Setup{
+		...before
+		managed_kak: managed
+		runtime:     if managed { current } else { before.runtime }
+		lsp:         if install_lsp {
+			os.join_path(before.prefix, 'opt', 'vlang-kak-lsp', 'current', 'bin', 'kak-lsp')
+		} else {
+			before.lsp
+		}
+	}
+	setup.write_configuration() or { return error(err.msg()) }
+	if setup.explorer == 'true' {
+		status := prepare_helper(setup.repo, 'explorer.sh')
+		if status != 0 {
+			return error_with_code('Could not prepare the project explorer.', status)
+		}
+	}
+	gdb := os.find_abs_path_of_executable('gdb') or { '' }
+	compiler := os.find_abs_path_of_executable('v') or { '' }
+	if gdb != '' && compiler != '' {
+		status := prepare_helper(setup.repo, 'debug.sh')
+		if status != 0 {
+			return error_with_code('Could not prepare the debugger client.', status)
+		}
+	} else {
+		println('Debugging: install GDB 14 or newer with Python support, then use Space B.')
+	}
+	println('Explorer: ${setup.explorer}. Live search: ${setup.live_search}. Pane mode: ${setup.pane_mode}. Customize ${setup.config_home}/kak/vlang-user.kak.')
+	println('Launch with ${setup.prefix}/bin/kak-v or run scripts/check.sh.')
+	managedrecord.record(setup.prefix, setup.config_home, vls_mode) or { return error(err.msg()) }
+}
+
+fn main() {
+	finish := (os.args[1] or { '' }) == '--finish'
+	args := if finish { os.args[2..] } else { os.args[1..] }
+	if finish && (args.len != 16 || args[13] !in ['upstream', 'skip', 'external']
+		|| args[15] !in ['true', 'false']) {
+		eprintln('Expected configuration options, VLS mode and path, and kak-lsp installation choice.')
+		exit(2)
+	}
+	setup := selected(if finish { args[..13] } else { args }) or {
+		eprintln(err)
+		exit(2)
+	}
+	if finish {
+		finish_setup(setup, args[13], args[14], args[15] == 'true') or {
+			eprintln(err)
+			exit(if err.code() > 0 && err.code() != 125 { err.code() } else { 1 })
+		}
+	} else {
+		setup.write_configuration() or {
+			eprintln(err)
+			exit(1)
+		}
+	}
 }

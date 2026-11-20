@@ -215,20 +215,18 @@ if [ "$integrate" = true ] && [ -n "${VLANG_KAK_TRANSACTION:-}" ]; then
   "$script_dir/managed-state.sh" snapshot-personal "$prefix" "$config_home" "$VLANG_KAK_TRANSACTION"
 fi
 
-# All builds succeeded. Switch the prepared versions and generate launchers.
-activation_status=125
+# All builds succeeded. Finish the installation in one V process when possible.
 if compiler=$(find_maintenance_v --prefix "$prefix"); then
-  activation_status=0
-  run_maintenance_program "$compiler" "$script_dir/setup-activation.vsh" "$prefix" "$vls_mode" "$vls_path" || activation_status=$?
-  if [ "$activation_status" -eq 125 ]; then
-    echo 'V could not prepare tool activation. Using shell activation.' >&2
-  fi
+  finish_status=0
+  run_maintenance_program "$compiler" "$script_dir/setup-configuration.vsh" --finish \
+    "$prefix" "$repo_dir" "$config_home" "$kak_runtime" "$lsp_bin" "$integrate" \
+    "$managed_v" "$compiler_policy" "$explorer" "$live_search" "$pane_mode" "$window_backend" "$build" \
+    "$vls_mode" "$vls_path" "$install_lsp" || finish_status=$?
+  [ "$finish_status" -eq 125 ] || exit "$finish_status"
+  echo 'V could not prepare setup finalization. Using shell configuration.' >&2
 fi
-case "$activation_status" in
-  0) ;;
-  125) . "$script_dir/setup-activation-posix" ;;
-  *) exit "$activation_status" ;;
-esac
+
+. "$script_dir/setup-activation-posix"
 managed_kak=false
 if [ "$build" = true ] || [ -d "$prefix/opt/vlang-kakoune/current/share/kak" ]; then
   kak_runtime=$prefix/opt/vlang-kakoune/current/share/kak
@@ -236,22 +234,7 @@ if [ "$build" = true ] || [ -d "$prefix/opt/vlang-kakoune/current/share/kak" ]; 
 fi
 if [ "$install_lsp" = true ]; then lsp_bin=$prefix/opt/vlang-kak-lsp/current/bin/kak-lsp; fi
 
-# Generate the configuration through V when the selected compiler can run it.
-config_status=125
-if compiler=$(find_maintenance_v --prefix "$prefix"); then
-  config_status=0
-  run_maintenance_program "$compiler" "$script_dir/setup-configuration.vsh" \
-    "$prefix" "$repo_dir" "$config_home" "$kak_runtime" "$lsp_bin" "$integrate" \
-    "$managed_v" "$compiler_policy" "$explorer" "$live_search" "$pane_mode" "$window_backend" "$managed_kak" || config_status=$?
-  if [ "$config_status" -eq 125 ]; then
-    echo 'V could not prepare the configuration writer. Using shell configuration.' >&2
-  fi
-fi
-case "$config_status" in
-  0) user_config=$config_home/kak/vlang-user.kak; ide_launcher=$prefix/bin/kak-v ;;
-  125) . "$script_dir/setup-configuration-posix" ;;
-  *) exit "$config_status" ;;
-esac
+. "$script_dir/setup-configuration-posix"
 if [ "$explorer" = true ]; then
   "$script_dir/explorer.sh" --prepare
 fi

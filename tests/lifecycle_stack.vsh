@@ -6,7 +6,8 @@ import time
 
 const tools = ['vlang-kakoune', 'vlang-kak-lsp', 'vlang-vls']
 const activation_timeout = 2 * time.minute
-const before_activation = '# All builds succeeded. Switch the prepared versions and generate launchers.'
+const before_activation = '# All builds succeeded. Finish the installation in one V process when possible.'
+const activation_source = 'scripts/setupconfig/activation.v'
 const personal_edit = '# edited after interruption\n'
 const kakrc_edit = '# kakrc edited after interruption\n'
 
@@ -113,12 +114,13 @@ fn (stack Stack) interrupt(phase Interruption, old_revision string, original_imp
 	} else {
 		original_impl
 	})!
-	activation := os.read_file(os.join_path(stack.repo, 'scripts/setup-activation.vsh'))!
-	os.write_file(os.join_path(stack.interrupted_repo, 'scripts/setup-activation.vsh'), if phase == .partial {
+	activation := os.read_file(os.join_path(stack.repo, activation_source))!
+	activation_with_barrier := if phase == .partial {
 		releasetest.instrument_tool_activation(activation, marker)!
 	} else {
 		activation
-	})!
+	}
+	os.write_file(os.join_path(stack.interrupted_repo, activation_source), activation_with_barrier)!
 	os.write_file(os.join_path(stack.interrupted_repo, 'scripts/rollback.sh'), os.read_file(os.join_path(stack.repo,
 		'scripts/rollback.sh'))!)!
 	stack.git(['add', '.'])!

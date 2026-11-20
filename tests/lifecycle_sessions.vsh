@@ -8,7 +8,7 @@ import time
 const editor_timeout = 20 * time.second
 const shutdown_timeout = 10 * time.second
 const poll_interval = 100 * time.millisecond
-const activation_anchor = '"$script_dir/managed-state.sh" record "$prefix" "$config_home" "$vls_mode"'
+const activation_anchor = 'managedrecord.record(setup.prefix, setup.config_home, vls_mode)'
 const owner = 'client0'
 const extra = 'client1'
 const both_clients = 'client0 client1'
@@ -86,16 +86,21 @@ fn (session Session) interrupt_update() ! {
 	// The barrier lives in an isolated source copy after the launchers have changed.
 	fixture := os.join_path(session.root, 'update-source')
 	releasetest.copy_source(session.repo, fixture)!
-	implementation := os.join_path(fixture, 'scripts/setup-impl.sh')
+	implementation := os.join_path(fixture, 'scripts/setup-configuration.vsh')
 	text := os.read_file(implementation)!
 	require(text.count(activation_anchor) == 1, 'Expected one activation record boundary')!
 	barrier := os.join_path(session.root, 'update-barrier')
-	stop := 'touch ${os.quoted_path(barrier)}\nwhile :; do sleep 1; done\n'
-	os.write_file(implementation, text.replace(activation_anchor, stop + activation_anchor))!
+	stop := "if marker := os.getenv_opt('VLANG_KAK_TEST_BARRIER') {\n\t\tos.write_file(marker, '')!\n\t\tfor { time.sleep(time.second) }\n\t}\n\t"
+	instrumented := text.replace_once('import os\n', 'import os\nimport time\n').replace_once(activation_anchor,
+
+		stop + activation_anchor)
+	os.write_file(implementation, instrumented)!
+	mut env := session.env.clone()
+	env['VLANG_KAK_TEST_BARRIER'] = barrier
 	mut args := session.setup_args()
 	args << ['--pane-mode', 'off']
 	releasetest.interrupt_at_marker(os.join_path(fixture, 'scripts/update.sh'), args, barrier,
-		environment: session.env
+		environment: env
 		timeout:     editor_timeout
 	)!
 }

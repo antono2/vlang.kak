@@ -69,7 +69,11 @@ fn check() ! {
 	capture(managed, ['snapshot', prefix, snapshot], true)!
 	probe := os.join_path(root, 'probe.vsh')
 	marker := os.join_path(root, "Kakoune's link switched")
-	os.write_file(probe, releasetest.instrument_tool_activation(os.read_file(source)!, marker)!)!
+	os.cp(source, probe)!
+	os.mkdir(os.join_path(root, 'setupconfig'))!
+	activation_source := os.read_file(os.join_path(scripts, 'setupconfig', 'activation.v'))!
+	os.write_file(os.join_path(root, 'setupconfig', 'activation.v'), releasetest.instrument_tool_activation(activation_source,
+		marker)!)!
 	interrupted := os.join_path(root, 'interrupted')
 	compile(probe, interrupted)!
 	releasetest.interrupt_at_marker(interrupted, [prefix, 'upstream', ''], marker)!
