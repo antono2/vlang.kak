@@ -45,11 +45,14 @@ fn (fixture SetupFixture) setup(options []string, failure string) ! {
 		return error('Setup did not use the V defaults reader\n${output}${errors}')
 	}
 	if failure == '' {
-		if child.code != 0 {
+		if child.code != 0 || errors.contains('Using shell configuration') {
 			return error('Setup exited with status ${child.code}\n${output}${errors}')
 		}
 	} else if child.code == 0 || !errors.contains(failure) {
 		return error('Setup did not report ${failure}\n${output}${errors}')
+	}
+	if errors.contains('Using shell path checks.') {
+		return error('Setup did not use the V path checks\n${output}${errors}')
 	}
 }
 
@@ -58,6 +61,7 @@ fn check(root string, kak string) ! {
 	kak_config := os.join_path(config, 'kak')
 	prefix := os.join_path(root, 'prefix')
 	target := os.join_path(root, 'real-kakrc')
+	hardlink := os.join_path(root, 'linked-kakrc-copy')
 	kakrc := os.join_path(kak_config, 'kakrc')
 	personal := os.join_path(kak_config, 'vlang-user.kak')
 	autoload := os.join_path(kak_config, 'autoload')
@@ -65,6 +69,7 @@ fn check(root string, kak string) ! {
 	link := os.join_path(autoload, 'vlang.kak')
 	os.mkdir_all(autoload)!
 	os.write_file(target, original_settings)!
+	os.link(target, hardlink)!
 	os.symlink(target, kakrc)!
 	os.write_file(personal, personal_settings)!
 	os.write_file(unrelated, unrelated_plugin)!
@@ -125,9 +130,26 @@ fn check(root string, kak string) ! {
 		prefix: prefix
 		env:    old_env
 	}
+	missing_config := os.join_path(root, 'missing-config')
+	missing_source := "source '${missing_config}/kak/vlang-user.kak'\n"
+	os.write_file(generated, missing_source + os.read_file(generated)!)!
+	reader := os.join_path(@DIR, '..', 'scripts', 'setup-legacy-config.vsh')
+	recovered := capture('v', ['run', reader, generated_config], true, environment: old_env)!
+	assert recovered == config + '\n'
 	legacy.setup(['--update'], '')!
 	assert os.read_file(generated)!.contains(personal.replace("'", "''"))
 	assert os.read_file(target)! == original_settings
+	broken_source := os.read_file(generated)! + missing_source
+	os.write_file(generated, broken_source)!
+	legacy.setup(['--update'], 'Cannot locate personal configuration')!
+	assert os.read_file(generated)! == broken_source
+	old_env['VLANG_KAK_CONFIG_HOME'] = config
+
+	SetupFixture{
+		prefix: prefix
+		env:    old_env
+	}.setup(['--update'], '')!
+	assert !os.read_file(generated)!.contains(missing_source)
 	syntax := os.execute('sh -n ' + os.quoted_path(launcher))
 	assert syntax.exit_code == 0, syntax.output
 
@@ -136,9 +158,22 @@ fn check(root string, kak string) ! {
 	os.write_file(target, malformed)!
 	fixture.setup(['--integrate'], 'Malformed managed block')!
 	assert os.read_file(target)! == malformed && !os.exists(link)
+	// A stray end marker also fails before the personal file can be changed.
+	orphan := original_settings + '# <<< vlang.kak managed <<<\n'
+	os.write_file(target, orphan)!
+	fixture.setup(['--integrate'], 'Malformed managed block')!
+	assert os.read_file(target)! == orphan && !os.exists(link)
+	os.rm(kakrc)!
+	missing := os.join_path(root, 'missing-kakrc')
+	os.symlink(missing, kakrc)!
+	fixture.setup(['--integrate'], 'Broken kakrc link')!
+	assert os.is_link(kakrc) && !os.exists(missing)
+	os.rm(kakrc)!
+	os.symlink(target, kakrc)!
 	os.write_file(target, original_settings)!
 	fixture.setup(['--integrate'], '')!
 	assert os.read_file(target)!.starts_with(original_settings)
+	assert os.read_file(hardlink)! == os.read_file(target)!
 	assert os.is_link(kakrc)
 	assert !os.ls(kak_config)!.any(it.starts_with('kakrc.vlang-backup'))
 	mut baseline_preserved := false
@@ -149,7 +184,9 @@ fn check(root string, kak string) ! {
 		}
 	}
 	assert baseline_preserved
+	backups := os.ls(root)!.filter(it.starts_with('real-kakrc.vlang-backup.')).len
 	fixture.setup(['--update'], '')!
+	assert os.ls(root)!.filter(it.starts_with('real-kakrc.vlang-backup.')).len == backups
 	assert os.read_file(target)!.starts_with(original_settings)
 	assert os.read_file(personal)! == personal_settings
 	assert os.real_path(link) == os.join_path(os.dir(@DIR), 'rc', 'vlang.kak')

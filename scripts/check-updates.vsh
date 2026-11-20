@@ -1,78 +1,14 @@
 // Compare installed and published releases and record successful checks.
 import os
-import semver
+import releaseinfo { Release, git_at, latest_release, release_commit, stable_version }
 import time
 
-const release_remote = 'https://github.com/antono2/vlang.kak.git'
-const tag_prefix = 'refs/tags/'
 const check_interval = 7 * 24 * time.hour
-const remote_git = ['git', '-c', 'http.lowSpeedLimit=1', '-c', 'http.lowSpeedTime=10', 'ls-remote']
-
-struct Release {
-	tag     string
-	version semver.Version
-	object  string
-}
-
-fn stable_version(tag string) !semver.Version {
-	if !tag.starts_with('v') {
-		return error('Expected a version tag')
-	}
-	parts := tag[1..].split('.')
-	if parts.len != 3 || parts.any(it == '' || !it.bytes().all(it >= `0` && it <= `9`)) {
-		return error('Expected a stable version tag')
-	}
-	return semver.from(tag[1..])
-}
-
-fn git(prefix []string, suffix []string) !string {
-	mut args := prefix.clone()
-	args << suffix
-	result := os.execute(args.map(os.quoted_path(it)).join(' ') + ' 2>&1')
-	if result.exit_code != 0 {
-		return error('Git release check failed: ${result.output.trim_space()}')
-	}
-	return result.output.trim_space()
-}
-
-fn latest_release() !Release {
-	listing := git(remote_git, ['--tags', '--refs', release_remote, 'v[0-9]*'])!
-	mut latest := Release{}
-	for line in listing.split_into_lines() {
-		object, ref := line.split_once('\t') or { continue }
-		if !ref.starts_with(tag_prefix) {
-			continue
-		}
-		tag := ref[tag_prefix.len..]
-		version := stable_version(tag) or { continue }
-		if latest.tag == '' || latest.version < version {
-			latest = Release{tag, version, object}
-		}
-	}
-	if latest.tag == '' {
-		return error('No stable release tags were published')
-	}
-	return latest
-}
-
-fn release_commit(release Release) !string {
-	// Annotated tags need peeling. Lightweight tags already point at a commit.
-	ref := '${tag_prefix}${release.tag}^{}'
-	peeled := git(remote_git, [release_remote, ref])!
-	if peeled == '' {
-		return release.object
-	}
-	object, name := peeled.split_once('\t') or { return error('Invalid peeled release reference') }
-	if name != ref || object == '' {
-		return error('Unexpected peeled release reference')
-	}
-	return object
-}
 
 fn update_status(release Release) !string {
-	repo := ['git', '-C', os.dir(@DIR)]
-	installed := git(repo, ['describe', '--tags', '--always']) or { 'unknown' }
-	head := git(repo, ['rev-parse', 'HEAD']) or { '' }
+	repo := os.dir(@DIR)
+	installed := git_at(repo, ['describe', '--tags', '--always']) or { 'unknown' }
+	head := git_at(repo, ['rev-parse', 'HEAD']) or { '' }
 	target := release_commit(release)!
 	if head != '' && head == target {
 		return 'Up to date: ${release.tag}'

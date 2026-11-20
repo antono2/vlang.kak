@@ -33,12 +33,16 @@ its own PATH. Your existing V compiler and shell configuration remain intact.
 compiler from your external PATH. Setup remembers the choice. Its source tree is retained
 because V needs its libraries when compiling. It is updated to the tested pin
 on later setup/update runs.
+Managed compiler installation uses V when a working compiler is available.
+The first compiler installation can still bootstrap through the shell.
 
 `./scripts/dependencies.sh` previews the system package commands for Debian and
 Ubuntu. `--apply`, or `setup.sh --install-dependencies`, explicitly requests those
 package changes and may ask for sudo credentials. Other distributions receive
 the dependency list. Older distribution packages may not satisfy the C++23 or
 GDB DAP requirements; preflight/health report those limitations.
+Package previews and preflight checks use V when a working compiler is
+available. Both checks can run before the compiler is installed.
 
 ## Ownership and safe removal
 
@@ -46,6 +50,8 @@ Setup records file hashes, symlink targets and managed directories in
 `PREFIX/opt/vlang-state/manifest.tsv`. This is data, not executable shell code.
 Ownership recording uses V when a system or managed compiler is available.
 Editor-only setup can record ownership before installing a compiler.
+Setup generates the launchers and Kakoune configuration in V when a working
+compiler is available, with shell generation for compiler-free setup.
 Personal settings and projects are excluded. An isolated installation does not
 claim unrelated autoload links or a VLS link supplied outside setup.
 
@@ -83,6 +89,8 @@ scripts/lock.sh --prefix "$HOME/.local" --clear-stale
 
 PID start times prevent a reused PID from being mistaken for the original owner.
 Active locks, unknown/legacy owners and unexpected lock contents are preserved.
+Lock inspection and stale-lock recovery use V when a working compiler is
+available, with a shell fallback for editor-only installations.
 For an empty legacy lock, inspect running setup/removal processes before using
 `rmdir` on that exact directory. Keep reported `pending.*` snapshots until recovery
 is complete. After clearing a known stale lock, restore the snapshot reported by
@@ -111,6 +119,8 @@ HEAD state and uses its tool pins. Later updates from a detached checkout stay
 on the release path. Externally selected VLS requires the ordinary update path
 if you want to preserve that choice; selecting a verified release selects its
 managed VLS pin. Local edits are never discarded to select a release.
+The update command uses V when a working compiler is available and also runs
+on editor-only installations without V.
 
 A failed setup/update restores the previous tool activation. A successful run
 retains one previous snapshot. `:v-rollback` restores that snapshot, including
@@ -119,9 +129,13 @@ with local edits it rolls back tools only. Personal settings are preserved.
 Snapshot capture, rollback and interrupted-update recovery use V when a working
 compiler is available. The snapshot format also works with shell recovery on
 editor-only installations.
+The same V code manages setup snapshots and restores the previous activation when
+setup fails or receives an interrupt. First-time setup can use the shell bootstrap.
 Rollback swaps snapshots so you can return to the newer combination too.
 Keep sessions open until an update has succeeded. Activation changes version
-links in a short commit phase; power loss or SIGKILL during that phase may
+links using V when a working compiler is available. Setup validates every
+prepared release before switching the active links.
+Power loss or SIGKILL during activation may
 require explicit rollback. Separate standalone tool installers activate their
 own tool, rather than participating in the complete setup transaction.
 

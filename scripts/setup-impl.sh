@@ -21,6 +21,7 @@ EOF
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_dir=$(dirname -- "$script_dir")
+. "$script_dir/managed-v.inc"
 prefix=$HOME/.local
 integrate=
 explorer=
@@ -69,12 +70,27 @@ config_home=${VLANG_KAK_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}}
 # personal path from our generated source line when updating those sessions.
 if [ -z "${VLANG_KAK_CONFIG_HOME:-}" ] &&
    [ "$config_home" = "$prefix/opt/vlang-kakoune/ide-config" ]; then
-  original_config=$(sed -n "s|^source '\(.*\)/kak/vlang-user.kak'$|\1|p" \
-    "$config_home/kak/kakrc" | tail -n 1 | sed "s/''/'/g")
-  if [ -z "$original_config" ] || [ ! -f "$original_config/kak/vlang-user.kak" ]; then
-    echo 'Cannot locate personal configuration; rerun setup from a regular shell with XDG_CONFIG_HOME set.' >&2
-    exit 1
+  legacy_status=125
+  if legacy_compiler=$(find_maintenance_v --prefix "$prefix"); then
+    legacy_status=0
+    original_config=$(run_maintenance_program "$legacy_compiler" \
+      "$script_dir/setup-legacy-config.vsh" "$config_home") || legacy_status=$?
+    if [ "$legacy_status" -eq 125 ]; then
+      echo 'V could not prepare the legacy config reader. Using shell recovery.' >&2
+    fi
   fi
+  case "$legacy_status" in
+    0) ;;
+    125)
+      original_config=$(sed -n "s|^source '\(.*\)/kak/vlang-user.kak'$|\1|p" \
+        "$config_home/kak/kakrc" | tail -n 1 | sed "s/''/'/g")
+      if [ -z "$original_config" ] || [ ! -f "$original_config/kak/vlang-user.kak" ]; then
+        echo 'Cannot locate personal configuration; rerun setup from a regular shell with XDG_CONFIG_HOME set.' >&2
+        exit 1
+      fi
+      ;;
+    *) exit "$legacy_status" ;;
+  esac
   config_home=$original_config
 fi
 case "$config_home" in *"$(printf '\t')"*|*'
@@ -83,7 +99,6 @@ mkdir -p "$config_home"
 config_home=$(CDPATH= cd -- "$config_home" && pwd)
 settings_file=$prefix/opt/vlang-kakoune/ide-config/kak/kakrc
 if [ ! -f "$settings_file" ]; then settings_file=$config_home/kak/kakrc; fi
-. "$script_dir/managed-v.inc"
 defaults_status=125
 if defaults_compiler=$(find_maintenance_v --prefix "$prefix"); then
   defaults_status=0
@@ -117,39 +132,26 @@ esac
 prefix=$(mkdir -p "$prefix" && CDPATH= cd -- "$prefix" && pwd)
 
 # Validate user-facing paths before any download or build.
-check_path=$config_home/kak/kakrc
-if [ "$integrate" = true ]; then
-  if [ -L "$check_path" ] && [ ! -e "$check_path" ]; then echo "Broken kakrc link: $check_path" >&2; exit 1; fi
-  if [ -f "$check_path" ] && ! awk '
-    /^# >>> vlang.kak managed >>>$/ { if (opened || count++) exit 1; opened=1 }
-    /^# <<< vlang.kak managed <<<$/{ if (!opened) exit 1; opened=0 }
-    END { if (opened) exit 1 }
-  ' "$check_path"; then echo "Malformed managed block in $check_path" >&2; exit 1; fi
-  for item in vlang.kak vlang-site-runtime; do
-    link=$config_home/kak/autoload/$item
-    if [ -e "$link" ] && [ ! -L "$link" ]; then echo "Existing unmanaged autoload entry: $link" >&2; exit 1; fi
-    if [ "$item" = vlang.kak ] && [ -L "$link" ] && [ "$(readlink -f "$link")" != "$repo_dir/rc/vlang.kak" ]; then
-      echo "Conflicting plugin link: $link" >&2; exit 1
-    fi
-  done
-fi
-check_managed_file() {
-  if [ -L "$1" ] || { [ -e "$1" ] && ! grep -q -F -x "$2" "$1"; }; then
-    echo "Existing unmanaged file: $1. Choose another --prefix or move it yourself." >&2
-    exit 1
+check_setup_paths() {
+  setup_paths_phase=$1
+  if setup_paths_compiler=$(find_maintenance_v --prefix "$prefix"); then
+    setup_paths_status=0
+    run_maintenance_program "$setup_paths_compiler" "$script_dir/setup-paths.vsh" \
+      "$setup_paths_phase" "$prefix" "$repo_dir" "$config_home" "$integrate" || setup_paths_status=$?
+    [ "$setup_paths_status" -eq 125 ] || return "$setup_paths_status"
+    echo 'V could not prepare the setup path checks. Using shell path checks.' >&2
   fi
+  . "$script_dir/setup-paths-posix"
+  case "$setup_paths_phase" in all|personal) check_personal_paths ;; esac
+  case "$setup_paths_phase" in all|managed) check_managed_paths ;; esac
 }
-if [ "$repair" = true ]; then "$script_dir/managed-state.sh" repair-links "$prefix"; fi
-if [ -d "$prefix/opt/vlang-kakoune/current/share/kak" ]; then check_managed_file "$prefix/bin/kak" '# vlang.kak managed Kakoune launcher'; fi
-check_managed_file "$prefix/bin/kak-v" '# vlang.kak managed IDE launcher'
-check_managed_file "$prefix/opt/vlang-kakoune/ide-config/kak/kakrc" '# vlang.kak managed isolated configuration'
-for link in "$prefix/opt/vlang-kakoune/ide-config/kak/autoload/vlang.kak" \
-            "$prefix/opt/vlang-kakoune/ide-config/kak/autoload/vlang-site-runtime"; do
-  if [ -e "$link" ] && [ ! -L "$link" ]; then
-    echo "Existing unmanaged autoload entry: $link. Choose another --prefix." >&2
-    exit 1
-  fi
-done
+if [ "$repair" = true ]; then
+  check_setup_paths personal
+  "$script_dir/managed-state.sh" repair-links "$prefix"
+  check_setup_paths managed
+else
+  check_setup_paths all
+fi
 
 if [ "$update" = true ] && [ "${VLANG_KAK_SKIP_PULL:-0}" != 1 ]; then
   if [ -d "$repo_dir/.git" ] && [ -z "$(git -C "$repo_dir" status --porcelain)" ]; then
@@ -266,208 +268,42 @@ if [ "$integrate" = true ] && [ -n "${VLANG_KAK_TRANSACTION:-}" ]; then
 fi
 
 # All builds succeeded. Switch the prepared versions and generate launchers.
-for tool in kakoune kak-lsp vls v; do
-  root=$prefix/opt/vlang-$tool
-  if [ -L "$root/candidate" ]; then
-    target=$(readlink "$root/candidate")
-    ln -sfn "$target" "$root/current.next"
-    mv -Tf "$root/current.next" "$root/current"
-    rm "$root/candidate"
+activation_status=125
+if compiler=$(find_maintenance_v --prefix "$prefix"); then
+  activation_status=0
+  run_maintenance_program "$compiler" "$script_dir/setup-activation.vsh" "$prefix" "$vls_mode" "$vls_path" || activation_status=$?
+  if [ "$activation_status" -eq 125 ]; then
+    echo 'V could not prepare tool activation. Using shell activation.' >&2
   fi
-done
+fi
+case "$activation_status" in
+  0) ;;
+  125) . "$script_dir/setup-activation-posix" ;;
+  *) exit "$activation_status" ;;
+esac
+managed_kak=false
 if [ "$build" = true ] || [ -d "$prefix/opt/vlang-kakoune/current/share/kak" ]; then
   kak_runtime=$prefix/opt/vlang-kakoune/current/share/kak
-  cat > "$prefix/bin/kak.tmp" <<EOF
-#!/bin/sh
-# vlang.kak managed Kakoune launcher
-KAKOUNE_RUNTIME='$kak_runtime'
-export KAKOUNE_RUNTIME
-exec '$prefix/opt/vlang-kakoune/current/bin/kak' "\$@"
-EOF
-  chmod 755 "$prefix/bin/kak.tmp"; mv "$prefix/bin/kak.tmp" "$prefix/bin/kak"
+  managed_kak=true
 fi
 if [ "$install_lsp" = true ]; then lsp_bin=$prefix/opt/vlang-kak-lsp/current/bin/kak-lsp; fi
-if [ "$vls_mode" = upstream ]; then
-  ln -sfn "$prefix/opt/vlang-vls/current/bin/vls" "$prefix/bin/vls"
-elif [ "$vls_mode" = external ]; then
-  ln -sfn "$vls_path" "$prefix/bin/vls"
-fi
 
-compiler_add=
-compiler_launcher=
-compiler_choice=system
-if [ "$managed_v" = true ]; then
-  compiler_add="$prefix/opt/vlang-v/current:"
-  compiler_launcher="'$prefix/opt/vlang-v/current':"
-  compiler_choice=managed
+# Generate the configuration through V when the selected compiler can run it.
+config_status=125
+if compiler=$(find_maintenance_v --prefix "$prefix"); then
+  config_status=0
+  run_maintenance_program "$compiler" "$script_dir/setup-configuration.vsh" \
+    "$prefix" "$repo_dir" "$config_home" "$kak_runtime" "$lsp_bin" "$integrate" \
+    "$managed_v" "$compiler_policy" "$explorer" "$live_search" "$pane_mode" "$window_backend" "$managed_kak" || config_status=$?
+  if [ "$config_status" -eq 125 ]; then
+    echo 'V could not prepare the configuration writer. Using shell configuration.' >&2
+  fi
 fi
-kak_config=$config_home/kak
-autoload=$kak_config/autoload
-mkdir -p "$kak_config"
-kak_config=$(CDPATH= cd -- "$kak_config" && pwd)
-autoload=$kak_config/autoload
-user_config=$kak_config/vlang-user.kak
-if [ -L "$user_config" ] && [ ! -e "$user_config" ]; then
-  echo "Broken personal configuration link: $user_config. Resolve it before setup." >&2
-  exit 1
-fi
-if [ ! -e "$user_config" ]; then
-  printf '# Personal V IDE settings. setup.sh and update.sh keep this file.\n' > "$user_config"
-fi
-quoted_user_config=$(printf %s "$user_config" | sed "s/'/''/g")
-if [ "$integrate" = true ]; then
-  kakrc=$kak_config/kakrc
-  if [ -L "$kakrc" ] && [ ! -e "$kakrc" ]; then
-    echo "Broken kakrc link: $kakrc. Resolve it before --integrate." >&2
-    exit 1
-  fi
-  if [ -f "$kakrc" ] && ! awk '
-    /^# >>> vlang.kak managed >>>$/ { if (opened || count++) exit 1; opened=1 }
-    /^# <<< vlang.kak managed <<<$/{ if (!opened) exit 1; opened=0 }
-    END { if (opened) exit 1 }
-  ' "$kakrc"; then
-    echo "Malformed managed block in $kakrc; refusing to rewrite user settings." >&2
-    exit 1
-  fi
-  site_link=$autoload/vlang-site-runtime
-  plugin_link=$autoload/vlang.kak
-  for link in "$site_link" "$plugin_link"; do
-    if [ -e "$link" ] && [ ! -L "$link" ]; then
-      echo "Existing unmanaged autoload entry at $link" >&2
-      exit 1
-    fi
-  done
-  if [ -L "$plugin_link" ] && [ "$(readlink -f "$plugin_link")" != "$repo_dir/rc/vlang.kak" ]; then
-    echo "Conflicting plugin link: $plugin_link. Keep it or move it yourself before --integrate." >&2
-    exit 1
-  fi
-  if [ -L "$site_link" ] && [ "$(readlink -f "$site_link")" != "$(readlink -f "$kak_runtime/rc")" ] &&
-     { [ ! -f "$kak_config/kakrc" ] || ! grep -q '^# >>> vlang.kak managed >>>$' "$kak_config/kakrc"; }; then
-    echo "Conflicting runtime link: $site_link. Resolve it before --integrate." >&2
-    exit 1
-  fi
-  mkdir -p "$autoload"
-  # A user autoload directory suppresses Kakoune's system autoload directory.
-  ln -sfn "$kak_runtime/rc" "$site_link"
-  ln -sfn "$repo_dir/rc/vlang.kak" "$plugin_link"
-
-  touch "$kakrc"
-  kakrc_target=$(readlink -f "$kakrc")
-  temporary=$(mktemp "$kakrc_target.XXXXXXXX")
-  trap 'rm -f -- "$temporary"' EXIT HUP INT TERM
-  if grep -q '^# >>> vlang.kak managed >>>$' "$kakrc_target"; then
-    sed '/^# >>> vlang.kak managed >>>$/,/^# <<< vlang.kak managed <<<$/{d;}' \
-      "$kakrc_target" > "$temporary"
-  else
-    cat "$kakrc_target" > "$temporary"
-  fi
-  existing_lsp=false
-  if grep -E '^[^#]*kak-lsp' "$temporary" >/dev/null 2>&1; then
-    existing_lsp=true
-  fi
-  if [ -s "$temporary" ] &&
-     [ "$(tail -c 1 "$temporary" | od -An -tu1 | tr -d '[:space:]')" != 10 ]; then
-    printf '\n' >> "$temporary"
-  fi
-  {
-    printf '# >>> vlang.kak managed >>>\n'
-    printf 'v-enable-filetype-detection\n'
-    if [ "$existing_lsp" = false ] && [ -x "$lsp_bin" ]; then
-      printf 'eval %%sh{ PATH="%s/bin:%s$PATH" "%s" }\n' "$prefix" "$compiler_add" "$lsp_bin"
-      printf 'set-option global lsp_cmd %s\n' "'\"$lsp_bin\" --session \"\$kak_session\"'"
-    fi
-    printf 'set-option global v_explorer_enabled %s\n' "$explorer"
-    printf 'set-option global v_live_search_enabled %s\n' "$live_search"
-    printf 'set-option global v_pane_mode %s\n' "$pane_mode"
-    printf 'set-option global v_window_backend %s\n' "$window_backend"
-    printf "source '%s'\n" "$quoted_user_config"
-    printf '# <<< vlang.kak managed <<<\n'
-  } >> "$temporary"
-  if cmp -s "$temporary" "$kakrc_target"; then
-    echo "Configuration unchanged: $kakrc_target"
-  else
-    backup=$(mktemp "$kakrc_target.vlang-backup.XXXXXXXX")
-    cp -p "$kakrc_target" "$backup"
-    cat "$temporary" > "$kakrc_target"
-    echo "Configured $kakrc_target (backup: $backup)"
-  fi
-  if [ "$existing_lsp" = true ]; then
-    echo "Existing kak-lsp startup kept. Check that it uses the installed kak-lsp and VLS."
-  fi
-
-fi
-
-# A clean launcher is useful when an existing kakrc has unrelated or stale hooks.
-isolated_config=$prefix/opt/vlang-kakoune/ide-config/kak
-mkdir -p "$isolated_config/autoload" "$prefix/bin"
-ln -sfn "$kak_runtime/rc" "$isolated_config/autoload/vlang-site-runtime"
-ln -sfn "$repo_dir/rc/vlang.kak" "$isolated_config/autoload/vlang.kak"
-{
-  printf '# vlang.kak managed isolated configuration\n'
-  printf 'v-enable-filetype-detection\n'
-  printf '# vlang.kak integrate: %s\n' "$integrate"
-  printf '# vlang.kak compiler: %s\n' "$compiler_choice"
-  printf '# vlang.kak compiler-policy: %s\n' "$compiler_policy"
-  if [ -x "$lsp_bin" ]; then
-    printf 'eval %%sh{ PATH="%s/bin:%s$PATH" "%s" }\n' "$prefix" "$compiler_add" "$lsp_bin"
-    printf 'set-option global lsp_cmd %s\n' "'\"$lsp_bin\" --session \"\$kak_session\"'"
-  fi
-  printf 'set-option global v_explorer_enabled %s\n' "$explorer"
-  printf 'set-option global v_live_search_enabled %s\n' "$live_search"
-  printf 'set-option global v_pane_mode %s\n' "$pane_mode"
-  printf 'set-option global v_window_backend %s\n' "$window_backend"
-  printf "source '%s'\n" "$quoted_user_config"
-  printf '%s\n' 'hook -once global ClientCreate .* %{ evaluate-commands %sh{'
-  printf '%s\n' '  if [ -n "${VLANG_KAK_RESTART_SOURCE:-}" ]; then'
-  printf '%s\n' '    printf "source '\''%s'\''\\n" "$VLANG_KAK_RESTART_SOURCE"'
-  printf '%s\n' '  fi'
-  printf '%s\n' '} }'
-} > "$isolated_config/kakrc.next"
-mv -Tf "$isolated_config/kakrc.next" "$isolated_config/kakrc"
-ide_launcher=$prefix/bin/kak-v
-if [ -e "$ide_launcher" ] &&
-   ! grep -q '^# vlang.kak managed IDE launcher$' "$ide_launcher"; then
-  echo "Existing unmanaged launcher at $ide_launcher; choose another --prefix." >&2
-  exit 1
-fi
-cat > "$ide_launcher.tmp" <<EOF
-#!/bin/sh
-# vlang.kak managed IDE launcher
-XDG_CONFIG_HOME='$prefix/opt/vlang-kakoune/ide-config'
-VLANG_KAK_CONFIG_HOME='$(printf %s "$config_home" | sed "s/'/'\\\\''/g")'
-PATH='$prefix/bin':$compiler_launcher\$PATH
-VLANG_KAK_PREFIX='$prefix'
-VLANG_KAK_REPO='$(printf %s "$repo_dir" | sed "s/'/'\\\\''/g")'
-VLANG_KAK_RESTART_ALLOWED=1
-for argument in "\$@"; do
-  case "\$argument" in
-    -c|-C|-d|-p|-f) VLANG_KAK_RESTART_ALLOWED=0 ;;
-  esac
-done
-restart_dir=\$(mktemp -d '$prefix/opt/vlang-kakoune/restart.XXXXXXXX') || exit 1
-printf '%s\n' "\$\$" > "\$restart_dir/owner-pid"
-for tool in kakoune kak-lsp vls v; do readlink -f '$prefix/opt/vlang-'"\$tool/current" 2>/dev/null || true; done > "\$restart_dir/tool-releases"
-VLANG_KAK_RESTART_STATE=\$restart_dir/state.kak
-export XDG_CONFIG_HOME PATH VLANG_KAK_CONFIG_HOME VLANG_KAK_PREFIX VLANG_KAK_REPO \
-  VLANG_KAK_RESTART_STATE VLANG_KAK_RESTART_ALLOWED
-trap 'rm -f "\$restart_dir/owner-pid" "\$restart_dir/tool-releases" "\$restart_dir/state.kak" "\$restart_dir/replay.kak"; rmdir "\$restart_dir"' EXIT
-while :; do
-  if [ -s "\$VLANG_KAK_RESTART_STATE" ]; then
-    mv "\$VLANG_KAK_RESTART_STATE" "\$restart_dir/replay.kak"
-    VLANG_KAK_RESTART_SOURCE="\$restart_dir/replay.kak" kak "\$@"
-    status=\$?
-    rm -f "\$restart_dir/replay.kak"
-  else
-    kak "\$@"
-    status=\$?
-  fi
-  if [ "\$status" -ne 75 ] || [ ! -s "\$VLANG_KAK_RESTART_STATE" ]; then
-    exit "\$status"
-  fi
-done
-EOF
-chmod 755 "$ide_launcher.tmp"
-mv -f "$ide_launcher.tmp" "$ide_launcher"
+case "$config_status" in
+  0) user_config=$config_home/kak/vlang-user.kak; ide_launcher=$prefix/bin/kak-v ;;
+  125) . "$script_dir/setup-configuration-posix" ;;
+  *) exit "$config_status" ;;
+esac
 if [ "$explorer" = true ]; then
   "$script_dir/explorer.sh" --prepare
 fi

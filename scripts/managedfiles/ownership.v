@@ -14,10 +14,7 @@ pub:
 pub fn acquire_lock(state string, operation string) !string {
 	path := os.join_path(state, 'lock')
 	pid := os.getpid()
-	process_stat := os.read_file('/proc/${pid}/stat')!
-	birth := process_stat.all_after_last(') ').fields()[19] or {
-		return error('Could not determine the installation lock owner start time.')
-	}
+	birth := process_start(pid)!
 	identity := '${pid} ${birth} ${operation}\n'
 	os.mkdir(path) or {
 		return error('Installation lock is unavailable at ${path}. Inspect it with scripts/lock.sh.')
