@@ -198,63 +198,13 @@ provide-module v %§
   ]
 
   ## V-LANG COMMANDS
-  define-command -params 0 -docstring "Looks for a v.mod file in up to 3 parent directories and runs v in there. If none is found, it runs v in the current directory. The output is printed to the info box and *debug* buffer" v-run %{
-    require-module sh
-
-    declare-option -hidden str v_mod_file_dir %sh{
-      case $kak_buffile in
-        */*) buffer_dir=${kak_buffile%/*} ;;
-        *) buffer_dir=. ;;
-      esac
-
-      run_dir=$buffer_dir
-      search_dir=$buffer_dir
-      level=0
-      while [ "$level" -le 3 ]; do
-        if [ -f "$search_dir/v.mod" ]; then
-          run_dir=$search_dir
-          break
-        fi
-
-        parent_dir=${search_dir%/*}
-        test -n "$parent_dir" || parent_dir=/
-        test "$parent_dir" != "$search_dir" || break
-        search_dir=$parent_dir
-        level=$((level + 1))
-      done
-
-      printf %s "$run_dir"
+  declare-option -hidden str v_output
+  define-command -params 0 -docstring 'Run V near the buffer and show the output in the info and debug buffers' v-run %{
+    evaluate-commands %sh{
+      source=$(readlink -f "$kak_opt_v_plugin_source")
+      "${source%/rc/vlang.kak}/scripts/helper-cache.sh" task run "$kak_buffile" "$kak_opt_v_run_command" \
+        "$kak_opt_v_output_to_info_box" "$kak_opt_v_output_to_debug_buffer"
     }
-
-    # print v output to debug buffer and info box
-    declare-option -hidden str v_output %sh{
-      cd "$kak_opt_v_mod_file_dir" || exit 1
-      eval "$kak_opt_v_run_command" 2>&1 || true
-    }
-
-    # prepare if v_output should be printed to info box
-    declare-option -hidden str v_info_box_output_command %sh{
-      if [ "${kak_opt_v_output_to_info_box}" = "true" ]; then
-        echo 'info %opt{v_output}'
-      else
-        echo ''
-      fi
-    }
-
-    # prepare if v_output should be echoed to *debug* buffer
-    declare-option -hidden str v_debug_buffer_output_command %sh{
-      if [ "${kak_opt_v_output_to_debug_buffer}" = "true" ]; then
-        echo 'echo -debug %opt{v_output}'
-      else
-        echo ''
-      fi
-    }
-
-    #info %opt{v_output}
-    eval %opt{v_info_box_output_command}
-
-    #echo -debug %opt{v_output}
-    eval %opt{v_debug_buffer_output_command}
   }
 
   define-command -params 0 -docstring "Formats the current buffer and saves it" v-fmt %{
@@ -835,15 +785,11 @@ hook -group v-task-context global BufOpenFifo .* %{ set-option buffer v_task_out
 define-command -hidden -params 1 v-make-command %{
   # Capture the source before make switches to the tools client/buffer.
   evaluate-commands %sh{
-    quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
     if [ "$kak_opt_v_task_output" = true ]; then
-      origin=$kak_opt_v_task_origin
-      selection=$kak_opt_v_task_selection
+      echo 'v-make-run %arg{1} %opt{v_task_origin} %opt{v_task_selection} %opt{makecmd} %val{bufname}'
     else
-      origin=$kak_bufname
-      selection=$kak_selection_desc
+      echo 'v-make-run %arg{1} %val{bufname} %val{selection_desc} %opt{makecmd} %val{bufname}'
     fi
-    printf 'v-make-run %s %s %s %s %s\n' "$(quote "$1")" "$(quote "$origin")" "$(quote "$selection")" "$(quote "$kak_opt_makecmd")" "$(quote "$kak_bufname")"
   }
 }
 define-command -hidden -params 5 v-make-run %{
@@ -875,54 +821,18 @@ define-command v-task-return -docstring 'Return to the source of this V task' %{
   v-results-return %opt{v_task_origin} %opt{v_task_selection}
 }
 
-define-command -params 1 v-task -docstring 'Run a V check, build, run, test, or vet task' %{
+define-command -hidden -params 1.. v-task-dispatch %{
   evaluate-commands %sh{
     task=$1
-    case "$task" in
-      build) command=$kak_opt_v_build_command ;;
-      check) command=$kak_opt_v_check_command ;;
-      run) command=$kak_opt_v_run_command ;;
-      test) command=$kak_opt_v_test_command ;;
-      vet) command=$kak_opt_v_vet_command ;;
-      *) printf "fail 'Unknown V task: %s'\n" "$1"; exit ;;
-    esac
-    file=$kak_buffile
-    if [ -z "$file" ]; then
-      echo "fail 'Open a V file before running a project task'"
-      exit
-    fi
-    file=$(readlink -f "$file")
-    directory=${file%/*}
-    [ "$directory" != "$file" ] || directory=.
-    root=$directory
-    current=$directory
-    while :; do
-      if [ -f "$current/v.mod" ] || [ -d "$current/.git" ]; then
-        root=$current
-        break
-      fi
-      parent=${current%/*}
-      [ -n "$parent" ] || parent=/
-      [ "$parent" != "$current" ] || break
-      current=$parent
-    done
-    shell_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/'\\\\''/g")"; }
-    if [ "$task" = check ]; then command="$command $(shell_quote "$file")"; fi
-    if [ "$task" = run ]; then
-      if [ -n "$kak_opt_v_project_cwd" ]; then root=$kak_opt_v_project_cwd; fi
-      if [ -n "$kak_opt_v_project_target" ]; then
-        case "$command" in *' .') command=${command% .}; command="$command $(shell_quote "$kak_opt_v_project_target")" ;; esac
-      fi
-      eval "set -- $kak_quoted_opt_v_project_args"
-      for argument do command="$command $(shell_quote "$argument")"; done
-    fi
-    shell_command="cd $(shell_quote "$root") && printf 'V task output\\n' && $command"
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    if [ "$task" = test ]; then
-      printf 'set-option global v_last_test_command %s\n' "$(kak_quote "$shell_command")"
-    fi
-    printf 'v-make-command %s\n' "$(kak_quote "$shell_command")"
+    shift
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/helper-cache.sh" task project "$task" "$kak_buffile" \
+      "$kak_opt_v_build_command" "$kak_opt_v_check_command" "$kak_opt_v_run_command" "$kak_opt_v_test_command" \
+      "$kak_opt_v_vet_command" "$kak_opt_v_project_cwd" "$kak_opt_v_project_target" "$@"
   }
+}
+define-command -params 1 v-task -docstring 'Run a V check, build, run, test, or vet task' %{
+  v-task-dispatch %arg{1} %opt{v_project_args}
 }
 define-command v-build -docstring 'Build V project' %{ v-task build }
 define-command v-check-file -docstring 'Check the current V file' %{ v-task check }
@@ -930,46 +840,9 @@ define-command v-run-project -docstring 'Run V project in *make*' %{ v-task run 
 define-command v-test -docstring 'Test V project' %{ v-task test }
 define-command v-test-nearest -docstring 'Run the test function above the cursor in this V test file' %{
   evaluate-commands %sh{
-    file=$kak_buffile
-    case "$file" in
-      *_test.v) ;;
-      *) echo "fail 'Open a _test.v file to run a test at the cursor'"; exit ;;
-    esac
-    [ "$kak_modified" = false ] || {
-      echo "fail 'Save the test file before running a test at the cursor'"
-      exit
-    }
-    [ -f "$file" ] || { echo "fail 'Save the test file first'"; exit; }
-    file=$(readlink -f "$file")
-    test_name=$(awk -v cursor="$kak_cursor_line" '
-      /^[[:space:]]*(pub[[:space:]]+)?fn[[:space:]]+test_[A-Za-z0-9_]+[[:space:]]*\(/ {
-        name = $0
-        sub(/^[[:space:]]*(pub[[:space:]]+)?fn[[:space:]]+/, "", name)
-        sub(/[[:space:]]*\(.*/, "", name)
-        if (NR <= cursor) before = name
-        else if (after == "") after = name
-      }
-      END { if (before != "") print before; else print after }
-    ' "$file")
-    [ -n "$test_name" ] || { echo "fail 'No test_ function found in this file'"; exit; }
-    directory=${file%/*}
-    root=$directory
-    current=$directory
-    while :; do
-      if [ -f "$current/v.mod" ] || [ -d "$current/.git" ]; then
-        root=$current
-        break
-      fi
-      parent=${current%/*}
-      [ -n "$parent" ] || parent=/
-      [ "$parent" != "$current" ] || break
-      current=$parent
-    done
-    shell_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/'\\\\''/g")"; }
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    shell_command="cd $(shell_quote "$root") && printf 'V task output\\n' && $kak_opt_v_test_file_command -run-only $(shell_quote "$test_name") $(shell_quote "$file")"
-    printf 'set-option global v_last_test_command %s\n' "$(kak_quote "$shell_command")"
-    printf 'v-make-command %s\n' "$(kak_quote "$shell_command")"
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/helper-cache.sh" task nearest "$kak_buffile" "$kak_modified" \
+      "$kak_cursor_line" "$kak_opt_v_test_file_command"
   }
 }
 define-command v-repeat-test -docstring 'Rerun the last V test command' %{
@@ -978,19 +851,15 @@ define-command v-repeat-test -docstring 'Rerun the last V test command' %{
       echo "fail 'Run v-test or v-test-nearest first'"
       exit
     }
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    printf 'v-make-command %s\n' "$(kak_quote "$kak_opt_v_last_test_command")"
+    echo 'v-make-command %opt{v_last_test_command}'
   }
 }
 define-command -hidden v-prepare-task-errors %{
   evaluate-commands -buffer '*make*' %{
     evaluate-commands %sh{
-      pattern=$kak_opt_v_task_error_pattern
-      case "$kak_opt_make_error_pattern" in
-        ^*) pattern="^([^:\\n]+):(\\d+):(?:(\\d+):)?(${pattern}\\N*)" ;;
-      esac
-      kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-      printf 'set-option buffer make_error_pattern %s\n' "$(kak_quote "$pattern")"
+      source=$(readlink -f "$kak_opt_v_plugin_source")
+      "${source%/rc/vlang.kak}/scripts/helper-cache.sh" task errors "$kak_opt_v_task_error_pattern" \
+        "$kak_opt_make_error_pattern"
     }
   }
 }

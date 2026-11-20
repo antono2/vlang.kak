@@ -164,7 +164,7 @@ fn clean_releases(prefix string, state string, apply bool, manifest map[string]M
 
 fn is_compiled_helper(name string) bool {
 	for prefix in ['explorer-', 'debug-', 'preferences-', 'windowing-', 'helper-dispatch-',
-		'checkpoint-', 'history-'] {
+		'checkpoint-', 'history-', 'task-'] {
 		if name.starts_with(prefix) && name.len > prefix.len {
 			return name[prefix.len].is_digit()
 		}

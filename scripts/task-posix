@@ -1,0 +1,121 @@
+#!/bin/sh
+# Keep custom tasks usable while a V compiler is unavailable.
+set -eu
+
+kak_quote() {
+    quoted=$(printf '%s.' "$1" | sed "s/'/''/g")
+    printf "'%s'" "${quoted%.}"
+}
+shell_quote() {
+    quoted=$(printf '%s.' "$1" | sed "s/'/'\\\\''/g")
+    printf "'%s'" "${quoted%.}"
+}
+refuse() { printf 'fail %s\n' "$(kak_quote "$1")"; }
+parent_dir() {
+    parent=${1%/*}
+    printf '%s' "${parent:-/}"
+}
+project_root() {
+    directory=$1
+    while :; do
+        if [ -f "$directory/v.mod" ] || [ -d "$directory/.git" ] || [ -f "$directory/.git" ]; then
+            printf '%s' "$directory"
+            return
+        fi
+        parent=$(parent_dir "$directory")
+        [ "$parent" != "$directory" ] || break
+        directory=$parent
+    done
+    printf '%s' "$1"
+}
+print_task() {
+    quoted_command=$(kak_quote "cd $(shell_quote "$1") && printf 'V task output\n' && $2")
+    if [ "$3" = true ]; then printf 'set-option global v_last_test_command %s\n' "$quoted_command"; fi
+    printf 'v-make-command %s\n' "$quoted_command"
+}
+
+mode=${1:-}
+[ "$#" -ge 1 ] || exit 2
+shift
+case "$mode" in
+    project)
+        [ "$#" -ge 9 ] || exit 2
+        task=$1
+        case "$task" in
+            build) command=$3 ;;
+            check) command=$4 ;;
+            run) command=$5 ;;
+            test) command=$6 ;;
+            vet) command=$7 ;;
+            *) refuse "Unknown V task: $task"; exit ;;
+        esac
+        [ -n "$2" ] || { refuse 'Open a V file before running a project task'; exit; }
+        file=$(readlink -f -- "$2")
+        root=$(project_root "$(parent_dir "$file")")
+        if [ "$task" = check ]; then command="$command $(shell_quote "$file")"; fi
+        if [ "$task" = run ]; then
+            [ -z "$8" ] || root=$8
+            if [ -n "$9" ]; then
+                case "$command" in *' .') command="${command%.}$(shell_quote "$9")" ;; esac
+            fi
+            shift 9
+            for argument do command="$command $(shell_quote "$argument")"; done
+        fi
+        remember=false
+        if [ "$task" = test ]; then remember=true; fi
+        print_task "$root" "$command" "$remember"
+        ;;
+    nearest)
+        [ "$#" -eq 4 ] || exit 2
+        case "$1" in
+            *_test.v) ;;
+            *) refuse 'Open a _test.v file to run a test at the cursor'; exit ;;
+        esac
+        [ "$2" = false ] || { refuse 'Save the test file before running a test at the cursor'; exit; }
+        [ -f "$1" ] || { refuse 'Save the test file first'; exit; }
+        file=$(readlink -f -- "$1")
+        name=$(awk -v cursor="$3" '
+          /^[[:space:]]*(pub[[:space:]]+)?fn[[:space:]]+test_[A-Za-z0-9_]+[[:space:]]*\(/ {
+            name=$0
+            sub(/^[[:space:]]*(pub[[:space:]]+)?fn[[:space:]]+/, "", name)
+            sub(/[[:space:]]*\(.*/, "", name)
+            if (NR <= cursor) before=name
+            else { after=name; exit }
+          }
+          END { if (before != "") print before; else print after }
+        ' "$file")
+        [ -n "$name" ] || { refuse 'No test_ function found in this file'; exit; }
+        print_task "$(project_root "$(parent_dir "$file")")" \
+            "$4 -run-only $(shell_quote "$name") $(shell_quote "$file")" true
+        ;;
+    run)
+        [ "$#" -eq 4 ] || exit 2
+        case "$1" in
+            /*) start=$(parent_dir "$1") ;;
+            '') start=$PWD ;;
+            *) start=$(parent_dir "$PWD/$1") ;;
+        esac
+        current=$start
+        level=0
+        while [ "$level" -le 3 ]; do
+            if [ -f "$current/v.mod" ]; then start=$current; break; fi
+            parent=$(parent_dir "$current")
+            [ "$parent" != "$current" ] || break
+            current=$parent
+            level=$((level + 1))
+        done
+        output=$(cd "$start" && sh -c "$2" 2>&1) || :
+        printf 'set-option global v_output %s\n' "$(kak_quote "$output")"
+        if [ "$3" = true ]; then printf 'info %%opt{v_output}\n'; fi
+        if [ "$4" = true ]; then printf 'echo -debug %%opt{v_output}\n'; fi
+        ;;
+    errors)
+        [ "$#" -eq 2 ] || exit 2
+        pattern=$1
+        case "$2" in
+            ^*) pattern="^([^:\\n]+):(\\d+):(?:(\\d+):)?($pattern\\N*)" ;;
+        esac
+        printf 'set-option buffer make_error_pattern %s\n' "$(kak_quote "$pattern")"
+        ;;
+    *) exit 2 ;;
+esac

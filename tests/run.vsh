@@ -215,6 +215,7 @@ fn (mut suite Suite) run() ! {
 	suite.script('helper_cache.vsh', [])!
 	suite.script('session_checkpoint.vsh', [])!
 	suite.script('explorer.vsh', [os.join_path(scripts, 'explorer.sh')])!
+	suite.script('tasks.vsh', [os.join_path(scripts, 'helper-cache.sh')])!
 	suite.script('windowing.vsh', [os.join_path(scripts, 'windowing.sh')])!
 	suite.script('setup_activation.vsh', [])!
 

@@ -7,6 +7,7 @@ All notable changes to `vlang.kak` will be documented in this file.
 ### Fixed
 
 - Start `:v-search` at the project root from nested files in linked Git worktrees.
+- Start V project tasks and tests at the project root from nested files in linked Git worktrees.
 
 ## 1.2.1 - 2026-10-02
 
