@@ -171,44 +171,39 @@ if [ "$vls_mode" = auto ]; then
   fi
 fi
 
-# Prefer an existing compiler that can compile the helpers and current VLS.
-# A fallback lives in the managed prefix and never replaces the system compiler.
-compiler_policy=auto
-case "$managed_v" in true) compiler_policy=managed ;; system) compiler_policy=system ;; esac
-if [ "$managed_v" = auto ]; then
-  if [ -f "$settings_file" ] && grep -q '^# vlang.kak compiler-policy: system$' "$settings_file"; then managed_v=system; compiler_policy=system
-  elif [ -x "$prefix/opt/vlang-v/current/v" ]; then managed_v=true; fi
+# Resolve compiler policy before installing or building any tools.
+compiler_plan_status=125
+if compiler=$(find_maintenance_v --prefix "$prefix"); then
+  compiler_plan_status=0
+  compiler_plan=$(run_maintenance_program "$compiler" "$script_dir/setup-compiler.vsh" \
+    "$prefix" "$settings_file" "$managed_v" "$build" "$install_lsp" "$explorer" "$vls_mode") || compiler_plan_status=$?
+  if [ "$compiler_plan_status" -eq 125 ]; then
+    echo 'V could not prepare the compiler selector. Using shell compiler selection.' >&2
+  fi
 fi
-if [ "$managed_v" = system ]; then
-  old_ifs=$IFS; IFS=:
-  filtered=
-  for part in $PATH; do
-    case "$part" in "$prefix/opt/vlang-v/current"|"$prefix/opt/vlang-v/candidate") continue ;; esac
-    filtered=${filtered:+$filtered:}$part
-  done
-  IFS=$old_ifs; PATH=$filtered; export PATH
-elif [ -x "$prefix/opt/vlang-v/current/v" ]; then PATH="$prefix/opt/vlang-v/current:$PATH"; export PATH; fi
-compiler_ok=false
-probe=$(mktemp -d)
-json_import=x.json2
-case "$vls_mode" in auto|upstream) json_import=json2 ;; esac
-printf 'import %s\nfn main() { _ = json2.Any(0) }\n' "$json_import" > "$probe/probe.v"
-if command -v v >/dev/null 2>&1 && v -check "$probe/probe.v" >/dev/null 2>&1; then compiler_ok=true; fi
-rm -rf "$probe"
-compiler_required=false
-if [ "$build" = true ] || [ "$install_lsp" = true ] || [ "$explorer" = true ] || [ "$vls_mode" = auto ] || [ "$vls_mode" = upstream ]; then
-  compiler_required=true
-fi
-if [ "$managed_v" = system ] && [ "$compiler_ok" = false ] && [ "$compiler_required" = true ]; then
-  echo 'Selected system V cannot compile the requested stack; use --managed-v or supply a compatible compiler on PATH.' >&2; exit 1
-fi
-if [ "$managed_v" = true ] || { [ "$managed_v" != system ] && [ "$compiler_ok" = false ] && [ "$compiler_required" = true ]; }; then
+case "$compiler_plan_status" in
+  0)
+    # The first three lines are fixed values. The final dot preserves even a
+    # trailing newline in PATH through POSIX command substitution.
+    line_break='
+'
+    compiler_policy=${compiler_plan%%"$line_break"*}
+    compiler_plan=${compiler_plan#*"$line_break"}
+    managed_v=${compiler_plan%%"$line_break"*}
+    compiler_plan=${compiler_plan#*"$line_break"}
+    install_managed_v=${compiler_plan%%"$line_break"*}
+    compiler_plan=${compiler_plan#*"$line_break"}
+    PATH=${compiler_plan%.}
+    export PATH
+    ;;
+  125) . "$script_dir/setup-compiler-posix" ;;
+  *) exit "$compiler_plan_status" ;;
+esac
+if [ "$install_managed_v" = true ]; then
   "$script_dir/install-v.sh" "$prefix"
   PATH="$prefix/opt/vlang-v/candidate:$PATH"
   export PATH
   managed_v=true
-elif [ "$managed_v" != system ] && [ -x "$prefix/opt/vlang-v/current/v" ]; then
-  PATH="$prefix/opt/vlang-v/current:$PATH"; export PATH
 fi
 
 if [ "$build" = true ]; then
