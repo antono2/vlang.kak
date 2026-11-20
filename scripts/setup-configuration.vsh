@@ -260,10 +260,6 @@ fn (setup Setup) write_configuration() ! {
 		shell_quote(setup.prefix),
 		'@REPO@',
 		shell_quote(setup.repo),
-		'@RESTART_PATTERN@',
-		shell_quote(os.join_path(root, 'restart.XXXXXXXX')),
-		'@TOOL_PREFIX@',
-		shell_quote(os.join_path(setup.prefix, 'opt', 'vlang-')),
 	])
 	publish(launcher, text, 0o755)!
 }

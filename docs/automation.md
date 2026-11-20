@@ -26,6 +26,10 @@ For an editor-only setup using your system Kakoune, run:
 
 Setup can read and preserve these preferences even when V is unavailable.
 
+The installed `kak-v` launcher uses a cached V program to track active tool
+releases and restore editor state after a restart. Editor-only installations
+can still launch and restore sessions without a V compiler.
+
 If the current V compiler cannot compile the helpers/current VLS, setup builds
 the release-tested V revision under `PREFIX/opt/vlang-v`. `kak-v` uses it through
 its own PATH. Your existing V compiler and shell configuration remain intact.
