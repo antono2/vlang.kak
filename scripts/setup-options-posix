@@ -1,0 +1,66 @@
+# Parse setup arguments before a V compiler is available.
+usage() {
+  cat <<'EOF'
+Usage: scripts/setup.sh [--update] [--integrate]
+                        [--vls PATH | --vls-upstream | --no-vls]
+                        [--vls-ref GIT_REF] [--prefix DIRECTORY]
+                        [--kakoune-version TAG_OR_COMMIT_OR_master] [--lsp-version TAG]
+                        [--no-build] [--no-lsp] [--managed-v | --system-v] [--install-dependencies]
+                        [--explorer | --no-explorer] [--live-search | --no-live-search]
+                        [--pane-mode auto|always|off]
+                        [--window-backend auto|tmux|zellij|wezterm|kitty|screen|native]
+Installs Kakoune, kak-lsp and upstream VLS under $HOME/.local by default, links this plugin
+into an isolated kak-v configuration. --integrate explicitly opts into adding
+links and a marked block to your regular Kakoune configuration.
+--update also fast-forwards a clean vlang.kak checkout.
+EOF
+}
+
+prefix=$HOME/.local
+integrate=
+explorer=
+live_search=
+pane_mode=
+window_backend=
+kakoune_version=latest
+lsp_version=latest
+vls_path=
+vls_mode=auto
+vls_ref=
+update=false
+install_dependencies=false
+managed_v=auto
+repair=false
+build=true
+install_lsp=true
+missing_value() {
+  echo "$1 requires a value." >&2
+  exit 2
+}
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --install-dependencies) install_dependencies=true; shift ;;
+    --repair) repair=true; shift ;;
+    --system-v) managed_v=system; shift ;;
+    --managed-v) managed_v=true; shift ;;
+    --update) update=true; shift ;;
+    --integrate) integrate=true; shift ;;
+    --explorer) explorer=true; shift ;;
+    --no-explorer) explorer=false; shift ;;
+    --live-search) live_search=true; shift ;;
+    --no-live-search) live_search=false; shift ;;
+    --pane-mode) [ "$#" -ge 2 ] || missing_value "$1"; pane_mode=$2; shift 2 ;;
+    --window-backend) [ "$#" -ge 2 ] || missing_value "$1"; window_backend=$2; shift 2 ;;
+    --vls) [ "$#" -ge 2 ] || missing_value "$1"; vls_path=$2; vls_mode=external; shift 2 ;;
+    --vls-upstream) vls_mode=upstream; shift ;;
+    --no-vls) vls_mode=skip; shift ;;
+    --vls-ref) [ "$#" -ge 2 ] || missing_value "$1"; vls_ref=$2; vls_mode=upstream; shift 2 ;;
+    --prefix) [ "$#" -ge 2 ] || missing_value "$1"; prefix=$2; shift 2 ;;
+    --kakoune-version) [ "$#" -ge 2 ] || missing_value "$1"; kakoune_version=$2; shift 2 ;;
+    --lsp-version) [ "$#" -ge 2 ] || missing_value "$1"; lsp_version=$2; shift 2 ;;
+    --no-build) build=false; shift ;;
+    --no-lsp) install_lsp=false; shift ;;
+    --help|-h) usage; exit 0 ;;
+    *) usage >&2; exit 2 ;;
+  esac
+done

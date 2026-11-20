@@ -2,69 +2,32 @@
 # Install or update a user-local V IDE without replacing distribution packages.
 set -eu
 
-usage() {
-  cat <<'EOF'
-Usage: scripts/setup.sh [--update] [--integrate]
-                        [--vls PATH | --vls-upstream | --no-vls]
-                        [--vls-ref GIT_REF] [--prefix DIRECTORY]
-                        [--kakoune-version TAG_OR_COMMIT_OR_master] [--lsp-version TAG]
-                        [--no-build] [--no-lsp] [--managed-v | --system-v] [--install-dependencies]
-                        [--explorer | --no-explorer] [--live-search | --no-live-search]
-                        [--pane-mode auto|always|off]
-                        [--window-backend auto|tmux|zellij|wezterm|kitty|screen|native]
-Installs Kakoune, kak-lsp and upstream VLS under $HOME/.local by default, links this plugin
-into an isolated kak-v configuration. --integrate explicitly opts into adding
-links and a marked block to your regular Kakoune configuration.
---update also fast-forwards a clean vlang.kak checkout.
-EOF
-}
-
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_dir=$(dirname -- "$script_dir")
 . "$script_dir/managed-v.inc"
-prefix=$HOME/.local
-integrate=
-explorer=
-live_search=
-pane_mode=
-window_backend=
-kakoune_version=latest
-lsp_version=latest
-vls_path=
-vls_mode=auto
-vls_ref=
-update=false
-managed_v=auto
-repair=false
-build=true
-install_lsp=true
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --install-dependencies) shift ;;
-    --repair) repair=true; shift ;;
-    --system-v) managed_v=system; shift ;;
-    --managed-v) managed_v=true; shift ;;
-    --update) update=true; shift ;;
-    --integrate) integrate=true; shift ;;
-    --explorer) explorer=true; shift ;;
-    --no-explorer) explorer=false; shift ;;
-    --live-search) live_search=true; shift ;;
-    --no-live-search) live_search=false; shift ;;
-    --pane-mode) pane_mode=$2; shift 2 ;;
-    --window-backend) window_backend=$2; shift 2 ;;
-    --vls) vls_path=$2; vls_mode=external; shift 2 ;;
-    --vls-upstream) vls_mode=upstream; shift ;;
-    --no-vls) vls_mode=skip; shift ;;
-    --vls-ref) vls_ref=$2; vls_mode=upstream; shift 2 ;;
-    --prefix) prefix=$2; shift 2 ;;
-    --kakoune-version) kakoune_version=$2; shift 2 ;;
-    --lsp-version) lsp_version=$2; shift 2 ;;
-    --no-build) build=false; shift ;;
-    --no-lsp) install_lsp=false; shift ;;
-    --help|-h) usage; exit 0 ;;
-    *) usage >&2; exit 2 ;;
-  esac
-done
+if [ "${1:-}" = --prepared-options ]; then
+  shift
+  # The prepared payload contains one argument for each field below.
+  [ "$#" -eq 16 ] || { echo 'Incomplete prepared setup options.' >&2; exit 2; }
+  prefix=$1
+  integrate=$2
+  explorer=$3
+  live_search=$4
+  pane_mode=$5
+  window_backend=$6
+  kakoune_version=$7
+  lsp_version=$8
+  vls_path=$9
+  vls_mode=${10}
+  vls_ref=${11}
+  update=${12}
+  managed_v=${13}
+  repair=${14}
+  build=${15}
+  install_lsp=${16}
+else
+  . "$script_dir/setup-options-posix"
+fi
 config_home=${VLANG_KAK_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}}
 # Older launchers exported only their isolated XDG directory. Recover the
 # personal path from our generated source line when updating those sessions.
