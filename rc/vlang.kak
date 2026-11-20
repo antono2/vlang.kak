@@ -1440,28 +1440,20 @@ define-command v-cleanup-apply -docstring 'Remove unchanged unused tool releases
 define-command v-removal-preview -docstring 'Preview removal of this managed installation' %{ v-maintenance-task uninstall }
 define-command v-check-updates -docstring 'Check for a published V IDE release' %{ v-maintenance-task check-updates }
 define-command v-update-release -docstring 'Update to the latest published, release-tested tool combination' %{ v-update --release }
-define-command v-settings-file -docstring 'Open personal V IDE customization' %{
-  evaluate-commands %sh{
-    config=${VLANG_KAK_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}}/kak/vlang-user.kak
-    printf "edit -existing '%s'\n" "$(printf %s "$config" | sed "s/'/''/g")"
-  }
-}
-define-command -params 2 v-setting -docstring 'Persist an IDE setting and apply it now' %{
+define-command -hidden -params 1.. v-setting-command %{
   evaluate-commands %sh{
     source=$(readlink -f "$kak_opt_v_plugin_source")
-    "${source%/rc/vlang.kak}/scripts/settings.sh" "$@" || echo "fail 'Setting could not be saved; inspect the error in *debug*'"
+    "${source%/rc/vlang.kak}/scripts/settings.sh" "$@" || echo "fail 'Settings command failed; inspect the error in *debug*'"
   }
 }
+define-command v-settings-file -docstring 'Open personal V IDE customization' %{
+  v-setting-command --file
+}
+define-command -params 2 v-setting -docstring 'Persist an IDE setting and apply it now' %{
+  v-setting-command %arg{@}
+}
 define-command v-settings -docstring 'Customize IDE behavior and open personal settings' %{
-  evaluate-commands %sh{
-    toggle() { if [ "$1" = true ]; then echo false; else echo true; fi; }
-    printf 'menu '
-    printf "'Explorer: %s (toggle)' 'v-setting v_explorer_enabled %s' " "$kak_opt_v_explorer_enabled" "$(toggle "$kak_opt_v_explorer_enabled")"
-    printf "'Live search: %s (toggle)' 'v-setting v_live_search_enabled %s' " "$kak_opt_v_live_search_enabled" "$(toggle "$kak_opt_v_live_search_enabled")"
-    printf "'Weekly release check: %s (toggle)' 'v-setting v_update_check_enabled %s' " "$kak_opt_v_update_check_enabled" "$(toggle "$kak_opt_v_update_check_enabled")"
-    for value in auto always off; do printf "'Pane mode: %s (current: %s)' 'v-setting v_pane_mode %s' " "$value" "$kak_opt_v_pane_mode" "$value"; done
-    printf "'Edit all personal settings' 'v-settings-file' 'Project run/debug settings' 'v-project-settings'\n"
-  }
+  v-setting-command --menu %opt{v_explorer_enabled} %opt{v_live_search_enabled} %opt{v_update_check_enabled} %opt{v_pane_mode}
 }
 define-command -hidden -params 1.. v-project-preference %{
   require-module v
