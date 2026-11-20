@@ -148,6 +148,12 @@ fn (session Session) exercise() ! {
 	})!
 	session.remote(extra, 'edit ${quote(second)}; select ${extra_selection}')!
 
+	refusal := os.join_path(session.root, 'restore-refusal')
+	session.remote(extra, 'try %{ v-session-restore } catch %{ echo -to-file ${quote(refusal)} %val{error} }')!
+	wait_for('restore refusal', editor_timeout, fn [refusal] () !bool {
+		return (os.read_file(refusal) or { '' }).contains('Restore in a fresh session or save/checkpoint existing edits first')
+	})!
+
 	session.interrupt_update()!
 	session.recover_update()!
 	require(session.value(owner, 'still-open', '%val{client_list}')! == both_clients,

@@ -72,6 +72,24 @@ fn check_saved_file_restart(root string, launcher string, lane map[string]string
 	assert failed.stdout.contains('Restart requires the managed kak-v launcher')
 }
 
+fn check_session_actions(launcher string, lane map[string]string) ! {
+	mut env := lane.clone()
+	env['kak_client'] = 'owner'
+	mut args := ['', 'owner', "other's %{\n"]
+	for action, command in {
+		'save-buffers':  'v-session-save-buffer'
+		'save-clients':  'v-session-save-client'
+		'check-buffers': 'v-session-check-buffer'
+	} {
+		args[0] = action
+		assert capture(launcher, args, true, environment: env)! == "${command} 'owner'\n${command} 'other''s %{\n'\n"
+	}
+	args[0] = 'close-clients'
+	assert capture(launcher, args, true, environment: env)! == "evaluate-commands -client 'other''s %{\n' %{ quit! }\n"
+	assert capture(launcher, ['close-clients', 'owner'], true, environment: env)! == ''
+	assert capture(launcher, ['check-buffers'], true, environment: env)! == ''
+}
+
 fn check() ! {
 	root := os.join_path(os.temp_dir(), "recovery reader's " + rand.uuid_v4())
 	os.mkdir(root, mode: 0o700)!
@@ -140,6 +158,7 @@ fn check() ! {
 		os.mkdir(publication)!
 		check_publication(publication, launcher, lane, i == 0)!
 		check_saved_file_restart(publication, launcher, lane)!
+		check_session_actions(launcher, lane)!
 		assert os.exists(fallback_marker) == (i > 0)
 	}
 
@@ -147,7 +166,8 @@ fn check() ! {
 	os.write_file(os.join_path(scripts, 'session-checkpoint.vsh'), 'invalid helper source')!
 	assert capture(launcher, ['restore', checkpoint], true, environment: env)! == expected
 	assert os.exists(fallback_marker)
-	println('ok - native and POSIX checkpoints and saved-file restart preserve editor state')
+	check_session_actions(launcher, env)!
+	println('ok - native and POSIX session actions, checkpoints and restart state')
 }
 
 check() or {
