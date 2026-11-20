@@ -130,9 +130,26 @@ fn check(root string, kak string) ! {
 		prefix: prefix
 		env:    old_env
 	}
+	missing_config := os.join_path(root, 'missing-config')
+	missing_source := "source '${missing_config}/kak/vlang-user.kak'\n"
+	os.write_file(generated, missing_source + os.read_file(generated)!)!
+	reader := os.join_path(@DIR, '..', 'scripts', 'setup-legacy-config.vsh')
+	recovered := capture('v', ['run', reader, generated_config], true, environment: old_env)!
+	assert recovered == config + '\n'
 	legacy.setup(['--update'], '')!
 	assert os.read_file(generated)!.contains(personal.replace("'", "''"))
 	assert os.read_file(target)! == original_settings
+	broken_source := os.read_file(generated)! + missing_source
+	os.write_file(generated, broken_source)!
+	legacy.setup(['--update'], 'Cannot locate personal configuration')!
+	assert os.read_file(generated)! == broken_source
+	old_env['VLANG_KAK_CONFIG_HOME'] = config
+
+	SetupFixture{
+		prefix: prefix
+		env:    old_env
+	}.setup(['--update'], '')!
+	assert !os.read_file(generated)!.contains(missing_source)
 	syntax := os.execute('sh -n ' + os.quoted_path(launcher))
 	assert syntax.exit_code == 0, syntax.output
 
