@@ -1,5 +1,6 @@
 // Resolve setup choices from explicit flags, existing kakrc and defaults.
 import os
+import setupconfig
 
 fn read_kakrc(path string) !string {
 	info := os.stat(path) or { return '' }
@@ -33,10 +34,20 @@ fn invalid(message string) {
 
 fn main() {
 	if os.args.len != 8 {
-		invalid('Usage: setup-defaults.vsh SETTINGS_KAKRC PERSONAL_KAKRC INTEGRATE EXPLORER LIVE_SEARCH PANE_MODE WINDOW_BACKEND')
+		invalid('Usage: setup-defaults.vsh { --resolve-config PREFIX | SETTINGS_KAKRC PERSONAL_KAKRC } INTEGRATE EXPLORER LIVE_SEARCH PANE_MODE WINDOW_BACKEND')
 	}
-	settings_path := os.args[1]
-	personal_path := os.args[2]
+	mut settings_path := os.args[1]
+	mut personal_path := os.args[2]
+	mut output := []string{}
+	if os.args[1] == '--resolve-config' {
+		paths := setupconfig.resolve(os.args[2]) or {
+			eprintln(err.msg())
+			exit(if err.code() == 2 { 2 } else { 1 })
+		}
+		settings_path = paths.settings
+		personal_path = paths.personal
+		output << [paths.home, settings_path]
+	}
 	settings := read_kakrc(settings_path) or {
 		eprintln(err)
 		exit(1)
@@ -73,5 +84,6 @@ fn main() {
 	if window_backend !in ['auto', 'tmux', 'zellij', 'wezterm', 'kitty', 'screen', 'native'] {
 		invalid('Unknown window backend: ${window_backend}')
 	}
-	println([integrate, explorer, live_search, pane_mode, window_backend].join('\n'))
+	output << [integrate, explorer, live_search, pane_mode, window_backend]
+	println(output.join('\n'))
 }

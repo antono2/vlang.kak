@@ -28,45 +28,11 @@ if [ "${1:-}" = --prepared-options ]; then
 else
   . "$script_dir/setup-options-posix"
 fi
-config_home=${VLANG_KAK_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}}
-# Older launchers exported only their isolated XDG directory. Recover the
-# personal path from our generated source line when updating those sessions.
-if [ -z "${VLANG_KAK_CONFIG_HOME:-}" ] &&
-   [ "$config_home" = "$prefix/opt/vlang-kakoune/ide-config" ]; then
-  legacy_status=125
-  if legacy_compiler=$(find_maintenance_v --prefix "$prefix"); then
-    legacy_status=0
-    original_config=$(run_maintenance_program "$legacy_compiler" \
-      "$script_dir/setup-legacy-config.vsh" "$config_home") || legacy_status=$?
-    if [ "$legacy_status" -eq 125 ]; then
-      echo 'V could not prepare the legacy config reader. Using shell recovery.' >&2
-    fi
-  fi
-  case "$legacy_status" in
-    0) ;;
-    125)
-      original_config=$(sed -n "s|^source '\(.*\)/kak/vlang-user.kak'$|\1|p" \
-        "$config_home/kak/kakrc" | tail -n 1 | sed "s/''/'/g")
-      if [ -z "$original_config" ] || [ ! -f "$original_config/kak/vlang-user.kak" ]; then
-        echo 'Cannot locate personal configuration; rerun setup from a regular shell with XDG_CONFIG_HOME set.' >&2
-        exit 1
-      fi
-      ;;
-    *) exit "$legacy_status" ;;
-  esac
-  config_home=$original_config
-fi
-case "$config_home" in *"$(printf '\t')"*|*'
-'*) echo 'Tabs/newlines in configuration paths are unsupported.' >&2; exit 2 ;; esac
-mkdir -p "$config_home"
-config_home=$(CDPATH= cd -- "$config_home" && pwd)
-settings_file=$prefix/opt/vlang-kakoune/ide-config/kak/kakrc
-if [ ! -f "$settings_file" ]; then settings_file=$config_home/kak/kakrc; fi
 defaults_status=125
 if defaults_compiler=$(find_maintenance_v --prefix "$prefix"); then
   defaults_status=0
   setup_defaults=$(run_maintenance_program "$defaults_compiler" "$script_dir/setup-defaults.vsh" \
-    "$settings_file" "$config_home/kak/kakrc" "$integrate" "$explorer" "$live_search" \
+    --resolve-config "$prefix" "$integrate" "$explorer" "$live_search" \
     "$pane_mode" "$window_backend") || defaults_status=$?
   if [ "$defaults_status" -eq 125 ]; then
     echo 'V could not prepare the setup defaults command. Using shell defaults.' >&2
@@ -76,6 +42,8 @@ case "$defaults_status" in
   0)
     # Read one value per line without treating kakrc contents as shell code.
     {
+      IFS= read -r config_home
+      IFS= read -r settings_file
       IFS= read -r integrate
       IFS= read -r explorer
       IFS= read -r live_search
@@ -85,7 +53,10 @@ case "$defaults_status" in
 $setup_defaults
 EOF
     ;;
-  125) . "$script_dir/setup-defaults-posix" ;;
+  125)
+    . "$script_dir/setup-config-posix"
+    . "$script_dir/setup-defaults-posix"
+    ;;
   *) exit "$defaults_status" ;;
 esac
 case "$prefix" in
