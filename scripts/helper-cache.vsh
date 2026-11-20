@@ -69,7 +69,8 @@ fn compile_helper(cache string, source string, expected string, destination stri
 }
 
 fn prepare_helper(cache string, tool string) !string {
-	source := os.join_path(@DIR, tool + '.v')
+	name := if tool == 'checkpoint' { 'session-checkpoint.vsh' } else { tool + '.v' }
+	source := os.join_path(@DIR, name)
 	content := fingerprint(source)!
 	// Include the source path because a compiled helper can embed its checkout.
 	identity := sha256.hexhash(source + '\n' + content)
@@ -80,11 +81,29 @@ fn prepare_helper(cache string, tool string) !string {
 	return destination
 }
 
+fn materialize_checkpoint(writer string, directory string) ! {
+	stage := os.join_path(directory, '.writer-' + rand.uuid_v4())
+	os.mkdir(stage, mode: 0o700)!
+	defer { os.rmdir_all(stage) or {} }
+	copy := os.join_path(stage, 'writer')
+	os.cp(writer, copy)!
+	os.chmod(copy, 0o700)!
+	os.rename_dir(copy, os.join_path(directory, 'session-checkpoint'))!
+}
+
 fn run(args []string) ! {
-	if args.len < 2 || args[1] !in ['debug', 'explorer', 'preferences', 'windowing'] {
+	if args.len < 2 || args[1] !in ['debug', 'explorer', 'preferences', 'windowing', 'checkpoint'] {
 		return error('Expected a helper cache directory and tool name.')
 	}
 	cache, tool := args[0], args[1]
+	if tool == 'checkpoint' {
+		if args.len != 3 || !os.is_dir(args[2]) {
+			return error('Expected an existing session checkpoint directory.')
+		}
+		writer := prepare_helper(cache, tool)!
+		materialize_checkpoint(writer, args[2])!
+		return
+	}
 	destination := prepare_helper(cache, tool) or {
 		if tool == 'windowing' {
 			return os.execvp(os.join_path(@DIR, 'windowing-posix'), args[2..])

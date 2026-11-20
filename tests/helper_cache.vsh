@@ -10,7 +10,8 @@ fn check() ! {
 	tools := os.join_path(os.dir(@DIR), 'scripts')
 	scripts := os.join_path(root, "test's scripts")
 	os.mkdir(scripts)!
-	for name in ['helper-cache.sh', 'helper-cache.vsh', 'preferences.sh', 'windowing.sh'] {
+	for name in ['helper-cache.sh', 'helper-cache.vsh', 'preferences.sh', 'windowing.sh',
+		'session-buffer.sh'] {
 		target := os.join_path(scripts, name)
 		os.cp(os.join_path(tools, name), target)!
 		if name.ends_with('.sh') { os.chmod(target, 0o755)! }
@@ -80,6 +81,39 @@ fn check() ! {
 	native := execute(pane, ['open'], false, environment: env)!
 	assert native.code == 125 && native.stdout == 'Native pane\n'
 	assert capture(pane, ['open'], true, environment: without_compiler)! == 'POSIX pane\n'
+
+	session := os.join_path(scripts, 'session-buffer.sh')
+	checkpoint_source := os.join_path(scripts, 'session-checkpoint.vsh')
+	checkpoint_posix := os.join_path(scripts, 'session-checkpoint-posix')
+	os.write_file(checkpoint_source, 'import os\nfn main() { println(os.args[1]) }')!
+	os.write_file(checkpoint_posix, '#!/bin/sh\nprintf "POSIX checkpoint\\n"\n')!
+	os.chmod(checkpoint_posix, 0o755)!
+	first := os.join_path(root, "first user's checkpoint")
+	second := os.join_path(root, 'second checkpoint')
+	os.mkdir(first)!
+	os.mkdir(second)!
+	assert capture(session, ['--prepare', first], true, environment: env)! == ''
+	writers := os.ls(cache)!.filter(it.starts_with('checkpoint-'))
+	assert writers.len == 1
+	writer := os.join_path(cache, writers[0])
+	// A rewrite would change the sentinel timestamp even if the cache name stayed the same.
+	saved_stamp := os.file_last_mod_unix(writer) - 60
+	os.utime(writer, saved_stamp, saved_stamp)!
+	assert capture(session, ['--prepare', second], true, environment: without_compiler)! == ''
+	assert os.ls(second)!.len == 0
+	assert capture(session, ['--prepare', second], true, environment: env)! == ''
+	assert os.file_last_mod_unix(writer) == saved_stamp
+	assert os.ls(first)! == ['session-checkpoint']
+	assert os.ls(second)! == ['session-checkpoint']
+	os.rm(writer)!
+	env['kak_opt_v_session_checkpoint'] = first
+	assert capture(session, ['main'], true, environment: env)! == 'main\n'
+	os.write_file(checkpoint_source, 'invalid checkpoint source')!
+	fallback_writer := execute(session, ['--prepare', second], true, environment: env)!
+	assert fallback_writer.stderr.contains('using the POSIX writer')
+	assert os.ls(second)!.len == 0
+	env['kak_opt_v_session_checkpoint'] = second
+	assert capture(session, ['main'], true, environment: env)! == 'POSIX checkpoint\n'
 	println('ok - native helpers preserve arguments, reuse cached binaries without V and rebuild on content changes')
 }
 

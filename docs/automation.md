@@ -182,9 +182,10 @@ client's buffer and complete selections. It does not save project files or run
 write hooks. Generated `*debug*` contents are excluded. Other auxiliary output is restored
 as a text snapshot with `q`/`Space q` to close it; its live explorer/task/LSP
 controls are regenerated when you invoke that feature again.
-When V is available, each save builds one temporary writer for all buffers and
-clients. The editor uses the POSIX writer if V is unavailable or cannot build
-the writer.
+When V is available, session saves reuse a compiled writer from the editor cache.
+Each save takes a private copy for its buffers and clients and removes it when
+the save finishes. The editor uses the POSIX writer if V is unavailable or
+cannot prepare the cached writer.
 
 `:v-restart-recover` asks for confirmation, then restarts the owning `kak-v`
 client, restores the checkpoint and reopens additional views through the current
