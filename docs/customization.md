@@ -126,7 +126,10 @@ set-option global v_fmt_command 'v fmt'
 
 `:v-check-file`, `:v-build`, `:v-run-project`, `:v-test`,
 `:v-test-nearest`, `:v-repeat-test` and `:v-vet` use
-Kakoune's asynchronous `*make*` buffer. You can set an option for one buffer:
+Kakoune's asynchronous `*make*` buffer. Project tasks start from the nearest
+`v.mod` or Git root, including linked worktrees. `:v-run-project` also uses
+the saved working directory, target and arguments when configured. You can
+set an option for one buffer:
 
 ```kak
 set-option buffer v_test_command 'v test ./tests'
@@ -152,7 +155,8 @@ Kakoune regular expression matched after the `file:line:` prefix:
 set-option global v_task_error_pattern '(?: (?:fatal )?error:| fn test_)'
 ```
 
-The older `:v-run` can be made quiet with
+The older `:v-run` looks for `v.mod` in the file's directory and up to three
+parent directories. It can be made quiet with
 `set-option global v_output_to_info_box false` and/or
 `set-option global v_output_to_debug_buffer false`. For compiler messages that
 do not navigate correctly in `*make*`, set Kakoune's `make_error_pattern`

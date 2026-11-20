@@ -3,6 +3,7 @@ module main
 
 import x.json2
 import os
+import projectroot
 import time
 
 const search_preview_lines = 12
@@ -33,32 +34,15 @@ fn tree_root(origin string) string {
 	if !os.is_dir(path) {
 		path = os.dir(path)
 	}
-	return project_root(os.real_path(path))
-}
-
-fn project_root(start string) string {
-	mut directory := start
-	for {
-		git_marker := os.join_path(directory, '.git')
-		if os.is_file(os.join_path(directory, 'v.mod')) || os.is_dir(git_marker)
-			|| os.is_file(git_marker) {
-			return directory
-		}
-		parent := os.dir(directory)
-		if parent == directory {
-			return start
-		}
-		directory = parent
-	}
-	return start
+	return projectroot.find(os.real_path(path))
 }
 
 fn buffer_root(file string) string {
 	if file == '' {
-		return project_root(os.getwd())
+		return projectroot.find(os.getwd())
 	}
 	path := if os.is_abs_path(file) { file } else { os.join_path(os.getwd(), file) }
-	return project_root(os.dir(path))
+	return projectroot.find(os.dir(path))
 }
 
 fn directory_prefix(root string) string {
@@ -277,7 +261,7 @@ fn visit(directory string, depth int, mut state State, mut lines []string) {
 
 fn render(path string, origin string, pane bool) ! {
 	mut state := read_state(path)!
-	root := project_root(origin)
+	root := projectroot.find(origin)
 	if state.root != root {
 		state = State{
 			root:     root

@@ -333,7 +333,7 @@ fn (life Lifecycle) checkpoints() ! {
 	os.write_file(source, 'module main\nfn main() {}\n')!
 	marker := os.join_path(life.root, 'must-not-exist')
 	// These strings should reach the project command unchanged as arguments.
-	args := ['one value', "it's literal", '$' + '(touch ${marker})']
+	args := ['one value', "it's literal", '', 'line one\nline two', '$' + '(touch ${marker})']
 	mut prefs_args := ['args', source]
 	prefs_args << args
 	prefs := life.script('preferences', prefs_args)!

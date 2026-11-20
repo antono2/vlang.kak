@@ -17,9 +17,14 @@ fn fingerprint(path string) !string {
 
 fn helper_fingerprint(source string, tool string) !string {
 	mut contents := fingerprint(source)!
-	if tool == 'history' {
-		// The history helper imports the shared Git runner.
-		module_dir := os.join_path(@DIR, 'managedfiles')
+	dependency := match tool {
+		'history' { 'managedfiles' }
+		'explorer', 'task' { 'projectroot' }
+		else { '' }
+	}
+
+	if dependency != '' {
+		module_dir := os.join_path(@DIR, dependency)
 		for name in os.ls(module_dir)!.filter(it.ends_with('.v')).sorted() {
 			contents += '\n' + name + '\n' + fingerprint(os.join_path(module_dir, name))!
 		}
@@ -104,7 +109,7 @@ fn materialize_checkpoint(writer string, directory string) ! {
 
 fn run(args []string) ! {
 	if args.len < 2
-		|| args[1] !in ['debug', 'explorer', 'preferences', 'windowing', 'checkpoint', 'history'] {
+		|| args[1] !in ['debug', 'explorer', 'preferences', 'windowing', 'checkpoint', 'history', 'task'] {
 		return error('Expected a helper cache directory and tool name.')
 	}
 	cache, tool := args[0], args[1]
@@ -122,7 +127,7 @@ fn run(args []string) ! {
 		materialize_checkpoint(writer, args[2])!
 		return
 	}
-	fallback := tool in ['windowing', 'history']
+	fallback := tool in ['windowing', 'history', 'task']
 		|| (tool == 'explorer' && args.len > 2 && args[2] in ['prompt', 'candidates', 'search'])
 	destination := prepare_helper(cache, tool, fallback) or {
 		if fallback {
