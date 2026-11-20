@@ -21,6 +21,7 @@ EOF
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_dir=$(dirname -- "$script_dir")
+. "$script_dir/managed-v.inc"
 prefix=$HOME/.local
 integrate=
 explorer=
@@ -69,7 +70,6 @@ config_home=${VLANG_KAK_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}}
 # personal path from our generated source line when updating those sessions.
 if [ -z "${VLANG_KAK_CONFIG_HOME:-}" ] &&
    [ "$config_home" = "$prefix/opt/vlang-kakoune/ide-config" ]; then
-  . "$script_dir/managed-v.inc"
   legacy_status=125
   if legacy_compiler=$(find_maintenance_v --prefix "$prefix"); then
     legacy_status=0
@@ -99,7 +99,6 @@ mkdir -p "$config_home"
 config_home=$(CDPATH= cd -- "$config_home" && pwd)
 settings_file=$prefix/opt/vlang-kakoune/ide-config/kak/kakrc
 if [ ! -f "$settings_file" ]; then settings_file=$config_home/kak/kakrc; fi
-. "$script_dir/managed-v.inc"
 defaults_status=125
 if defaults_compiler=$(find_maintenance_v --prefix "$prefix"); then
   defaults_status=0
@@ -133,7 +132,6 @@ esac
 prefix=$(mkdir -p "$prefix" && CDPATH= cd -- "$prefix" && pwd)
 
 # Validate user-facing paths before any download or build.
-. "$script_dir/managed-v.inc"
 check_setup_paths() {
   setup_paths_phase=$1
   if setup_paths_compiler=$(find_maintenance_v --prefix "$prefix"); then
@@ -270,7 +268,6 @@ if [ "$integrate" = true ] && [ -n "${VLANG_KAK_TRANSACTION:-}" ]; then
 fi
 
 # All builds succeeded. Switch the prepared versions and generate launchers.
-. "$script_dir/managed-v.inc"
 activation_status=125
 if compiler=$(find_maintenance_v --prefix "$prefix"); then
   activation_status=0
@@ -292,7 +289,6 @@ fi
 if [ "$install_lsp" = true ]; then lsp_bin=$prefix/opt/vlang-kak-lsp/current/bin/kak-lsp; fi
 
 # Generate the configuration through V when the selected compiler can run it.
-. "$script_dir/managed-v.inc"
 config_status=125
 if compiler=$(find_maintenance_v --prefix "$prefix"); then
   config_status=0
