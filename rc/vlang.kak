@@ -1157,15 +1157,6 @@ define-command v-debug-input -docstring 'Send a line of input to the debug progr
 }
 declare-user-mode v-debug
 define-command v-debug-menu -docstring 'Show available debugging actions' %{ enter-user-mode v-debug }
-define-command -hidden v-debug-accept %{
-  evaluate-commands %sh{
-    case "$kak_opt_filetype" in
-      v-debug-output) echo v-debug-input ;;
-      *) echo v-debug-select ;;
-    esac
-  }
-}
-
 define-command -hidden -params 2 v-debug-render %{
   try %{
     evaluate-commands -buffer %arg{1} -save-regs v %{
@@ -1185,19 +1176,15 @@ define-command -hidden -params 3 v-debug-location %{
     }
   }
 }
-define-command -hidden -params 1 v-debug-show %{
+define-command -hidden -params 1.. v-debug-view-command %{
   evaluate-commands %sh{
-    directory=$kak_opt_v_debug_directory
-    [ -n "$directory" ] || { echo "fail 'Launch the debugger or set a breakpoint first'"; exit; }
-    name=$1
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    printf 'edit -scratch %s\n' "$(kak_quote "*v-debug-$name*")"
-    printf 'set-option buffer readonly false\n'
-    printf 'set-register v %s\n' "$(kak_quote "$(cat "$directory/$name.txt" 2>/dev/null || true)")"
-    printf 'execute-keys '\''%%"vR'\''\n'
-    printf 'set-option buffer filetype v-debug-%s\nset-option buffer readonly true\nv-refresh-keys\n' "$name"
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    operation=$1; shift
+    "${source%/rc/vlang.kak}/scripts/debug.sh" "$operation" "$kak_opt_v_debug_directory" "$@" ||
+      echo "fail 'Debugger panel command failed; inspect the error in *debug*'"
   }
 }
+define-command -hidden -params 1 v-debug-show %{ v-debug-view-command show-panel %arg{1} }
 define-command v-debug-stack -docstring 'Browse debugger stack frames' %{ evaluate-commands -save-regs v %{ v-debug-show stack } }
 define-command v-debug-variables -docstring 'Browse variables in the selected frame' %{ evaluate-commands -save-regs v %{ v-debug-show variables } }
 define-command v-debug-output -docstring 'Show debugger and program output' %{ evaluate-commands -save-regs v %{ v-debug-show output } }
@@ -1209,29 +1196,13 @@ define-command v-debug-return -docstring 'Return to the debug source location' %
     "${source%/rc/vlang.kak}/scripts/debug.sh" location "$directory"
   }
 }
-define-command -hidden -params 1 v-debug-panel-row %{
-  evaluate-commands %sh{
-    source=$(readlink -f "$kak_opt_v_plugin_source")
-    "${source%/rc/vlang.kak}/scripts/debug.sh" panel-row "$kak_opt_v_debug_directory" "$kak_opt_filetype" "$1" "$kak_cursor_line"
-  }
+define-command v-debug-delete -docstring 'Remove the selected watch or breakpoint' %{
+  v-debug-view-command panel-row %opt{filetype} delete %val{cursor_line}
 }
-define-command v-debug-delete -docstring 'Remove the selected watch or breakpoint' %{ v-debug-panel-row delete }
 define-command -hidden v-debug-select %{
-  evaluate-commands %sh{
-    [ "$kak_opt_filetype" != v-debug-breakpoints ] || echo 'v-debug-panel-row open'
-  }
-  evaluate-commands -draft -save-regs v %{
-    execute-keys 'x"vy'
-    evaluate-commands %sh{
-      line=$kak_reg_v
-      case "$kak_opt_filetype" in
-        v-debug-stack) number=${line%%:*}; action=frame ;;
-        v-debug-variables) number=${line%%|*}; action=expand ;;
-        *) exit ;;
-      esac
-      case "$number" in ''|*[!0-9]*) exit ;; esac
-      printf 'v-debug-call action %s %s\n' "$action" "$number"
-    }
+  evaluate-commands -save-regs v %{
+    execute-keys -draft 'x"vy'
+    v-debug-view-command select-panel-row %opt{filetype} %val{cursor_line} %reg{v}
   }
 }
 define-command -hidden v-debug-status %{
@@ -1277,28 +1248,30 @@ hook -group v-debug global WinSetOption filetype=v %{
 hook -group v-debug global WinSetOption filetype=v-debug-.* %{
   map window normal <tab> j -docstring 'Next debug row'
   map window normal <s-tab> k -docstring 'Previous debug row'
-  evaluate-commands %sh{
-    case "$kak_opt_filetype" in
-      v-debug-stack) label='Open selected stack frame' ;;
-      v-debug-variables) label='Expand selected value' ;;
-      v-debug-breakpoints) label='Open breakpoint source' ;;
-      v-debug-output) label='Send program input' ;;
-    esac
-    printf "map window normal <ret> ':v-debug-accept<ret>' -docstring '%s'\n" "$label"
-  }
   map window normal q ':v-debug-return<ret>' -docstring 'Return to debug source'
-  evaluate-commands %sh{
-    case "$kak_opt_filetype" in v-debug-breakpoints|v-debug-variables)
-      echo "map window normal <del> ':v-debug-delete<ret>' -docstring 'Remove selected breakpoint or watch'" ;;
-    esac
-  }
   hook -once -always window WinSetOption filetype=.* %{
     try %{ unmap window normal <tab> j }
     try %{ unmap window normal <s-tab> k }
-    try %{ unmap window normal <ret> ':v-debug-accept<ret>' }
+    try %{ unmap window normal <ret> ':v-debug-select<ret>' }
+    try %{ unmap window normal <ret> ':v-debug-input<ret>' }
     try %{ unmap window normal q ':v-debug-return<ret>' }
     try %{ unmap window normal <del> ':v-debug-delete<ret>' }
   }
+}
+hook -group v-debug global WinSetOption filetype=v-debug-stack %{
+  map window normal <ret> ':v-debug-select<ret>' -docstring 'Open selected stack frame'
+}
+hook -group v-debug global WinSetOption filetype=v-debug-variables %{
+  map window normal <ret> ':v-debug-select<ret>' -docstring 'Expand selected value'
+}
+hook -group v-debug global WinSetOption filetype=v-debug-breakpoints %{
+  map window normal <ret> ':v-debug-select<ret>' -docstring 'Open breakpoint source'
+}
+hook -group v-debug global WinSetOption filetype=v-debug-output %{
+  map window normal <ret> ':v-debug-input<ret>' -docstring 'Send program input'
+}
+hook -group v-debug global WinSetOption filetype=v-debug-(breakpoints|variables) %{
+  map window normal <del> ':v-debug-delete<ret>' -docstring 'Remove selected breakpoint or watch'
 }
 hook -group v-debug global KakEnd .* %{ try %{ v-debug-stop } }
 

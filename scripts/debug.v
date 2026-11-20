@@ -1070,12 +1070,88 @@ fn (mut d Debugger) run() ! {
 	}
 }
 
+fn show_panel(dir string, name string) string {
+	if dir == '' {
+		return 'fail ' + quote('Launch the debugger or set a breakpoint first')
+	}
+	if name !in ['stack', 'variables', 'breakpoints', 'output'] {
+		return 'fail ' + quote('Unknown debugger panel')
+	}
+	buffer := quote('*v-debug-${name}*')
+	text := os.read_file(os.join_path(dir, '${name}.txt')) or { '' }
+	return 'edit -scratch ${buffer}\nv-debug-render ${buffer} ${quote(text.trim_right('\n'))}\nset-option buffer filetype v-debug-${name}\nv-refresh-keys'
+}
+
+fn panel_row_command(state State, panel string, action string, line int) string {
+	// The first line is the panel heading. Editor lines start at one.
+	index := line - 2
+	if panel == 'v-debug-breakpoints' && index >= 0 && index < state.breakpoints.len {
+		point := state.breakpoints[index]
+		if action == 'delete' {
+			return 'v-debug-call action toggle ${quote(point.file)} ${point.line}'
+		}
+		return 'edit -existing ${quote(point.file)} ${point.line}'
+	}
+	if panel == 'v-debug-variables' && action == 'delete' {
+		watch_index := index - state.variables.len
+		expressions := state.watches.keys()
+		if watch_index >= 0 && watch_index < expressions.len {
+			return 'v-debug-call action unwatch ${quote(expressions[watch_index])}'
+		}
+		return 'fail ' + quote('Select a watch row to remove it')
+	}
+	return ''
+}
+
+fn select_panel_row(dir string, panel string, line int, text string) string {
+	if panel == 'v-debug-breakpoints' && dir != '' {
+		return panel_row_command(read_state(dir), panel, 'open', line)
+	}
+	action, number := match panel {
+		'v-debug-stack' { 'frame', text.all_before(':') }
+		'v-debug-variables' { 'expand', text.all_before('|') }
+		else { return '' }
+	}
+	if number == '' || !number.bytes().all(it >= `0` && it <= `9`) {
+		return ''
+	}
+	return 'v-debug-call action ${action} ${number}'
+}
+
+// View commands only read debugger files. They also accept an empty directory
+// so the editor can display its normal guidance before the first session.
+fn debug_view_command(command string, dir string, args []string) !string {
+	if command == 'show-panel' && args.len == 1 {
+		return show_panel(dir, args[0])
+	}
+	if command == 'select-panel-row' && args.len == 3 {
+		return select_panel_row(dir, args[0], args[1].int(), args[2])
+	}
+	if command == 'panel-row' && args.len == 3 {
+		if dir == '' {
+			return ''
+		}
+		return panel_row_command(read_state(dir), args[0], args[1], args[2].int())
+	}
+	return error('Invalid debugger view command arguments')
+}
+
 fn main() {
 	if os.args.len < 3 {
 		eprintln('Usage: debug COMMAND DIRECTORY [ARGS...]')
 		exit(2)
 	}
 	command := os.args[1]
+	if command in ['show-panel', 'select-panel-row', 'panel-row'] {
+		output := debug_view_command(command, os.args[2], os.args[3..]) or {
+			eprintln(err)
+			exit(2)
+		}
+		if output != '' {
+			println(output)
+		}
+		return
+	}
 	dir := os.real_path(os.args[2])
 	os.mkdir_all(dir) or {
 		eprintln(err)
@@ -1114,29 +1190,6 @@ fn main() {
 		}
 		'active' {
 			if !active(dir) { exit(1) }
-		}
-		'panel-row' {
-			if os.args.len < 6 { exit(2) }
-			state := read_state(dir)
-			panel := os.args[3]
-			action := os.args[4]
-			index := os.args[5].int() - 2
-			if panel == 'v-debug-breakpoints' && index >= 0 && index < state.breakpoints.len {
-				point := state.breakpoints[index]
-				if action == 'delete' {
-					println('v-debug-call action toggle ${quote(point.file)} ${point.line}')
-				} else {
-					println('edit -existing ${quote(point.file)} ${point.line}')
-				}
-			} else if panel == 'v-debug-variables' && action == 'delete' {
-				watch_index := index - state.variables.len
-				expressions := state.watches.keys()
-				if watch_index >= 0 && watch_index < expressions.len {
-					println('v-debug-call action unwatch ${quote(expressions[watch_index])}')
-				} else {
-					println('fail ' + quote('Select a watch row to remove it'))
-				}
-			}
 		}
 		'marks' {
 			if os.args.len < 4 { exit(2) }

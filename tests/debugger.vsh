@@ -219,7 +219,8 @@ fn (mut check Check) stack_frame(row string) ! {
 	// state.json can reach a stop before Kakoune has handled the UI update.
 	check.sync_phase()!
 	check.command('v-debug-stack')!
-	check.command('select ${row}; v-debug-select')!
+	check.select_row(row)!
+	check.editor.keys('<ret>')
 }
 
 fn (mut check Check) navigation() ! {
@@ -517,6 +518,12 @@ fn (mut check Check) wait_watch(present bool) ! {
 }
 
 fn (mut check Check) exercise() ! {
+	empty := os.join_path(check.root, 'empty-panel-guidance')
+	check.command("set-option global v_debug_directory ''")!
+	check.command('try %{ v-debug-stack } catch %{ echo -to-file ${quote(empty)} %val{error} }')!
+	require(os.read_file(empty)!.contains('Launch the debugger or set a breakpoint first'),
+		'Missing guidance before a debugger session')!
+	check.command('set-option global v_debug_directory ${quote(check.state_dir)}')!
 	check.navigation()!
 	check.input_and_exit()!
 	check.launch_modes()!
