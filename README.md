@@ -61,8 +61,11 @@ To select a particular release, use --kakoune-version vYYYY.MM.DD and --lsp-vers
 
 Use `v run scripts/build-kakoune.vsh` to install Kakoune separately. The
 standalone builder needs V, Git, Make and a C++23 compiler. The full
-`scripts/setup.sh` can bootstrap V. Use a prefix without spaces for
-Kakoune versions whose runtime autoload splits paths on whitespace.
+`scripts/setup.sh` can bootstrap V on a first install. When a compiler is
+already available, setup runs the installation checks, compiler selection
+and rollback in V. Run `./scripts/setup.sh --help` for the setup options.
+Use a prefix without spaces for Kakoune versions whose runtime autoload
+splits paths on whitespace.
 To install kak-lsp or VLS separately,
 use `v run scripts/install-kak-lsp.vsh` or `v run scripts/install-vls.vsh`.
 Add `--help` to see the available options.

@@ -3,6 +3,7 @@ import managedfiles { acquire_lock, git_at, read_manifest, release_lock }
 import managedsnapshot
 import os
 import rand
+import setupconfig
 
 #include "@DIR/maintenance-signals.h"
 
@@ -11,15 +12,37 @@ fn C.kak_maintenance_signal() int
 
 const managed_tools = ['kakoune', 'kak-lsp', 'vls', 'v']
 const cancelled_status = 130
+const setup_help = $embed_file('setup-help.txt')
 
-fn run(script string, args []string, environment map[string]string) int {
-	mut child := os.new_process(os.join_path(@DIR, script))
+fn run(program string, args []string, environment map[string]string) int {
+	mut child := os.new_process(program)
 	defer { child.close() }
 	child.set_args(args)
 	child.set_environment(environment)
 	child.run()
 	child.wait()
 	return child.code
+}
+
+// Compile the child separately so v run cannot inject compiler variables
+// into installers or their build tools.
+fn run_native(compiler string, script string, args []string, env map[string]string) !int {
+	directory := os.join_path(os.temp_dir(), 'vlang-install-' + rand.uuid_v4())
+	os.mkdir(directory, mode: 0o700)!
+	defer { os.rmdir_all(directory) or {} }
+	program := os.join_path(directory, 'program')
+	mut build_env := env.clone()
+	build_env['TMPDIR'] = directory
+	compiled := run(compiler, ['-skip-running', '-o', program, os.join_path(@DIR, script)],
+		build_env)
+	if C.kak_maintenance_signal() != 0 {
+		return cancelled_status
+	}
+	if compiled != 0 || !os.is_executable(program) {
+		return error('Could not compile ${script} with ${compiler}.')
+	}
+	status := run(program, args, env)
+	return if status < 0 || status == 125 { 1 } else { status }
 }
 
 // Empty UI preferences defer to the saved Kakoune configuration.
@@ -144,12 +167,57 @@ fn (options SetupOptions) preflight_arguments() []string {
 	return args
 }
 
-fn (options SetupOptions) implementation_arguments() []string {
-	// Match the prepared-options argument order in setup-impl.sh.
-	return ['--prepared-options', options.prefix, options.integrate, options.explorer, options.live_search,
-		options.pane_mode, options.window_backend, options.kakoune_version, options.lsp_version,
-		options.vls_path, options.vls_mode, options.vls_ref, options.update.str(), options.compiler,
-		options.repair.str(), options.build.str(), options.install_lsp.str()]
+fn prepare_install(prefix string, repo string, options SetupOptions, mut env map[string]string) !int {
+	paths := setupconfig.resolve(prefix)!
+	choices := setupconfig.preferences(paths.settings, paths.personal, setupconfig.Preferences{
+		integrate:      options.integrate
+		explorer:       options.explorer
+		live_search:    options.live_search
+		pane_mode:      options.pane_mode
+		window_backend: options.window_backend
+	})!
+	prepared := setupconfig.prepare_paths(prefix, repo, paths.home, choices.integrate == 'true',
+		options.repair, options.update)!
+	if prepared != 0 || C.kak_maintenance_signal() != 0 {
+		return prepared
+	}
+
+	vls_mode := if options.vls_mode == 'auto' {
+		setupconfig.select_mode(prefix)
+	} else {
+		options.vls_mode
+	}
+	if options.vls_mode == 'auto' && vls_mode == 'skip' {
+		println('Keeping externally linked VLS. Use --vls-upstream to switch to managed upstream VLS.')
+	}
+	plan := setupconfig.compiler_plan(prefix, paths.settings, options.compiler, setupconfig.ToolOptions{
+		build:       options.build
+		install_lsp: options.install_lsp
+		explorer:    choices.explorer == 'true'
+		vls_mode:    vls_mode
+	})!
+	env['PATH'] = plan.search_path
+	mut mode := plan.mode
+	if plan.install {
+		installed := run_native(@VEXE, 'install-v.vsh', [prefix], env)!
+		if installed != 0 {
+			return installed
+		}
+		env['PATH'] = os.join_path(prefix, 'opt', 'vlang-v', 'candidate') + ':' + plan.search_path
+		mode = 'true'
+	}
+	// Use the selected compiler for configuration while keeping @VEXE available
+	// for setups that need no compiler-dependent components.
+	old_path := os.getenv('PATH')
+	os.setenv('PATH', env['PATH'], true)
+	defer { os.setenv('PATH', old_path, true) }
+	compiler := os.find_abs_path_of_executable('v') or { @VEXE }
+	// Runtime and kak-lsp paths are resolved by the installation worker.
+	return run_native(compiler, 'setup-configuration.vsh', ['--install', prefix, repo, paths.home,
+		'', '', choices.integrate, mode, plan.policy, choices.explorer, choices.live_search,
+		choices.pane_mode, choices.window_backend, options.build.str(), vls_mode, options.vls_path,
+		options.install_lsp.str(), options.kakoune_version, options.lsp_version, options.vls_ref],
+		env)
 }
 
 fn canonical_prefix(prefix string) !string {
@@ -257,7 +325,7 @@ fn clear_candidates(prefix string) {
 	}
 }
 
-fn transaction(prefix string, args []string, mut env map[string]string) !int {
+fn transaction(prefix string, options SetupOptions, mut env map[string]string) !int {
 	state := os.join_path(prefix, 'opt', 'vlang-state')
 	os.mkdir_all(state)!
 	if os.real_path(state) != state {
@@ -284,7 +352,10 @@ fn transaction(prefix string, args []string, mut env map[string]string) !int {
 	}
 	env['VLANG_KAK_STAGE'] = '1'
 	env['VLANG_KAK_TRANSACTION'] = snapshot
-	status := run('setup-impl.sh', args, env)
+	status := prepare_install(prefix, repo, options, mut env) or {
+		eprintln(err)
+		if err.code() == 2 { 2 } else { 1 }
+	}
 	interrupted := C.kak_maintenance_signal() != 0
 	if status == 0 && !interrupted {
 		retain_previous(state, snapshot) or {
@@ -307,7 +378,8 @@ fn transaction(prefix string, args []string, mut env map[string]string) !int {
 fn setup(args []string) !int {
 	mut env := os.environ()
 	if args.any(it in ['--help', '-h']) {
-		return run('setup-impl.sh', ['--help'], env)
+		print(setup_help.to_string())
+		return 0
 	}
 	options := parse_options(args)!
 	prefix := canonical_prefix(options.prefix)!
@@ -315,16 +387,18 @@ fn setup(args []string) !int {
 		return error('Could not register setup signal handlers.')
 	}
 	if options.install_dependencies {
-		status := run('dependencies.sh', ['--apply'], env)
+		status := run_native(@VEXE, 'setup-checks.vsh', ['dependencies', '--apply'], env)!
 		if status != 0 || C.kak_maintenance_signal() != 0 {
 			return if C.kak_maintenance_signal() != 0 { cancelled_status } else { status }
 		}
 	}
-	status := run('preflight.sh', options.preflight_arguments(), env)
+	mut checks := ['preflight']
+	checks << options.preflight_arguments()
+	status := run_native(@VEXE, 'setup-checks.vsh', checks, env)!
 	if status != 0 || C.kak_maintenance_signal() != 0 {
 		return if C.kak_maintenance_signal() != 0 { cancelled_status } else { status }
 	}
-	return transaction(prefix, options.implementation_arguments(), mut env)
+	return transaction(prefix, options, mut env)
 }
 
 exit(setup(os.args[1..]) or {

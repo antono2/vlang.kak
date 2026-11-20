@@ -1,0 +1,12 @@
+Usage: scripts/setup.sh [--update] [--integrate]
+                        [--vls PATH | --vls-upstream | --no-vls]
+                        [--vls-ref GIT_REF] [--prefix DIRECTORY]
+                        [--kakoune-version TAG_OR_COMMIT_OR_master] [--lsp-version TAG]
+                        [--no-build] [--no-lsp] [--managed-v | --system-v] [--install-dependencies]
+                        [--explorer | --no-explorer] [--live-search | --no-live-search]
+                        [--pane-mode auto|always|off]
+                        [--window-backend auto|tmux|zellij|wezterm|kitty|screen|native]
+Installs Kakoune, kak-lsp and upstream VLS under $HOME/.local by default, links this plugin
+into an isolated kak-v configuration. --integrate explicitly opts into adding
+links and a marked block to your regular Kakoune configuration.
+--update also fast-forwards a clean vlang.kak checkout.
