@@ -1,0 +1,39 @@
+#!/bin/sh
+# Keep project prompts and completion usable before V is installed.
+set -eu
+[ "$#" -eq 2 ] || exit 2
+case "$2" in
+  /*) file=$2 ;;
+  '') file=$PWD/ ;;
+  *) file=$PWD/$2 ;;
+esac
+root=${file%/*}
+[ -n "$root" ] || root=/
+current=$root
+while :; do
+  if [ -f "$current/v.mod" ] || [ -d "$current/.git" ] || [ -f "$current/.git" ]; then
+    root=$current
+    break
+  fi
+  parent=${current%/*}
+  [ -n "$parent" ] || parent=/
+  [ "$parent" != "$current" ] || break
+  current=$parent
+done
+prefix=${root%/}/
+case "$1" in
+  prompt)
+    escaped=$(printf '%s.' "$prefix" | sed "s/'/''/g")
+    printf "prompt -file-completion -init '%s' 'Project path: ' %%{ edit -existing -- %%val{text} }\n" "${escaped%.}" ;;
+  candidates)
+    if command -v rg >/dev/null 2>&1; then
+      (cd "$root" && rg --files --hidden --glob '!.git')
+    elif [ "$(git -C "$root" rev-parse --is-inside-work-tree 2>/dev/null)" = true ]; then
+      git -c core.quotePath=false -C "$root" ls-files --cached --others --exclude-standard
+    else
+      (cd "$root" && find . -name .git -prune -o -type f -print)
+    fi | while IFS= read -r path; do
+      printf '%s%s\n' "$prefix" "${path#./}"
+    done ;;
+  *) exit 2 ;;
+esac

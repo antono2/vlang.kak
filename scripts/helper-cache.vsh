@@ -38,7 +38,7 @@ fn supports_old_compiler(compiler string) bool {
 	return child.code == 0 && help.contains('-old-compiler')
 }
 
-fn compile_helper(cache string, source string, expected string, destination string, tool string) ! {
+fn compile_helper(cache string, source string, expected string, destination string, tool string, quiet bool) ! {
 	compiler := os.find_abs_path_of_executable('v') or {
 		return error('V is required to build the Kakoune ${tool} helper.')
 	}
@@ -54,7 +54,6 @@ fn compile_helper(cache string, source string, expected string, destination stri
 	mut child := os.new_process(compiler)
 	defer { child.close() }
 	child.set_args(args)
-	quiet := tool in ['windowing', 'checkpoint', 'history']
 	if quiet {
 		child.set_redirect_stdio()
 	}
@@ -80,7 +79,7 @@ fn compile_helper(cache string, source string, expected string, destination stri
 	os.rename_dir(path, destination)!
 }
 
-fn prepare_helper(cache string, tool string) !string {
+fn prepare_helper(cache string, tool string, quiet bool) !string {
 	name := if tool == 'checkpoint' { 'session-checkpoint.vsh' } else { tool + '.v' }
 	source := os.join_path(@DIR, name)
 	content := helper_fingerprint(source, tool)!
@@ -88,7 +87,7 @@ fn prepare_helper(cache string, tool string) !string {
 	identity := sha256.hexhash(source + '\n' + content)
 	destination := cache + '/${tool}-${cache_version}${identity}'
 	if !cached_tool(destination) {
-		compile_helper(cache, source, content, destination, tool)!
+		compile_helper(cache, source, content, destination, tool, quiet)!
 	}
 	return destination
 }
@@ -111,7 +110,7 @@ fn run(args []string) ! {
 	cache, tool := args[0], args[1]
 	if tool == 'checkpoint' {
 		if args.len > 3 && args[2] == '--read' {
-			writer := prepare_helper(cache, tool) or {
+			writer := prepare_helper(cache, tool, true) or {
 				return os.execvp(os.join_path(@DIR, 'session-checkpoint-posix'), args[3..])
 			}
 			return os.execvp(writer, args[3..])
@@ -119,12 +118,14 @@ fn run(args []string) ! {
 		if args.len != 3 || !os.is_dir(args[2]) {
 			return error('Expected an existing session checkpoint directory.')
 		}
-		writer := prepare_helper(cache, tool)!
+		writer := prepare_helper(cache, tool, true)!
 		materialize_checkpoint(writer, args[2])!
 		return
 	}
-	destination := prepare_helper(cache, tool) or {
-		if tool in ['windowing', 'history'] {
+	fallback := tool in ['windowing', 'history']
+		|| (tool == 'explorer' && args.len > 2 && args[2] in ['prompt', 'candidates'])
+	destination := prepare_helper(cache, tool, fallback) or {
+		if fallback {
 			return os.execvp(os.join_path(@DIR, tool + '-posix'), args[2..])
 		}
 		return err

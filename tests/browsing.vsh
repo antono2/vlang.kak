@@ -104,6 +104,20 @@ fn exercise(kak string) ! {
 	editor.keys('<space><ret>')
 	editor.wait_value(buffer_file, target, false, 'tree opened the quoted filename')!
 
+	editor.remote('set-option global v_explorer_enabled false')!
+	offset = editor.offset()
+	editor.keys('<space>F')
+	editor.wait_event(offset, 'draw_status', ['Project path:', project + '/'])!
+	editor.keys('<esc>')
+	editor.wait_value(buffer_file, target, false, 'project path prompt cancellation')!
+	editor.remote('edit ${quote(source)}')!
+	offset = editor.offset()
+	editor.keys('<space>Pnested')
+	editor.wait_event(offset, 'menu_show', ['nested', "it''s.v"])!
+	editor.keys('<tab><ret>')
+	editor.wait_value(buffer_file, target, false, 'project picker opened the quoted path')!
+	editor.remote('set-option global v_explorer_enabled true')!
+
 	editor.remote('edit ${quote(source)}')!
 	offset = editor.offset()
 	editor.keys('<space>/')
@@ -127,7 +141,7 @@ fn exercise(kak string) ! {
 	editor.keys('<esc>')
 	editor.remote('nop')!
 	require(editor.value(buffer_file)! == source, 'Empty search changed the source file')!
-	println('ok - real tree expand/preview/open, live search preview/results/jump, cancellation and no matches')
+	println('ok - rendered tree, project prompts and completion, and live search')
 }
 
 if os.args.len != 2 {
