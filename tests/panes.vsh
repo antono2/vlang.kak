@@ -135,8 +135,18 @@ fn (check PaneCheck) exercise(original string, tree_close_keys []string) ! {
 	check.run_tmux(['send-keys', '-t', original, 'Space', 'F'])!
 	tree := check.opened_pane(original, 'tree pane')!
 	check.wait_text(['capture-pane', '-p', '-t', tree], 'q close pane', 'tree close hint')!
-	check.close_pane(tree, tree_close_keys, 'tree closes')!
 	check.assert_position('9 14', 'Tree changed the source cursor')!
+	target := os.join_path(check.root, "a quoted 'target'.v")
+	check.wait_text(['capture-pane', '-p', '-t', tree], os.base(target),
+		'tree includes the quoted file')!
+	// The first entry below the root is the quoted fixture.
+	check.run_tmux(['send-keys', '-t', tree, 'g', 'g', 'j', 'j', 'j', 'j', 'Enter'])!
+	wait_for('tree opens the selected file in the source pane', fn [check, target] () !bool {
+		return check.position()!.starts_with(target + ' ')
+	})!
+	check.close_pane(tree, tree_close_keys, 'tree closes')!
+	check.remote('edit -existing -- ${quote(check.source)}; select ${source_at_call}')!
+	check.assert_position('9 14', 'Restoring the source cursor after tree navigation')!
 
 	check.run_tmux(['send-keys', '-t', original, 'Space', 'g'])!
 	peek := check.opened_pane(original, 'definition pane')!
@@ -218,6 +228,7 @@ fn run(prefix_path string) ! {
 	os.mkdir(root)!
 	source := os.join_path(root, 'main.v')
 	os.write_file(source, fixture)!
+	os.write_file(os.join_path(root, "a quoted 'target'.v"), 'module main\n')!
 	os.write_file(os.join_path(root, 'v.mod'), "Module { name: 'pane_check' }\n")!
 	check := PaneCheck{
 		kak:     kak

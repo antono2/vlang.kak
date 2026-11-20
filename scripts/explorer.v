@@ -4,11 +4,14 @@ module main
 import x.json2
 import os
 import projectroot
+import rand
 import time
 
 const search_preview_lines = 12
 const search_preview_columns = 140
 const default_grep_command = 'grep -RHn'
+const tree_directory_prefix = 'vlang-kak-tree-'
+const tree_state_name = 'tree.json'
 
 struct Row {
 	path      string
@@ -206,6 +209,28 @@ fn write_state(path string, state State) ! {
 	os.mv(temporary, path, overwrite: true)!
 }
 
+fn begin_tree(origin string, client string) ! {
+	root := tree_root(origin)
+	directory := os.join_path(os.temp_dir(), tree_directory_prefix + rand.uuid_v4())
+	os.mkdir(directory, mode: 0o700)!
+	path := os.join_path(directory, tree_state_name)
+	write_state(path, State{ root: root, expanded: [root], focus: root }) or {
+		os.rm(path + '.tmp') or {}
+		os.rmdir(directory) or {}
+		return err
+	}
+	println('v-tree-install ${kak_quote('*v-tree-' + client + '*')} ${kak_quote(path)} ${kak_quote(origin)}')
+}
+
+fn cleanup_tree(path string) {
+	os.rm(path) or {}
+	directory := os.dir(path)
+	if os.file_name(path) == tree_state_name
+		&& os.file_name(directory).starts_with(tree_directory_prefix) {
+		os.rmdir(directory) or {}
+	}
+}
+
 fn visible_entries(directory string, show_hidden bool) []Row {
 	mut entries := []Row{}
 	for name in os.ls(directory) or { return entries } {
@@ -259,7 +284,7 @@ fn visit(directory string, depth int, mut state State, mut lines []string) {
 	}
 }
 
-fn render(path string, origin string, pane bool) ! {
+fn render(path string, origin string, pane bool) !(string, int) {
 	mut state := read_state(path)!
 	root := projectroot.find(origin)
 	if state.root != root {
@@ -281,7 +306,7 @@ fn render(path string, origin string, pane bool) ! {
 		'', '▾ ${os.base(root)}/']
 	visit(root, 1, mut state, mut lines)
 	write_state(path, state)!
-	println(lines.join('\n'))
+	return lines.join('\n'), state.focus_line
 }
 
 fn preview(target Row, hidden bool) string {
@@ -299,7 +324,7 @@ fn preview(target Row, hidden bool) string {
 	return lines.join('\n').replace('\x00', '')
 }
 
-fn action(path string, line int, verb string) ! {
+fn action(path string, line int, verb string, client string) ! {
 	mut state := read_state(path)!
 	if line < 1 || line > state.rows.len || state.rows[line - 1].path == '' {
 		println("echo 'Choose a file or directory'")
@@ -317,7 +342,12 @@ fn action(path string, line int, verb string) ! {
 	}
 	if !item.directory {
 		if verb in ['open', 'expand'] {
-			println('edit -existing -- ${kak_quote(item.path)}')
+			command := 'edit -existing -- ${kak_quote(item.path)}'
+			if verb == 'open' && client != '' {
+				println('evaluate-commands -client ${kak_quote(client)} ${kak_quote(command)}')
+			} else {
+				println(command)
+			}
 		}
 		return
 	}
@@ -351,6 +381,10 @@ fn run() ! {
 	command := os.args[1]
 	path := os.args[2]
 	match command {
+		'begin-tree' {
+			client := os.args[3] or { return error('Expected a Kakoune client') }
+			begin_tree(path, client)!
+		}
 		'init' {
 			root := tree_root(os.args[3])
 			write_state(path, State{ root: root, expanded: [root], focus: root })!
@@ -368,15 +402,25 @@ fn run() ! {
 			}
 			project_search(buffer_root(path), os.args[3], os.args[4], os.args[5])!
 		}
-		'render' {
-			render(path, os.args[3], os.args.len > 4 && os.args[4] == 'true')!
+		'render', 'render-tree' {
+			origin := os.args[3] or { return error('Expected a tree origin') }
+			content, line := render(path, origin, os.args.len > 4 && os.args[4] == 'true')!
+			if command == 'render-tree' {
+				println('v-tree-install-content ${kak_quote(content)}')
+				println('select ${line}.1,${line}.1')
+			} else {
+				println(content)
+			}
 		}
 		'focus' {
 			state := read_state(path)!
 			println('select ${state.focus_line}.1,${state.focus_line}.1')
 		}
 		'action' {
-			action(path, os.args[3].int(), os.args[4])!
+			line := os.args[3] or { return error('Expected a tree row') }
+			verb := os.args[4] or { return error('Expected a tree action') }
+			client := if os.args.len > 6 && os.args[5] == 'true' { os.args[6] } else { '' }
+			action(path, line.int(), verb, client)!
 		}
 		'hidden' {
 			mut state := read_state(path)!
@@ -385,7 +429,7 @@ fn run() ! {
 			println('v-tree-refresh')
 		}
 		'cleanup' {
-			os.rm(path) or {}
+			cleanup_tree(path)
 		}
 		else {
 			return error('Unknown explorer command: ${command}')

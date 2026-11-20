@@ -163,6 +163,15 @@ fn exercise(kak string) ! {
 	editor.remote('set-option global v_plugin_source ${quote(plugin)}')!
 	editor.keys('<space>F')
 	editor.wait_value('%val{bufname}', '*v-tree-', true, 'tree opened with Space F')!
+	tree := editor.value('%val{bufname}')!
+	tree_state := editor.value('%opt{v_tree_state}')!
+	require(os.is_file(tree_state), 'Project tree did not create its state')!
+	editor.keys('<space>q')
+	editor.wait_value(buffer_file, source, false, 'tree returned to the source')!
+	editor.keys('<space>F')
+	editor.wait_value('%val{bufname}', tree, false, 'tree reopened the existing view')!
+	require(editor.value('%opt{v_tree_state}')! == tree_state,
+		'Reopening the tree replaced its state')!
 	mut offset := editor.offset()
 	editor.keys('<space>')
 	menu := editor.wait_info(offset, 'Toggle hidden files')!
@@ -176,6 +185,9 @@ fn exercise(kak string) ! {
 	editor.wait_info(offset, marker)!
 	editor.keys('<space><ret>')
 	editor.wait_value(buffer_file, target, false, 'tree opened the quoted filename')!
+	editor.remote('delete-buffer ${quote(tree)}')!
+	require(!os.exists(tree_state) && !os.exists(os.dir(tree_state)),
+		'Closing the tree buffer left its temporary state behind')!
 
 	editor.remote('set-option global v_explorer_enabled false')!
 	offset = editor.offset()
