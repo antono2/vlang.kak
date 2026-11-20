@@ -1,9 +1,9 @@
 #!/bin/sh
-# Use the cached V writer for all buffers and clients in a session save.
+# Select the checkpoint helper and keep session saves available without V.
 set -eu
 case ${1:-} in
-  --help|-h) echo 'Usage: session-buffer.sh [buffer|client|main|--prepare DIRECTORY|restore DIRECTORY|restart DIRECTORY STATE]'; exit 0 ;;
-  restore|restart)
+  --help|-h) echo 'Usage: session-buffer.sh [begin ROOT|buffer|client|main|finish BACKEND|--prepare DIRECTORY|restore DIRECTORY|restart DIRECTORY STATE]'; exit 0 ;;
+  begin|restore|restart)
     script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
     if command -v v >/dev/null 2>&1; then
       exec "$script_dir/helper-cache.sh" checkpoint --read "$@"
@@ -20,9 +20,10 @@ case ${1:-} in
     fi
     exit 0 ;;
 esac
+if [ "$#" -eq 0 ]; then set -- buffer; fi
 helper=${kak_opt_v_session_checkpoint:?}/session-checkpoint
 if [ -x "$helper" ]; then
-  exec "$helper" "${1:-buffer}"
+  exec "$helper" "$@"
 fi
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-exec "$script_dir/session-checkpoint-posix" "${1:-buffer}"
+exec "$script_dir/session-checkpoint-posix" "$@"

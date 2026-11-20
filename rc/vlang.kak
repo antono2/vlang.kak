@@ -2033,36 +2033,24 @@ define-command -hidden -params .. v-session-save-clients %{
 define-command v-session-save -docstring 'Checkpoint buffers and client positions without saving project files' %{
   v-debug-require-inactive
   evaluate-commands %sh{
-    umask 077
     root=${XDG_CACHE_HOME:-$HOME/.cache}/vlang.kak/sessions
-    if ! mkdir -p "$root" || ! directory=$(mktemp -d "$root/checkpoint.XXXXXXXX"); then
-      echo "fail 'Could not create checkpoint directory'"
-      exit
-    fi
     source=$(readlink -f "$kak_opt_v_plugin_source")
-    if ! "${source%/rc/vlang.kak}/scripts/session-buffer.sh" --prepare "$directory" >&2; then
-      echo "fail 'Could not build the V checkpoint writer'"
-      exit
-    fi
-    printf "set-option global v_session_checkpoint '%s'\n" "$(printf %s "$directory" | sed "s/'/''/g")"
+    "${source%/rc/vlang.kak}/scripts/session-buffer.sh" begin "$root"
   }
   v-session-save-buffers %val{buflist}
   v-session-save-clients %val{client_list}
   evaluate-commands %sh{
     source=$(readlink -f "$kak_opt_v_plugin_source")
     : "$kak_client" "$kak_opt_v_session_checkpoint"
-    if ! "${source%/rc/vlang.kak}/scripts/session-buffer.sh" main; then
-      echo "fail 'Could not finish checkpoint'"
-      exit
-    fi
-    rm -f -- "$kak_opt_v_session_checkpoint/session-checkpoint"
     helper=${source%/rc/vlang.kak}/scripts/windowing.sh
     : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
       "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
       "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
-    "$helper" detect "$kak_opt_v_window_backend" > "$kak_opt_v_session_checkpoint/backend"
-    ln -sfn "$kak_opt_v_session_checkpoint" "${XDG_CACHE_HOME:-$HOME/.cache}/vlang.kak/sessions/latest"
-    echo 'echo -debug "Session checkpoint saved; v-session-restore reopens it"'
+    if ! backend=$("$helper" detect "$kak_opt_v_window_backend"); then
+      echo "fail 'Could not detect a checkpoint pane host'"
+      exit
+    fi
+    "${source%/rc/vlang.kak}/scripts/session-buffer.sh" finish "$backend" || echo "fail 'Could not finish checkpoint'"
   }
 }
 define-command -hidden -params .. v-session-require-clean %{

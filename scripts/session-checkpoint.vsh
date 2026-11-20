@@ -55,6 +55,51 @@ fn save_client(directory string, name string) ! {
 	write_checkpoint(directory, 'clients', 'a', identity + '\n')!
 }
 
+fn begin_checkpoint(root string) ! {
+	os.mkdir_all(root, mode: 0o700)!
+	directory := os.join_path(os.real_path(root), 'checkpoint.' + rand.uuid_v4())
+	os.mkdir(directory, mode: 0o700)!
+	writer := os.join_path(directory, 'session-checkpoint')
+	copy_writer(os.executable(), writer) or {
+		os.rm(writer) or {}
+		os.rmdir(directory) or {}
+		return err
+	}
+	println('set-option global v_session_checkpoint ${quote(directory)}')
+}
+
+fn copy_writer(source string, writer string) ! {
+	os.cp(source, writer)!
+	os.chmod(writer, 0o700)!
+}
+
+fn finish_checkpoint(directory_arg string, backend string) ! {
+	directory := os.real_path(directory_arg)
+	if backend == '' || backend.contains('\n')
+		|| !os.is_file(os.join_path(directory, 'buffers.kak')) {
+		return error('Checkpoint buffers or pane host are missing')
+	}
+	main_id := sha256.hexhash(os.getenv('kak_client'))
+	clients := os.read_lines(os.join_path(directory, 'clients'))!
+	if main_id !in clients {
+		return error('Checkpoint main client is missing from its client list')
+	}
+	for identity in clients {
+		client_source(directory, identity)!
+	}
+	write_checkpoint(directory, 'main-client', 'w', main_id + '\n')!
+	write_checkpoint(directory, 'backend', 'w', backend + '\n')!
+	os.rm(os.join_path(directory, 'session-checkpoint'))!
+	root := os.dir(directory)
+	stage := os.join_path(root, '.latest-' + rand.uuid_v4())
+	os.mkdir(stage, mode: 0o700)!
+	defer { os.rmdir_all(stage) or {} }
+	next := os.join_path(stage, 'latest')
+	os.symlink(directory, next)!
+	os.rename_dir(next, os.join_path(root, 'latest'))!
+	println('echo -debug "Session checkpoint saved; v-session-restore reopens it"')
+}
+
 fn client_source(directory string, identity string) !string {
 	if identity.len != sha256.size * 2 || !identity.bytes().all(it.is_digit()
 		|| (it >= `a` && it <= `f`)) {
@@ -110,6 +155,10 @@ fn replay(directory string, state string) ! {
 
 fn run(args []string) ! {
 	directory := os.getenv('kak_opt_v_session_checkpoint')
+	if directory != '' && args.len == 2 && args[0] == 'finish' {
+		finish_checkpoint(directory, args[1])!
+		return
+	}
 	if directory == '' || args.len != 1 {
 		return error('Expected a checkpoint directory and one of buffer, client, or main')
 	}
@@ -132,6 +181,17 @@ fn run(args []string) ! {
 }
 
 args := os.args[1..]
+if args.len > 0 && args[0] == 'begin' {
+	if args.len != 2 || args[1] == '' {
+		println("fail 'Expected a checkpoint root'")
+		exit(2)
+	}
+	begin_checkpoint(args[1]) or {
+		println('fail ${quote(err.msg())}')
+		exit(1)
+	}
+	exit(0)
+}
 if args.len > 0 && args[0] in ['restore', 'restart'] {
 	restart := args[0] == 'restart'
 	expected := if restart { 3 } else { 2 }

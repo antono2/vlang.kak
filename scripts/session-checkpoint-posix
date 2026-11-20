@@ -12,6 +12,13 @@ client_source() {
   [ -f "$client_file" ] || fail 'Checkpoint client instructions are missing'
 }
 case $1 in
+  begin)
+    [ "$#" -eq 2 ] && [ -n "$2" ] || fail 'Expected a checkpoint root'
+    mkdir -p -- "$2" || fail 'Could not create checkpoint root'
+    root=$(readlink -f -- "$2") || fail 'Could not resolve checkpoint root'
+    directory=$(mktemp -d -- "$root/checkpoint.XXXXXXXX") || fail 'Could not create checkpoint directory'
+    printf 'set-option global v_session_checkpoint %s\n' "$(quote "$directory")"
+    exit 0 ;;
   restore|restart)
     mode=$1
     directory=${2:-}
@@ -49,6 +56,30 @@ $(printf 'v-session-open-client %s %s' "$(quote "$client_file")" "$(quote "$back
 esac
 directory=$kak_opt_v_session_checkpoint
 case $1 in
+  finish)
+    [ "$#" -eq 2 ] || exit 2
+    backend=$2
+    case "$backend" in ''|*'
+'*) exit 1 ;; esac
+    directory=$(readlink -f -- "$directory")
+    [ -f "$directory/buffers.kak" ] && [ -f "$directory/clients" ] || exit 1
+    identity=$(printf %s "$kak_client" | sha256sum | cut -d ' ' -f 1)
+    found_main=false
+    while IFS= read -r other || [ -n "$other" ]; do
+      client_source "$other"
+      if [ "$other" = "$identity" ]; then found_main=true; fi
+    done < "$directory/clients"
+    [ "$found_main" = true ] || exit 1
+    printf '%s\n' "$identity" > "$directory/main-client"
+    printf '%s\n' "$backend" > "$directory/backend"
+    rm -f -- "$directory/session-checkpoint"
+    root=$(dirname -- "$directory")
+    stage=$(mktemp -d -- "$root/.latest.XXXXXXXX")
+    trap 'rm -f -- "$stage/latest"; rmdir -- "$stage"' EXIT
+    ln -s -- "$directory" "$stage/latest"
+    mv -fT -- "$stage/latest" "$root/latest"
+    printf '%s\n' 'echo -debug "Session checkpoint saved; v-session-restore reopens it"'
+    exit 0 ;;
   client)
     identity=$(printf %s "$kak_client" | sha256sum | cut -d ' ' -f 1)
     printf 'rename-client %s\nbuffer %s\nselect %s\n' "$(quote "$kak_client")" "$(quote "$kak_bufname")" "$kak_selections_desc" > "$directory/client-$identity.kak"
