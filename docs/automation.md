@@ -217,11 +217,13 @@ executable paths and a `managed-process:PID` line for each process whose
 
 Enable weekly release discovery through `:v-settings`, or set
 `v_update_check_enabled true`. On client creation it starts a background check,
-at most once per seven days, and notifies only for a newly discovered release.
+at most once per seven days. Connected clients share notification history for
+the installation. If delivery fails, the next client can receive the cached
+notice without another release lookup.
 It does not schedule a system service or install updates. `:v-check-updates`
-checks immediately. Release discovery uses V when available and retains a POSIX
-fallback for editor-only installations. The repository's weekly Kakoune-master
-CI is separate.
+checks immediately. Release discovery and notification use V when available
+and retain a POSIX fallback for editor-only installations. The repository's
+weekly Kakoune-master CI is separate.
 
 `:v-cleanup` previews unchanged inactive tool releases. `:v-cleanup-apply` asks
 before removing them. Current, previous, staged candidates and versions used by

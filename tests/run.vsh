@@ -209,7 +209,7 @@ fn (mut suite Suite) run() ! {
 	suite.script('setup_runtime.vsh', [])!
 	suite.script('setup_repository.vsh', [])!
 	suite.script('setup_config.vsh', [])!
-	suite.script('update_discovery.vsh', [])!
+	suite.script('update_discovery.vsh', [suite.kak])!
 	suite.script('update_release.vsh', [])!
 	scripts := os.real_path(os.join_path(@DIR, '..', 'scripts'))
 	suite.script('helper_cache.vsh', [])!
