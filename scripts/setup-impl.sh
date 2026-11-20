@@ -69,12 +69,28 @@ config_home=${VLANG_KAK_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}}
 # personal path from our generated source line when updating those sessions.
 if [ -z "${VLANG_KAK_CONFIG_HOME:-}" ] &&
    [ "$config_home" = "$prefix/opt/vlang-kakoune/ide-config" ]; then
-  original_config=$(sed -n "s|^source '\(.*\)/kak/vlang-user.kak'$|\1|p" \
-    "$config_home/kak/kakrc" | tail -n 1 | sed "s/''/'/g")
-  if [ -z "$original_config" ] || [ ! -f "$original_config/kak/vlang-user.kak" ]; then
-    echo 'Cannot locate personal configuration; rerun setup from a regular shell with XDG_CONFIG_HOME set.' >&2
-    exit 1
+  . "$script_dir/managed-v.inc"
+  legacy_status=125
+  if legacy_compiler=$(find_maintenance_v --prefix "$prefix"); then
+    legacy_status=0
+    original_config=$(run_maintenance_program "$legacy_compiler" \
+      "$script_dir/setup-legacy-config.vsh" "$config_home") || legacy_status=$?
+    if [ "$legacy_status" -eq 125 ]; then
+      echo 'V could not prepare the legacy config reader. Using shell recovery.' >&2
+    fi
   fi
+  case "$legacy_status" in
+    0) ;;
+    125)
+      original_config=$(sed -n "s|^source '\(.*\)/kak/vlang-user.kak'$|\1|p" \
+        "$config_home/kak/kakrc" | tail -n 1 | sed "s/''/'/g")
+      if [ -z "$original_config" ] || [ ! -f "$original_config/kak/vlang-user.kak" ]; then
+        echo 'Cannot locate personal configuration; rerun setup from a regular shell with XDG_CONFIG_HOME set.' >&2
+        exit 1
+      fi
+      ;;
+    *) exit "$legacy_status" ;;
+  esac
   config_home=$original_config
 fi
 case "$config_home" in *"$(printf '\t')"*|*'
