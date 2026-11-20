@@ -1,4 +1,5 @@
-// Exercise release discovery with an isolated, read-only Git fixture.
+// Exercise release discovery and delivery using isolated Git and Kakoune fixtures.
+import editorui { quote }
 import os
 import rand
 import releasetest { capture }
@@ -11,6 +12,8 @@ const installed_commit = '0000000000000000000000000000000000000001'
 const expected_operations = ['ls-remote tags', 'describe', 'rev-parse', 'ls-remote release']
 const fixture_timeout = 15 * time.second
 const fixture_poll = 20 * time.millisecond
+const notification_session = 'discovery-session'
+const notification_client = "client's view"
 
 fn fake_git(args []string) ! {
 	operations_path := os.getenv('DISCOVERY_GIT_LOG')
@@ -71,6 +74,19 @@ fn fake_git(args []string) ! {
 		wait_for_file(barrier + '.continue')!
 	}
 	println(response)
+}
+
+fn fake_kak(args []string) ! {
+	if args != ['-p', notification_session] {
+		return error('Unexpected Kakoune socket arguments: ${args}')
+	}
+	command := os.get_lines().join('\n') + '\n'
+	mut attempts := os.open_append(os.getenv('DISCOVERY_KAK_LOG'))!
+	defer { attempts.close() }
+	attempts.write_string(command)!
+	if os.getenv('DISCOVERY_KAK_FAILURE') == '1' {
+		return error('Simulated Kakoune delivery failure')
+	}
 }
 
 fn wait_for_file(path string) ! {
@@ -135,14 +151,77 @@ fn discovery(env map[string]string, args []string) !string {
 	return output
 }
 
-fn check() ! {
+fn check_notification(root string, original map[string]string) ! {
+	mut env := original.clone()
+	state := os.join_path(env['VLANG_KAK_PREFIX'], 'opt', 'vlang-state')
+	marker := os.join_path(state, 'update-notified')
+	status := os.join_path(state, 'update-status')
+	attempts := os.join_path(root, os.file_name(env['VLANG_KAK_PREFIX']) + '-notices')
+	env['DISCOVERY_KAK_LOG'] = attempts
+	operation_log := env['DISCOVERY_GIT_LOG']
+	previous_operations := os.read_file(operation_log)!
+	message := "Release available: ${listed_release} (installed: editor's %{ view })"
+	os.write_file(status, message + '\n')!
+	args := ['--notify', notification_session, notification_client]
+	lock_path := os.join_path(state, 'check-lock')
+	os.mkdir(lock_path)!
+	assert discovery(env, args)! == ''
+	assert !os.exists(attempts) && !os.exists(marker)
+	os.rmdir(lock_path)!
+	env['DISCOVERY_KAK_FAILURE'] = '1'
+	if _ := discovery(env, args) {
+		return error('Failed Kakoune delivery unexpectedly succeeded')
+	}
+	assert !os.exists(marker)
+	env.delete('DISCOVERY_KAK_FAILURE')
+	assert discovery(env, args)! == ''
+	assert os.read_file(marker)! == message + '\n'
+	expected := 'evaluate-commands -client ${quote(notification_client)} ${quote('echo ' +
+		quote(message))}'
+	assert os.read_lines(attempts)! == [expected, expected]
+	assert discovery(env, args)! == ''
+	assert os.read_lines(attempts)! == [expected, expected]
+	os.write_file(status, 'Up to date: ${listed_release}\n')!
+	assert discovery(env, args)! == ''
+	assert os.read_lines(attempts)! == [expected, expected]
+	assert os.read_file(operation_log)! == previous_operations
+}
+
+fn check_live_notification(root string, kak string, bin string) ! {
+	os.rm(os.join_path(bin, 'kak'))!
+	os.symlink(kak, os.join_path(bin, 'kak'))!
+	prefix := os.join_path(root, 'live prefix')
+	state := os.join_path(prefix, 'opt', 'vlang-state')
+	os.mkdir_all(state)!
+	message := "Release available: editor's %{ view }"
+	os.write_file(os.join_path(state, 'update-status'), message + '\n')!
+	os.write_file(os.join_path(state, 'update-checked'), '')!
+	os.setenv('PATH', bin + ':' + os.getenv('PATH'), true)
+	os.setenv('VLANG_KAK_PREFIX', prefix, true)
+	file := os.join_path(root, 'demo.v')
+	os.write_file(file, 'module main\n')!
+	mut editor := editorui.open(kak, root, file)!
+	defer { editor.close() }
+	source := os.real_path(os.join_path(@DIR, '..', 'rc', 'vlang.kak'))
+	editor.remote('source ${quote(source)}')!
+	offset := editor.offset()
+	editor.remote('set-option global v_update_check_enabled true\nv-update-check-background')!
+	editor.wait_event(offset, 'draw_status', [message])!
+	marker := os.join_path(state, 'update-notified')
+	wait_for_file(marker)!
+	assert os.read_file(marker)! == message + '\n'
+	println('ok - Kakoune displays the release notice with literal quotes and braces')
+}
+
+fn check(kak string) ! {
 	root := os.join_path(os.temp_dir(), 'vlang-discovery-' + rand.uuid_v4())
 	os.mkdir(root, mode: 0o700)!
 	defer { os.rmdir_all(root) or {} }
 	bin := os.join_path(root, 'bin')
 	os.mkdir(bin)!
-	// The script runs as the checker or as Git, depending on the executable name.
+	// These names dispatch this executable to the Git and Kakoune test peers.
 	os.symlink(os.executable(), os.join_path(bin, 'git'))!
+	os.symlink(os.executable(), os.join_path(bin, 'kak'))!
 	operations_path := os.join_path(root, 'git-operations')
 	mut env := os.environ()
 	env['PATH'] = bin + ':' + env['PATH']
@@ -153,6 +232,7 @@ fn check() ! {
 	assert os.read_lines(operations_path)! == expected_operations
 	assert discovery(env, ['--background'])! == ''
 	assert os.read_lines(operations_path)! == expected_operations
+	check_notification(root, env)!
 	state := os.join_path(env['VLANG_KAK_PREFIX'], 'opt', 'vlang-state')
 	stamp := os.join_path(state, 'update-checked')
 	status := os.join_path(state, 'update-status')
@@ -184,7 +264,8 @@ fn check() ! {
 	assert !os.exists(lock_path)
 	check_interruption(root, env)!
 	// Exercise the supported editor-only setup with no compiler on PATH.
-	for tool in ['dirname', 'mkdir', 'rmdir', 'find', 'sed', 'sort', 'tail', 'cut', 'date', 'cat'] {
+	for tool in ['dirname', 'mkdir', 'rmdir', 'find', 'sed', 'sort', 'tail', 'cut', 'date', 'cat',
+		'grep', 'cmp', 'cp', 'mv', 'rm'] {
 		os.symlink(os.find_abs_path_of_executable(tool)!, os.join_path(bin, tool))!
 	}
 	env['PATH'] = bin
@@ -198,17 +279,23 @@ fn check() ! {
 	os.rmdir(fallback_lock)!
 	assert discovery(env, ['--background'])!.contains('Release available: ${listed_release}')
 	assert discovery(env, ['--background'])! == ''
-	println('ok - release discovery shares a lock across both paths and releases it on failure or interruption')
+	check_notification(root, env)!
+	if kak != '' {
+		check_live_notification(root, kak, bin)!
+	}
+	println('ok - release discovery and notification share one lock in both paths')
 }
 
-if os.file_name(os.args[0]) == 'git' {
-	fake_git(os.args[1..]) or {
-		eprintln(err)
-		exit(1)
+fn run() ! {
+	args := os.args[1..]
+	match os.file_name(os.args[0]) {
+		'git' { fake_git(args)! }
+		'kak' { fake_kak(args)! }
+		else { check(args[0] or { '' })! }
 	}
-} else {
-	check() or {
-		eprintln(err)
-		exit(1)
-	}
+}
+
+run() or {
+	eprintln(err)
+	exit(1)
 }

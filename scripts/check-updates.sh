@@ -2,11 +2,13 @@
 # Share the release-check lock across the V and V-less entry points.
 set -eu
 case "${1:-}" in
-  --help|-h) echo 'Usage: check-updates.sh [--background]'; exit 0 ;;
+  --help|-h) echo 'Usage: check-updates.sh [--background | --notify SESSION CLIENT]'; exit 0 ;;
 esac
-if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != --background ]; }; then
-  exit 2
-fi
+case "$#:${1:-}" in
+  0:|1:--background) ;;
+  3:--notify) [ -n "$2" ] && [ -n "$3" ] || exit 2 ;;
+  *) exit 2 ;;
+esac
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 prefix=${VLANG_KAK_PREFIX:-$HOME/.local}
 state=$prefix/opt/vlang-state

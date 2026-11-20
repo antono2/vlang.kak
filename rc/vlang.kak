@@ -1627,17 +1627,7 @@ define-command -hidden v-update-check-background %{
     [ "$kak_opt_v_update_check_enabled" = true ] && [ -n "${VLANG_KAK_PREFIX:-}" ] || exit
     source=$(readlink -f "$kak_opt_v_plugin_source")
     helper=${source%/rc/vlang.kak}/scripts/check-updates.sh
-    (
-      "$helper" --background > /dev/null 2>&1 || exit
-      state=$VLANG_KAK_PREFIX/opt/vlang-state
-      [ -f "$state/update-status" ] || exit
-      grep -q '^Release available:' "$state/update-status" || exit
-      cmp -s "$state/update-status" "$state/update-notified" && exit
-      text=$(cat "$state/update-status" | sed "s/'/''/g")
-      client=$(printf %s "$kak_client" | sed "s/'/''/g")
-      printf "evaluate-commands -client '%s' %%{ echo '%s' }\n" "$client" "$text" | kak -p "$kak_session" || exit
-      cp "$state/update-status" "$state/update-notified"
-    ) > /dev/null 2>&1 < /dev/null &
+    "$helper" --notify "$kak_session" "$kak_client" > /dev/null 2>&1 < /dev/null &
   }
 }
 hook -group v-update-check global ClientCreate .* %{ v-update-check-background }
