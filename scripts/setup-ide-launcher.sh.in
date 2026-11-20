@@ -1,0 +1,33 @@
+#!/bin/sh
+# vlang.kak managed IDE launcher
+XDG_CONFIG_HOME=@ISOLATED@
+VLANG_KAK_CONFIG_HOME=@CONFIG_HOME@
+PATH=@BIN@:@COMPILER_PATH@$PATH
+VLANG_KAK_PREFIX=@PREFIX@
+VLANG_KAK_REPO=@REPO@
+VLANG_KAK_RESTART_ALLOWED=1
+for argument in "$@"; do
+  case "$argument" in
+    -c|-C|-d|-p|-f) VLANG_KAK_RESTART_ALLOWED=0 ;;
+  esac
+done
+restart_dir=$(mktemp -d @RESTART_PATTERN@) || exit 1
+printf '%s\n' "$$" > "$restart_dir/owner-pid"
+for tool in kakoune kak-lsp vls v; do readlink -f @TOOL_PREFIX@"$tool/current" 2>/dev/null || true; done > "$restart_dir/tool-releases"
+VLANG_KAK_RESTART_STATE=$restart_dir/state.kak
+export XDG_CONFIG_HOME PATH VLANG_KAK_CONFIG_HOME VLANG_KAK_PREFIX VLANG_KAK_REPO   VLANG_KAK_RESTART_STATE VLANG_KAK_RESTART_ALLOWED
+trap 'rm -f "$restart_dir/owner-pid" "$restart_dir/tool-releases" "$restart_dir/state.kak" "$restart_dir/replay.kak"; rmdir "$restart_dir"' EXIT
+while :; do
+  if [ -s "$VLANG_KAK_RESTART_STATE" ]; then
+    mv "$VLANG_KAK_RESTART_STATE" "$restart_dir/replay.kak"
+    VLANG_KAK_RESTART_SOURCE="$restart_dir/replay.kak" kak "$@"
+    status=$?
+    rm -f "$restart_dir/replay.kak"
+  else
+    kak "$@"
+    status=$?
+  fi
+  if [ "$status" -ne 75 ] || [ ! -s "$VLANG_KAK_RESTART_STATE" ]; then
+    exit "$status"
+  fi
+done

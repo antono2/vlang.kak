@@ -42,7 +42,7 @@ fn (fixture SetupFixture) setup(options []string, failure string) ! {
 	output += child.stdout_read()
 	errors += child.stderr_read()
 	if failure == '' {
-		if child.code != 0 {
+		if child.code != 0 || errors.contains('Using shell configuration') {
 			return error('Setup exited with status ${child.code}\n${output}${errors}')
 		}
 	} else if child.code == 0 || !errors.contains(failure) {
@@ -55,6 +55,7 @@ fn check(root string, kak string) ! {
 	kak_config := os.join_path(config, 'kak')
 	prefix := os.join_path(root, 'prefix')
 	target := os.join_path(root, 'real-kakrc')
+	hardlink := os.join_path(root, 'linked-kakrc-copy')
 	kakrc := os.join_path(kak_config, 'kakrc')
 	personal := os.join_path(kak_config, 'vlang-user.kak')
 	autoload := os.join_path(kak_config, 'autoload')
@@ -62,6 +63,7 @@ fn check(root string, kak string) ! {
 	link := os.join_path(autoload, 'vlang.kak')
 	os.mkdir_all(autoload)!
 	os.write_file(target, original_settings)!
+	os.link(target, hardlink)!
 	os.symlink(target, kakrc)!
 	os.write_file(personal, personal_settings)!
 	os.write_file(unrelated, unrelated_plugin)!
@@ -128,6 +130,7 @@ fn check(root string, kak string) ! {
 	os.write_file(target, original_settings)!
 	fixture.setup(['--integrate'], '')!
 	assert os.read_file(target)!.starts_with(original_settings)
+	assert os.read_file(hardlink)! == os.read_file(target)!
 	assert os.is_link(kakrc)
 	assert !os.ls(kak_config)!.any(it.starts_with('kakrc.vlang-backup'))
 	mut baseline_preserved := false
@@ -138,7 +141,9 @@ fn check(root string, kak string) ! {
 		}
 	}
 	assert baseline_preserved
+	backups := os.ls(root)!.filter(it.starts_with('real-kakrc.vlang-backup.')).len
 	fixture.setup(['--update'], '')!
+	assert os.ls(root)!.filter(it.starts_with('real-kakrc.vlang-backup.')).len == backups
 	assert os.read_file(target)!.starts_with(original_settings)
 	assert os.read_file(personal)! == personal_settings
 	assert os.real_path(link) == os.join_path(os.dir(@DIR), 'rc', 'vlang.kak')
@@ -164,7 +169,8 @@ fn check_persisted_settings(root string, search_path string) ! {
 	assert output_update.ends_with('v-update-check-background\n')
 	capture(program, ['v_pane_mode', 'auto'], true, environment: environment)!
 	assert os.is_link(path) && os.real_path(path) == target
-	expected := personal_settings + '\n# >>> vlang.kak preferences >>>\ntry %{ set-option global v_update_check_enabled true }\nset-option global v_pane_mode auto\n# <<< vlang.kak preferences <<<\n'
+	expected := personal_settings +
+		'\n# >>> vlang.kak preferences >>>\ntry %{ set-option global v_update_check_enabled true }\nset-option global v_pane_mode auto\n# <<< vlang.kak preferences <<<\n'
 	assert os.read_file(target)! == expected
 	mut backups := []string{}
 	for name in os.ls(root)!.filter(it.starts_with('personal.kak.vlang-backup.')) {
