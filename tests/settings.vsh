@@ -275,8 +275,9 @@ fn run(kak string) ! {
 	// Reproduce a stock editor environment with the POSIX tools but without V.
 	posix_tools := os.join_path(root, 'posix-tools')
 	os.mkdir(posix_tools)!
+	// Kakoune's runtime also needs find, sed and head to autoload its menu.
 	for tool in ['dirname', 'mkdir', 'readlink', 'touch', 'mktemp', 'awk', 'cp', 'cat', 'rm', 'rmdir',
-		'cksum', 'sed', 'sh'] {
+		'cksum', 'sed', 'sh', 'find', 'head', 'sort'] {
 		os.symlink(os.find_abs_path_of_executable(tool)!, os.join_path(posix_tools, tool))!
 	}
 	check_persisted_settings(os.join_path(root, 'posix'), posix_tools)!
