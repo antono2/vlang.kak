@@ -36,7 +36,7 @@ fn check() ! {
 	source := os.join_path(root, 'source', 'scripts')
 	os.mkdir_all(source)!
 	repo_scripts := os.join_path(os.dir(@DIR), 'scripts')
-	for name in ['setup.vsh', 'setup-signals.h'] {
+	for name in ['setup.vsh', 'maintenance-signals.h'] {
 		os.cp(os.join_path(repo_scripts, name), os.join_path(source, name))!
 	}
 	for name in ['managedfiles', 'managedsnapshot'] {

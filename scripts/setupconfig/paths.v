@@ -51,13 +51,13 @@ fn logical_path(path string) string {
 }
 
 // On Linux backslashes are path characters. V's mkdir_all treats them as separators.
-fn make_config_directory(path string) ! {
+pub fn make_directory(path string) ! {
 	if os.is_dir(path) {
 		return
 	}
 	slash := path.last_index('/') or { 0 }
 	if slash > 0 {
-		make_config_directory(path[..slash])!
+		make_directory(path[..slash])!
 	}
 	os.mkdir(path) or {
 		if !os.is_dir(path) {
@@ -84,7 +84,7 @@ pub fn resolve(prefix string) !Paths {
 	if config.contains_any('\t\n') || home.contains_any('\t\n') {
 		return error_with_code(path_error, 2)
 	}
-	make_config_directory(config)!
+	make_directory(config)!
 	if !os.is_dir(home) || !os.is_executable(home) {
 		return error('Cannot enter configuration directory ${home}.')
 	}

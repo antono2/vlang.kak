@@ -10,14 +10,10 @@ fi
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 prefix=${VLANG_KAK_PREFIX:-$HOME/.local}
 state=$prefix/opt/vlang-state
-mkdir -p "$state"
-mkdir "$state/check-lock" 2>/dev/null || exit 0
-trap 'rmdir "$state/check-lock"' EXIT
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 143' TERM
 if command -v v >/dev/null 2>&1; then
-  v run "$script_dir/check-updates.vsh" "$state" "$@"
-else
-  "$script_dir/check-updates-posix" "$state" "$@"
+  . "$script_dir/managed-v.inc"
+  status=0
+  run_maintenance_program v "$script_dir/check-updates.vsh" "$state" "$@" || status=$?
+  [ "$status" -eq 125 ] || exit "$status"
 fi
+exec "$script_dir/check-updates-posix" "$state" "$@"

@@ -3,6 +3,12 @@
 set -eu
 state=$1
 shift
+mkdir -p "$state"
+mkdir "$state/check-lock" 2>/dev/null || exit 0
+trap 'rmdir "$state/check-lock"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 if [ "${1:-}" = --background ] && [ -f "$state/update-checked" ] &&
   [ -z "$(find "$state/update-checked" -mtime +6 -print)" ]; then
   exit 0
