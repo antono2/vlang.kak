@@ -1,0 +1,28 @@
+# Select or verify VLS before a V compiler is available.
+case "$1" in
+  select)
+    if [ -L "$2/bin/vls" ] &&
+       [ "$(readlink -f "$2/bin/vls")" != "$(readlink -f "$2/opt/vlang-vls/current/bin/vls" 2>/dev/null || true)" ]; then
+      printf '%s\n' skip
+    else
+      printf '%s\n' upstream
+    fi
+    ;;
+  external)
+    if [ ! -f "$3" ] || [ ! -x "$3" ]; then
+      echo "VLS is not executable: $3" >&2
+      exit 1
+    fi
+    mkdir -p "$2/bin"
+    if [ -e "$2/bin/vls" ] && [ ! -L "$2/bin/vls" ]; then
+      echo "Existing unmanaged VLS at $2/bin/vls; choose another --prefix." >&2
+      exit 1
+    fi
+    resolved=$(readlink -fn -- "$3" && printf .)
+    resolved=${resolved%.}
+    case "$resolved" in *"$(printf '\t')"*|*"$(printf '\r')"*|*'
+'*) echo 'Tabs and newlines are unsupported in VLS executable paths.' >&2; exit 1 ;;
+    esac
+    printf '%s\n' "$resolved"
+    ;;
+esac

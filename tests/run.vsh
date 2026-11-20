@@ -164,6 +164,7 @@ fn (mut suite Suite) run() ! {
 	suite.script('install_lock.vsh', [])!
 	suite.script('setup_checks.vsh', [])!
 	suite.script('setup_compiler.vsh', [])!
+	suite.script('setup_vls.vsh', [])!
 	suite.script('update_discovery.vsh', [])!
 	suite.script('update_release.vsh', [])!
 	scripts := os.real_path(os.join_path(@DIR, '..', 'scripts'))

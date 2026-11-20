@@ -161,13 +161,19 @@ if [ "$update" = true ] && [ "${VLANG_KAK_SKIP_PULL:-0}" != 1 ]; then
   fi
 fi
 
+setup_vls() {
+  if vls_compiler=$(find_maintenance_v --prefix "$2"); then
+    vls_status=0
+    run_maintenance_program "$vls_compiler" "$script_dir/setup-vls.vsh" "$@" || vls_status=$?
+    [ "$vls_status" -eq 125 ] || return "$vls_status"
+    echo 'V could not prepare VLS selection. Using shell VLS selection.' >&2
+  fi
+  . "$script_dir/setup-vls-posix"
+}
 if [ "$vls_mode" = auto ]; then
-  if [ -L "$prefix/bin/vls" ] &&
-     [ "$(readlink -f "$prefix/bin/vls")" != "$(readlink -f "$prefix/opt/vlang-vls/current/bin/vls" 2>/dev/null || true)" ]; then
-    vls_mode=skip
+  vls_mode=$(setup_vls select "$prefix")
+  if [ "$vls_mode" = skip ]; then
     echo 'Keeping externally linked VLS. Use --vls-upstream to switch to managed upstream VLS.'
-  else
-    vls_mode=upstream
   fi
 fi
 
@@ -235,14 +241,7 @@ fi
 if [ "$vls_mode" = upstream ]; then
   v run "$script_dir/install-vls.vsh" --ref "$vls_ref" --prefix "$prefix"
 elif [ "$vls_mode" = external ]; then
-  [ -x "$vls_path" ] || { echo "VLS is not executable: $vls_path" >&2; exit 1; }
-  vls_path=$(readlink -f "$vls_path")
-  mkdir -p "$prefix/bin"
-  if [ -e "$prefix/bin/vls" ] && [ ! -L "$prefix/bin/vls" ]; then
-    echo "Existing unmanaged VLS at $prefix/bin/vls; choose another --prefix." >&2
-    exit 1
-  fi
-  : # Linked during activation below.
+  vls_path=$(setup_vls external "$prefix" "$vls_path")
 fi
 if [ "$vls_mode" = skip ] && ! PATH="$prefix/bin:$PATH" command -v vls >/dev/null 2>&1; then
   echo "VLS is not on PATH. Pass --vls /path/to/vls after building it." >&2
