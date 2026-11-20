@@ -63,7 +63,8 @@ fn (file HistoryFile) menu() {
 }
 
 fn run(args []string) ! {
-	match args[0] {
+	operation := args[0] or { '' }
+	match operation {
 		'prepare' {
 			if args.len == 3 {
 				location(args[1])!.prepare(args[2])!
@@ -84,7 +85,7 @@ fn run(args []string) ! {
 			}
 		}
 		else {}
-	} or { '' }
+	}
 
 	return error('Expected prepare FILE REVISION, menu FILE, or show REPO COMMIT PATH')
 }
