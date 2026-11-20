@@ -32,6 +32,9 @@ For changes affecting the full IDE, run
 For installer, update or tool-version changes, run
 `v run tests/release.vsh /absolute/artifact-directory`. Requirements and coverage are
 documented in [automated acceptance](docs/release-candidate.md).
+Use `v run tests/ci.vsh shell-checks` to smoke-test the shell entry points and
+`v run tests/ci.vsh pane-clients /absolute/managed-prefix /absolute/artifact-directory`
+to run the six real terminal clients after installing the pane-host dependencies.
 
 Add regression checks for reported behavior failures. Test actual interactions
 where they matter: selection acceptance and cancellation, pane closing, source

@@ -4,7 +4,7 @@ import os
 import rand
 import releasetest
 
-const usage = 'Usage: v run tests/install-pane-hosts.vsh ARTIFACT_DIRECTORY (Linux x86_64)'
+const usage = 'Usage: v run tests/install-pane-hosts.vsh ARTIFACT_DIRECTORY [--github-path FILE] (Linux x86_64)'
 const hash_chunk_bytes = 64 * 1024
 const digest_hex_length = 64
 const download_retries = '3'
@@ -101,7 +101,7 @@ fn verified_archive(root string, tool Tool) ! {
 	println('${archive}: OK')
 }
 
-fn install(requested string) ! {
+fn install(requested string, github_path string) ! {
 	$if !( linux && amd64 ) {
 		return error('Pinned pane-host test downloads require Linux x86_64')
 	}
@@ -121,6 +121,11 @@ fn install(requested string) ! {
 		releasetest.run_inherited(binary, ['--version'])!
 		path_dirs << os.dir(binary)
 	}
+	if github_path != '' {
+		for dir in path_dirs {
+			releasetest.append_line(github_path, dir)!
+		}
+	}
 	println('PATH directories: ' + path_dirs.join(':'))
 }
 
@@ -129,10 +134,13 @@ fn run(args []string) ! {
 		println(usage)
 		return
 	}
+	if args.len == 3 && args[1] == '--github-path' && args[2] != '' {
+		return install(args[0], args[2])
+	}
 	if args.len != 1 {
 		return error_with_code(usage, 2)
 	}
-	install(args[0])!
+	install(args[0], '')!
 }
 
 run(os.args[1..]) or {

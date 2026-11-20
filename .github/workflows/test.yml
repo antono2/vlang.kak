@@ -46,17 +46,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes kakoune
-          echo "KAK=$(command -v kak)" >> "$GITHUB_ENV"
+
+      - name: Select packaged Kakoune
+        if: matrix.kakoune == 'packaged'
+        run: v run tests/ci.vsh packaged-kakoune
 
       - name: Build Kakoune ${{ matrix.kakoune }}
         if: matrix.kakoune != 'packaged'
         env:
           KAKOUNE_VERSION: ${{ matrix.kakoune }}
-        run: |
-          prefix="$RUNNER_TEMP/managed-kakoune"
-          v run scripts/build-kakoune.vsh --version "$KAKOUNE_VERSION" --prefix "$prefix"
-          echo "KAK=$prefix/bin/kak" >> "$GITHUB_ENV"
-          echo "KAKOUNE_RUNTIME=$prefix/opt/vlang-kakoune/current/share/kak" >> "$GITHUB_ENV"
+        run: v run tests/ci.vsh build-kakoune "$KAKOUNE_VERSION" "$RUNNER_TEMP/managed-kakoune"
 
       - name: Install client-test dependencies
         run: |
@@ -72,17 +71,14 @@ jobs:
 
       - name: Test V and VLS installation and activation with local source repositories
         if: matrix.kakoune == 'packaged'
-        run: |
-          v run tests/check_v_installer.vsh
-          v run tests/check_vls_installer.vsh
+        run: v run tests/ci.vsh installer-tests
 
       - name: Test installation diagnostics and compiler fallback
         if: matrix.kakoune == 'packaged'
         run: v run tests/check_diagnostics.vsh
 
       - name: Check setup and update scripts
-        run: |
-          for script in scripts/*.sh; do sh -n "$script"; "$script" --help > /dev/null; done
+        run: v run tests/ci.vsh shell-checks
 
   release:
     name: Managed installation and live VLS
@@ -104,12 +100,12 @@ jobs:
             libxcursor1 libxrandr2 libxi6 libxinerama1 libxkbcommon0 \
             libxkbcommon-x11-0 libxcb-xkb1 imagemagick fonts-dejavu-core
 
+      - name: Install bootstrap V 0.5.2
+        uses: ./.github/actions/setup-v
+
       - name: Identify compiler cache
         id: compiler-cache
-        run: |
-          . tests/release.env
-          echo "pins=$V_REF-$VC_REF" >> "$GITHUB_OUTPUT"
-          echo "gcc=$(gcc -dumpfullversion)" >> "$GITHUB_OUTPUT"
+        run: v run tests/ci.vsh compiler-cache
 
       - name: Restore pinned compiler source and build
         id: compiler-restore
@@ -121,14 +117,7 @@ jobs:
       - name: Build or reuse the pinned V compiler
         env:
           COMPILER_CACHE_HIT: ${{ steps.compiler-restore.outputs.cache-hit }}
-        run: |
-          build_started=$(date +%s)
-          ./scripts/install-v.sh "/home/runner/.cache/vlang-kak-ci/v-toolchain"
-          echo "/home/runner/.cache/vlang-kak-ci/v-toolchain/opt/vlang-v/current" >> "$GITHUB_PATH"
-          "/home/runner/.cache/vlang-kak-ci/v-toolchain/opt/vlang-v/current/v" version
-          elapsed=$(( $(date +%s) - build_started ))
-          if [ "$COMPILER_CACHE_HIT" = true ]; then cache_status=hit; else cache_status=miss; fi
-          printf 'V compiler cache: %s; build/reuse: %s seconds\n' "$cache_status" "$elapsed" | tee -a "$GITHUB_STEP_SUMMARY"
+        run: v run tests/ci.vsh compiler "/home/runner/.cache/vlang-kak-ci/v-toolchain"
 
       - name: Save the completed compiler build
         if: steps.compiler-restore.outputs.cache-hit != 'true'
@@ -140,16 +129,10 @@ jobs:
       - name: Resolve the weekly Kakoune master revision
         id: kakoune-master
         if: github.event_name == 'schedule' || inputs.kakoune_master == true
-        run: |
-          revision=$(git ls-remote https://github.com/mawww/kakoune.git refs/heads/master | awk '{print $1}')
-          test "${#revision}" -eq 40
-          echo "VLANG_RELEASE_KAKOUNE_REF=$revision" >> "$GITHUB_ENV"
-          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+        run: v run tests/ci.vsh kakoune-master
 
       - name: Test clean installation, live navigation, debugging, panes and updates
-        run: |
-          set -o pipefail
-          v run tests/release.vsh "$RUNNER_TEMP/vlang-release" 2>&1 | tee "$RUNNER_TEMP/vlang-release.log"
+        run: v run tests/ci.vsh release "$RUNNER_TEMP/vlang-release" "$RUNNER_TEMP/vlang-release.log"
 
       - name: Record the six-screen IDE demonstration
         env:
@@ -169,11 +152,7 @@ jobs:
           key: pane-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tests/pane-hosts.env') }}
 
       - name: Install pinned pane hosts for real-client checks
-        run: |
-          v run tests/install-pane-hosts.vsh "$RUNNER_TEMP/vlang-pane-tools"
-          echo "$RUNNER_TEMP/vlang-pane-tools/zellij" >> "$GITHUB_PATH"
-          echo "$RUNNER_TEMP/vlang-pane-tools/wezterm/wezterm/usr/bin" >> "$GITHUB_PATH"
-          echo "$RUNNER_TEMP/vlang-pane-tools/kitty/bin" >> "$GITHUB_PATH"
+        run: v run tests/install-pane-hosts.vsh "$RUNNER_TEMP/vlang-pane-tools" --github-path "$GITHUB_PATH"
 
       - name: Save verified pane-host archives
         if: steps.pane-restore.outputs.cache-hit != 'true'
@@ -186,15 +165,7 @@ jobs:
           key: ${{ steps.pane-restore.outputs.cache-primary-key }}
 
       - name: Test real Zellij, WezTerm, kitty, Screen, Xterm and Wayland Foot clients
-        run: |
-          screen --version
-          xterm -version
-          foot --version
-          sway --version
-          for backend in zellij wezterm kitty screen native wayland; do
-            v run tests/pane_hosts.vsh "$RUNNER_TEMP/vlang-release/prefix" "$backend" \
-              --artifacts "$RUNNER_TEMP/vlang-release/pane-hosts/$backend"
-          done
+        run: v run tests/ci.vsh pane-clients "$RUNNER_TEMP/vlang-release/prefix" "$RUNNER_TEMP/vlang-release/pane-hosts"
 
       - name: Save release and acceptance logs
         if: always()
