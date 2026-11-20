@@ -2,7 +2,7 @@
 # Keep checkpoints available in editor installations without V.
 set -eu
 umask 077
-quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
+quote() { printf "'"; printf %s "$1" | sed "s/'/''/g"; printf "'"; }
 fail() { printf 'fail %s\n' "$(quote "$1")"; exit 1; }
 write_restart_state() {
   temporary=$(mktemp -- "$1.XXXXXXXX") || fail 'Could not write restart state'
@@ -18,6 +18,20 @@ client_source() {
   [ -f "$client_file" ] || fail 'Checkpoint client instructions are missing'
 }
 case $1 in
+  save-buffers|save-clients|check-buffers|close-clients)
+    action=$1
+    shift
+    for name do
+      quoted=$(quote "$name")
+      case $action in
+        save-buffers) printf 'v-session-save-buffer %s\n' "$quoted" ;;
+        save-clients) printf 'v-session-save-client %s\n' "$quoted" ;;
+        check-buffers) printf 'v-session-check-buffer %s\n' "$quoted" ;;
+        close-clients)
+          [ "$name" = "${kak_client:-}" ] || printf 'evaluate-commands -client %s %%{ quit! }\n' "$quoted" ;;
+      esac
+    done
+    exit 0 ;;
   restart-files)
     state=${VLANG_KAK_RESTART_STATE:-}
     [ -n "$state" ] || fail 'Restart requires the managed kak-v launcher'

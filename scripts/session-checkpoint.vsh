@@ -183,6 +183,24 @@ fn save_restart_files(files []string) ! {
 	write_restart_state(state, commands)!
 }
 
+fn plan_session_action(action string, names []string) {
+	owner := os.getenv('kak_client')
+	for name in names {
+		quoted := quote(name)
+		match action {
+			'save-buffers' { println('v-session-save-buffer ${quoted}') }
+			'save-clients' { println('v-session-save-client ${quoted}') }
+			'check-buffers' { println('v-session-check-buffer ${quoted}') }
+			'close-clients' {
+				if name != owner {
+					println('evaluate-commands -client ${quoted} %{ quit! }')
+				}
+			}
+			else {}
+		}
+	}
+}
+
 fn run(args []string) ! {
 	directory := os.getenv('kak_opt_v_session_checkpoint')
 	if directory != '' && args.len == 2 && args[0] == 'finish' {
@@ -211,6 +229,10 @@ fn run(args []string) ! {
 }
 
 args := os.args[1..]
+if args.len > 0 && args[0] in ['save-buffers', 'save-clients', 'check-buffers', 'close-clients'] {
+	plan_session_action(args[0], args[1..])
+	exit(0)
+}
 if args.len > 0 && args[0] == 'restart-files' {
 	save_restart_files(args[1..]) or {
 		println('fail ${quote(err.msg())}')

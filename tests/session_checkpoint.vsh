@@ -58,8 +58,8 @@ fn check_saved_file_restart(root string, launcher string, lane map[string]string
 	second_quoted := second.replace("'", "''")
 	assert os.read_file(state)! ==
 		"nop\ntry %{ buffer '${first_quoted}' } catch %{ edit -- '${first_quoted}' }\n" +
-		"try %{ buffer '${second_quoted}' } catch %{ edit -- '${second_quoted}' }\n" +
-		"buffer '${first_quoted}'\nselect 2.3,2.3\n"
+			"try %{ buffer '${second_quoted}' } catch %{ edit -- '${second_quoted}' }\n" +
+			"buffer '${first_quoted}'\nselect 2.3,2.3\n"
 	assert !os.is_link(state) && os.read_file(target)! == 'original\n'
 	assert (os.stat(state)!.mode & 0o777) == 0o600
 	env['kak_buffile'] = second
@@ -70,6 +70,24 @@ fn check_saved_file_restart(root string, launcher string, lane map[string]string
 	env.delete('VLANG_KAK_RESTART_STATE')
 	failed := execute(launcher, ['restart-files'], false, environment: env)!
 	assert failed.stdout.contains('Restart requires the managed kak-v launcher')
+}
+
+fn check_session_actions(launcher string, lane map[string]string) ! {
+	mut env := lane.clone()
+	env['kak_client'] = 'owner'
+	names := ['owner', "other's %{\n"]
+	for action, command in {
+		'save-buffers':  'v-session-save-buffer'
+		'save-clients':  'v-session-save-client'
+		'check-buffers': 'v-session-check-buffer'
+	} {
+		assert capture(launcher, [action, ...names], true, environment: env)! ==
+			"${command} 'owner'\n${command} 'other''s %{\n'\n"
+	}
+	assert capture(launcher, ['close-clients', ...names], true, environment: env)! ==
+		"evaluate-commands -client 'other''s %{\n' %{ quit! }\n"
+	assert capture(launcher, ['close-clients', 'owner'], true, environment: env)! == ''
+	assert capture(launcher, ['check-buffers'], true, environment: env)! == ''
 }
 
 fn check() ! {
@@ -140,6 +158,7 @@ fn check() ! {
 		os.mkdir(publication)!
 		check_publication(publication, launcher, lane, i == 0)!
 		check_saved_file_restart(publication, launcher, lane)!
+		check_session_actions(launcher, lane)!
 		assert os.exists(fallback_marker) == (i > 0)
 	}
 
@@ -147,7 +166,8 @@ fn check() ! {
 	os.write_file(os.join_path(scripts, 'session-checkpoint.vsh'), 'invalid helper source')!
 	assert capture(launcher, ['restore', checkpoint], true, environment: env)! == expected
 	assert os.exists(fallback_marker)
-	println('ok - native and POSIX checkpoints and saved-file restart preserve editor state')
+	check_session_actions(launcher, env)!
+	println('ok - native and POSIX session actions, checkpoints and restart state')
 }
 
 check() or {

@@ -190,9 +190,10 @@ helper removes the copy and updates `latest` once the checkpoint is complete.
 The editor uses the POSIX writer if V is unavailable or cannot prepare the
 cached writer.
 
-Restore and recovery restart use the same cached V helper, with a POSIX path
-for compiler-free installations. Recovery restart checks the saved client
-instructions before replacing the launcher's restart file.
+The cached V helper also prepares the editor commands that visit buffers and
+clients. The POSIX helper handles the same commands on compiler-free
+installations. Recovery restart checks the saved client instructions before
+replacing the launcher's restart file and closing the extra clients.
 
 `:v-restart-recover` asks for confirmation, then restarts the owning `kak-v`
 client, restores the checkpoint and reopens additional views through the current

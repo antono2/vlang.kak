@@ -1983,7 +1983,8 @@ define-command -hidden -params 1 v-session-save-buffer %{
 }
 define-command -hidden -params .. v-session-save-buffers %{
   evaluate-commands %sh{
-    for name do printf "v-session-save-buffer '%s'\n" "$(printf %s "$name" | sed "s/'/''/g")"; done
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/session-buffer.sh" save-buffers "$@" || echo "fail 'Could not list checkpoint buffers'"
   }
 }
 define-command -hidden -params 1 v-session-save-client %{
@@ -1997,7 +1998,8 @@ define-command -hidden -params 1 v-session-save-client %{
 }
 define-command -hidden -params .. v-session-save-clients %{
   evaluate-commands %sh{
-    for client do printf "v-session-save-client '%s'\n" "$(printf %s "$client" | sed "s/'/''/g")"; done
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/session-buffer.sh" save-clients "$@" || echo "fail 'Could not list checkpoint clients'"
   }
 }
 define-command v-session-save -docstring 'Checkpoint buffers and client positions without saving project files' %{
@@ -2023,11 +2025,18 @@ define-command v-session-save -docstring 'Checkpoint buffers and client position
     "${source%/rc/vlang.kak}/scripts/session-buffer.sh" finish "$backend" || echo "fail 'Could not finish checkpoint'"
   }
 }
+define-command -hidden -params 1 v-session-check-buffer %{
+  evaluate-commands -buffer %arg{1} %{
+    evaluate-commands %sh{
+      [ "$kak_modified" != true ] || [ "$kak_bufname" = '*debug*' ] ||
+        echo "fail 'Restore in a fresh session or save/checkpoint existing edits first'"
+    }
+  }
+}
 define-command -hidden -params .. v-session-require-clean %{
   evaluate-commands %sh{
-    for name do
-      printf "evaluate-commands -buffer '%s' %%{ evaluate-commands %%sh{ [ \"\$kak_modified\" != true ] || [ \"\$kak_bufname\" = '*debug*' ] || echo \"fail 'Restore in a fresh session or save/checkpoint existing edits first'\" } }\n" "$(printf %s "$name" | sed "s/'/''/g")"
-    done
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/session-buffer.sh" check-buffers "$@" || echo "fail 'Could not check existing buffers'"
   }
 }
 define-command -params 0..1 -file-completion v-session-restore -docstring 'Restore the last recovery checkpoint, including scratch and unsaved buffers' %{
@@ -2038,6 +2047,13 @@ define-command -params 0..1 -file-completion v-session-restore -docstring 'Resto
     "${source%/rc/vlang.kak}/scripts/session-buffer.sh" restore "$directory"
   }
 }
+define-command -hidden -params .. v-session-close-other-clients %{
+  evaluate-commands %sh{
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    : "$kak_client"
+    "${source%/rc/vlang.kak}/scripts/session-buffer.sh" close-clients "$@" || echo "fail 'Could not list clients for recovery restart'"
+  }
+}
 define-command -hidden v-restart-recover-now %{
   v-debug-require-inactive
   evaluate-commands %sh{
@@ -2045,15 +2061,10 @@ define-command -hidden v-restart-recover-now %{
   }
   v-session-save
   evaluate-commands %sh{
-    quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
     source=$(readlink -f "$kak_opt_v_plugin_source")
-    if ! "${source%/rc/vlang.kak}/scripts/session-buffer.sh" restart "$kak_opt_v_session_checkpoint" "${VLANG_KAK_RESTART_STATE:-}"; then exit; fi
-    eval "set -- $kak_quoted_client_list"
-    for client do
-      [ "$client" != "$kak_client" ] || continue
-      printf 'evaluate-commands -client %s %%{ quit! }\n' "$(quote "$client")"
-    done
+    "${source%/rc/vlang.kak}/scripts/session-buffer.sh" restart "$kak_opt_v_session_checkpoint" "${VLANG_KAK_RESTART_STATE:-}" || echo "fail 'Could not prepare the recovery restart'"
   }
+  v-session-close-other-clients %val{client_list}
   quit! 75
 }
 define-command -hidden -params 2 v-session-open-client %{
