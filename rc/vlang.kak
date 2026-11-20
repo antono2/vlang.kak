@@ -1077,36 +1077,13 @@ define-command -hidden v-debug-require-inactive %{
 define-command -hidden -params 1.. v-debug-call %{
   evaluate-commands %sh{
     # Referencing these values makes Kakoune export them to the V helper.
-    : "$kak_buffile" "$kak_modified" "$kak_client" "$kak_opt_v_debug_adapter" \
+    : "$kak_buffile" "$kak_modified" "$kak_client" "$kak_session" "$kak_opt_v_debug_adapter" \
       "$kak_quoted_opt_v_debug_adapter_args" "$kak_opt_v_debug_build_command" \
       "$kak_opt_v_debug_pretty_print" "$kak_opt_v_debug_build" "$kak_opt_v_debug_program" "$kak_opt_v_debug_cwd" \
       "$kak_opt_v_project_target" "$kak_quoted_opt_v_debug_args" "$kak_quoted_opt_v_debug_env" "$kak_opt_v_debug_entry" "$kak_opt_v_debug_break_on_failure"
     source=$(readlink -f "$kak_opt_v_plugin_source")
-    helper=${source%/rc/vlang.kak}/scripts/debug.sh
-    directory=$kak_opt_v_debug_directory
-    if [ -z "$directory" ]; then
-      identity=$(printf %s "$kak_session" | cksum | cut -d ' ' -f 1)
-      directory=${XDG_CACHE_HOME:-$HOME/.cache}/vlang.kak/debug-$identity
-    fi
-    mkdir -p "$directory"
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    printf 'set-option global v_debug_directory %s\n' "$(kak_quote "$directory")"
-    if [ "$1" = start ]; then
-      output=$("$helper" configure "$directory") || { printf '%s\n' "$output"; exit; }
-      nohup "$helper" run "$directory" > "$directory/daemon.log" 2>&1 < /dev/null &
-      daemon=$!
-      attempts=0
-      while kill -0 "$daemon" 2>/dev/null; do
-        "$helper" active "$directory" && break
-        attempts=$((attempts + 1))
-        [ "$attempts" -lt 100 ] || break
-        sleep 0.02
-      done
-      printf 'set-option global v_debug_phase building\necho %s\n' "$(kak_quote 'Building the debug target; output opens automatically')"
-    else
-      shift
-      "$helper" queue "$directory" "$@"
-    fi
+    "${source%/rc/vlang.kak}/scripts/debug.sh" call "$kak_opt_v_debug_directory" "$@" ||
+      echo "fail 'Debugger helper failed; inspect the error in *debug*'"
   }
 }
 define-command v-debug -docstring 'Build and launch the V project or current test under GDB' %{
