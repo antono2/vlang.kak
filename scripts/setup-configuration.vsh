@@ -2,6 +2,7 @@
 import editorui { quote }
 import managedfiles { settings_block }
 import managedrecord
+import managedsnapshot
 import os
 import rand
 import setupconfig
@@ -29,8 +30,9 @@ struct Setup {
 	managed_kak     bool
 }
 
-fn selected(args []string) !Setup {
-	if args.len != 13 || !args[..4].all(os.is_abs_path(it)) {
+fn selected(args []string, prepare_tools bool) !Setup {
+	if args.len != 13 || !args[..3].all(os.is_abs_path(it))
+		|| (!prepare_tools && !os.is_abs_path(args[3])) {
 		return error('Expected the setup paths and selected configuration options.')
 	}
 	if ![args[5], args[8], args[9], args[12]].all(it in ['true', 'false'])
@@ -266,16 +268,6 @@ fn (setup Setup) write_configuration() ! {
 	publish(launcher, text, 0o755)!
 }
 
-fn prepare_helper(repo string, name string) int {
-	mut child := os.new_process(os.join_path(repo, 'scripts', name))
-	defer { child.close() }
-	child.set_args(['--prepare'])
-	child.run()
-	child.wait()
-	// The shell bootstrap reserves 125 for helper compilation failures.
-	return if child.code < 0 || child.code == 125 { 1 } else { child.code }
-}
-
 fn finish_setup(before Setup, vls_mode string, vls_path string, install_lsp bool) ! {
 	setupconfig.activate(os.real_path(before.prefix), vls_mode, vls_path) or {
 		return error(err.msg())
@@ -294,18 +286,14 @@ fn finish_setup(before Setup, vls_mode string, vls_path string, install_lsp bool
 	}
 	setup.write_configuration() or { return error(err.msg()) }
 	if setup.explorer == 'true' {
-		status := prepare_helper(setup.repo, 'explorer.sh')
-		if status != 0 {
-			return error_with_code('Could not prepare the project explorer.', status)
-		}
+		setupconfig.run_tool(os.join_path(setup.repo, 'scripts', 'explorer.sh'), [
+			'--prepare',
+		])!
 	}
-	gdb := os.find_abs_path_of_executable('gdb') or { '' }
-	compiler := os.find_abs_path_of_executable('v') or { '' }
-	if gdb != '' && compiler != '' {
-		status := prepare_helper(setup.repo, 'debug.sh')
-		if status != 0 {
-			return error_with_code('Could not prepare the debugger client.', status)
-		}
+	if os.exists_in_system_path('gdb') && os.exists_in_system_path('v') {
+		setupconfig.run_tool(os.join_path(setup.repo, 'scripts', 'debug.sh'), [
+			'--prepare',
+		])!
 	} else {
 		println('Debugging: install GDB 14 or newer with Python support, then use Space B.')
 	}
@@ -314,20 +302,46 @@ fn finish_setup(before Setup, vls_mode string, vls_path string, install_lsp bool
 	managedrecord.record(setup.prefix, setup.config_home, vls_mode) or { return error(err.msg()) }
 }
 
+fn install(setup Setup, options setupconfig.ToolOptions) ! {
+	tools := setupconfig.prepare_tools(setup.prefix, setup.repo, options)!
+	// Capture integrated settings after builds, including edits made while they ran.
+	transaction := os.getenv('VLANG_KAK_TRANSACTION')
+	if setup.integrate == 'true' && transaction != '' {
+		managedsnapshot.capture_personal(os.real_path(setup.config_home), os.abs_path(transaction)) or {
+			return error(err.msg())
+		}
+	}
+	finish_setup(Setup{
+		...setup
+		runtime: tools.runtime
+		lsp:     tools.lsp
+	}, options.vls_mode, tools.vls_path, options.install_lsp)!
+}
+
 fn main() {
-	finish := (os.args[1] or { '' }) == '--finish'
-	args := if finish { os.args[2..] } else { os.args[1..] }
-	if finish && (args.len != 16 || args[13] !in ['upstream', 'skip', 'external']
+	prepare_tools := (os.args[1] or { '' }) == '--install'
+	args := if prepare_tools { os.args[2..] } else { os.args[1..] }
+	if prepare_tools && (args.len != 19
+		|| args[13] !in ['upstream', 'skip', 'external']
 		|| args[15] !in ['true', 'false']) {
-		eprintln('Expected configuration options, VLS mode and path, and kak-lsp installation choice.')
+		eprintln('Expected configuration options and tool installation choices.')
 		exit(2)
 	}
-	setup := selected(if finish { args[..13] } else { args }) or {
+	setup := selected(if prepare_tools { args[..13] } else { args }, prepare_tools) or {
 		eprintln(err)
 		exit(2)
 	}
-	if finish {
-		finish_setup(setup, args[13], args[14], args[15] == 'true') or {
+	if prepare_tools {
+		install(setup, setupconfig.ToolOptions{
+			build:           setup.managed_kak
+			install_lsp:     args[15] == 'true'
+			explorer:        setup.explorer == 'true'
+			kakoune_version: args[16]
+			lsp_version:     args[17]
+			vls_mode:        args[13]
+			vls_path:        args[14]
+			vls_ref:         args[18]
+		}) or {
 			eprintln(err)
 			exit(if err.code() > 0 && err.code() != 125 { err.code() } else { 1 })
 		}

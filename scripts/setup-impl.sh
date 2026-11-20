@@ -158,6 +158,18 @@ if [ "$install_managed_v" = true ]; then
   managed_v=true
 fi
 
+# Let V prepare and activate the tool stack once a compiler is available.
+if compiler=$(find_maintenance_v --prefix "$prefix"); then
+  install_status=0
+  # Runtime and kak-lsp paths are resolved during preparation.
+  run_maintenance_program "$compiler" "$script_dir/setup-configuration.vsh" --install \
+    "$prefix" "$repo_dir" "$config_home" '' '' "$integrate" \
+    "$managed_v" "$compiler_policy" "$explorer" "$live_search" "$pane_mode" "$window_backend" "$build" \
+    "$vls_mode" "$vls_path" "$install_lsp" "$kakoune_version" "$lsp_version" "$vls_ref" || install_status=$?
+  [ "$install_status" -eq 125 ] || exit "$install_status"
+  echo 'V could not prepare tool installation. Using shell setup.' >&2
+fi
+
 if [ "$build" = true ]; then
   v run "$script_dir/build-kakoune.vsh" --version "$kakoune_version" --prefix "$prefix"
   kak_runtime=$prefix/opt/vlang-kakoune/candidate/share/kak
@@ -215,17 +227,7 @@ if [ "$integrate" = true ] && [ -n "${VLANG_KAK_TRANSACTION:-}" ]; then
   "$script_dir/managed-state.sh" snapshot-personal "$prefix" "$config_home" "$VLANG_KAK_TRANSACTION"
 fi
 
-# All builds succeeded. Finish the installation in one V process when possible.
-if compiler=$(find_maintenance_v --prefix "$prefix"); then
-  finish_status=0
-  run_maintenance_program "$compiler" "$script_dir/setup-configuration.vsh" --finish \
-    "$prefix" "$repo_dir" "$config_home" "$kak_runtime" "$lsp_bin" "$integrate" \
-    "$managed_v" "$compiler_policy" "$explorer" "$live_search" "$pane_mode" "$window_backend" "$build" \
-    "$vls_mode" "$vls_path" "$install_lsp" || finish_status=$?
-  [ "$finish_status" -eq 125 ] || exit "$finish_status"
-  echo 'V could not prepare setup finalization. Using shell configuration.' >&2
-fi
-
+# All builds succeeded. Activate and configure the compiler-free fallback.
 . "$script_dir/setup-activation-posix"
 managed_kak=false
 if [ "$build" = true ] || [ -d "$prefix/opt/vlang-kakoune/current/share/kak" ]; then
