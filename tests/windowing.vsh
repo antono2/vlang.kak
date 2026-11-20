@@ -51,6 +51,42 @@ fn (fixture Fixture) check_arguments(expected []string) ! {
 	}
 }
 
+fn check_views(fixture Fixture) ! {
+	path := "/tmp/a 'quoted' source.v"
+	quoted := "'/tmp/a ''quoted'' source.v'"
+	assert fixture.invoke(['status', 'auto', 'off'], {})! == "echo 'Window backend: none; pane mode: off'"
+	assert fixture.invoke(['view', 'tree', 'tmux', 'off', launch_session, path, 'client0'], {})! == 'v-tree'
+	assert fixture.invoke(['view', 'tree', 'tmux', 'auto', launch_session, path, 'client0'], {})! == 'v-tree'
+	assert fixture.invoke(['view', 'peek', 'tmux', 'auto', launch_session, path, '14', '7'], {})! == 'v-doc'
+	assert fixture.invoke(['view', 'peek', 'tmux', 'always', launch_session, '', '14', '7'], {})! == "fail 'Peek definition needs a saved V file'"
+	assert fixture.invoke(['view', 'buffer', 'tmux', 'off', launch_session, path, '14', '7'], {})! == "fail 'No supported window backend is active; run v-window-status'"
+	assert fixture.invoke(['checkpoint', 'tmux'], {})! == "v-window-finish-checkpoint 'none'"
+
+	tmux := {
+		'TMUX':      'socket,1,0'
+		'TMUX_PANE': '%3'
+	}
+	fixture.invoke(['view', 'tree', 'auto', 'always', launch_session, path, "client 'one'"], tmux)!
+	fixture.check_arguments(['-b', launch_session, "v-tree-pane-init ${quoted} 'client ''one'''"])!
+	fixture.invoke(['view', 'peek', 'auto', 'always', launch_session, path, '14', '7'], tmux)!
+	fixture.check_arguments([launch_session, 'v-peek-definition-init ${quoted} 14 7'])!
+	fixture.invoke(['view', 'buffer', 'auto', 'off', launch_session, path, '14', '7'], tmux)!
+	fixture.check_arguments([launch_session, 'buffer ${quoted}; select 14.7,14.7'])!
+	assert fixture.invoke(['checkpoint', 'auto'], tmux)! == "v-window-finish-checkpoint 'tmux'"
+	fixture.invoke(['recover', 'tmux', launch_session, path], tmux)!
+	fixture.check_arguments([launch_session, 'source ' + quoted])!
+
+	refusal := {
+		'TMUX':      'socket,1,0'
+		'TMUX_PANE': '%refuse'
+	}
+	assert fixture.invoke(['view', 'tree', 'auto', 'auto', launch_session, path, 'client0'],
+		refusal)! == 'v-tree'
+	assert fixture.invoke(['view', 'tree', 'auto', 'always', launch_session, path, 'client0'],
+		refusal)! == "fail 'Opening the project tree pane failed'"
+	assert fixture.invoke(['recover', 'tmux', launch_session, path], refusal)! == "echo -debug 'A view could not reopen; its checkpoint remains available'"
+}
+
 fn check(helper string, cache_writable bool) ! {
 	root := os.join_path(os.temp_dir(), 'vlang-kak-windowing.' + rand.uuid_v4())
 	os.mkdir(root, mode: 0o700)!
@@ -141,6 +177,7 @@ fn check(helper string, cache_writable bool) ! {
 	fixture.check_arguments([screen_session, '2', launch_session, quoted_command])!
 	quoted := fixture.invoke(['open', 'native', 'left', launch_session, "echo 'quoted'"], {})!
 	assert quoted == "new 'echo ''quoted'''"
+	check_views(fixture)!
 
 	os.rm(log)!
 	marker := log + '.session'
@@ -165,6 +202,9 @@ fn check(helper string, cache_writable bool) ! {
 }
 
 if log := os.getenv_opt('VLANG_WINDOWING_TEST_LOG') {
+	if '%refuse' in os.args {
+		exit(1)
+	}
 	record_arguments(log) or {
 		eprintln(err)
 		exit(1)

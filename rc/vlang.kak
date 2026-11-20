@@ -536,95 +536,33 @@ define-command -hidden -params 2 v-tree-pane-init %{
   set-option buffer v_tree_is_pane true
   v-tree-refresh
 }
-define-command v-window-status -docstring 'Show the active client window backend' %{
+define-command -hidden -params 1.. v-window-dispatch %{
   evaluate-commands %sh{
+    # Kakoune exports only client values named by this shell expansion.
     : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
       "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
       "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" \
       "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
     source=$(readlink -f "$kak_opt_v_plugin_source")
-    helper=${source%/rc/vlang.kak}/scripts/windowing.sh
-    backend=$("$helper" detect "$kak_opt_v_window_backend") || exit
-    printf "echo 'Window backend: %s; pane mode: %s'\n" "$backend" "$kak_opt_v_pane_mode"
+    "${source%/rc/vlang.kak}/scripts/windowing.sh" "$@"
   }
 }
+define-command v-window-status -docstring 'Show the active client window backend' %{
+  v-window-dispatch status %opt{v_window_backend} %opt{v_pane_mode}
+}
 define-command v-tree-pane -docstring 'Open the project explorer in another view when supported' %{
-  evaluate-commands %sh{
-    : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
-      "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
-      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" \
-      "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
-    mode=$kak_opt_v_pane_mode
-    case "$mode" in
-      off) echo v-tree; exit ;;
-      auto|always) ;;
-      *) echo "fail 'v_pane_mode must be auto, always, or off'"; exit ;;
-    esac
-    [ -n "$kak_buffile" ] || { echo v-tree; exit; }
-    source=$(readlink -f "$kak_opt_v_plugin_source")
-    helper=${source%/rc/vlang.kak}/scripts/windowing.sh
-    backend=$("$helper" detect "$kak_opt_v_window_backend") || exit
-    if [ "$backend" = none ]; then
-      if [ "$mode" = always ]; then
-        echo "fail 'No supported window backend is active; run v-window-status'"
-      else
-        echo v-tree
-      fi
-      exit
-    fi
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    initial="v-tree-pane-init $(kak_quote "$kak_buffile") $(kak_quote "$kak_client")"
-    if ! "$helper" open "$backend" left "$kak_session" "$initial"; then
-      if [ "$mode" = always ]; then
-        echo "fail 'Opening the project tree pane failed'"
-      else
-        echo v-tree
-      fi
-    fi
-  }
+  v-window-dispatch view tree %opt{v_window_backend} %opt{v_pane_mode} %val{session} %val{buffile} %val{client}
 }
 define-command -hidden -params 3 v-peek-definition-init %{
   edit -existing -- %arg{1}
-  evaluate-commands %sh{ printf 'select %s.%s,%s.%s\n' "$2" "$3" "$2" "$3" }
+  select "%arg{2}.%arg{3},%arg{2}.%arg{3}"
   map window normal q ':v-close-view<ret>' -docstring 'Close definition peek'
   set-option -add window modelinefmt '  [peek: q close]'
   v-definition
   echo 'Definition peek: press q to close this pane'
 }
 define-command v-peek-definition -docstring 'Peek at a definition in another view; without pane support show documentation' %{
-  evaluate-commands %sh{
-    : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
-      "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
-      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" \
-      "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
-    mode=$kak_opt_v_pane_mode
-    case "$mode" in
-      off) echo v-doc; exit ;;
-      auto|always) ;;
-      *) echo "fail 'v_pane_mode must be auto, always, or off'"; exit ;;
-    esac
-    [ -n "$kak_buffile" ] || { echo "fail 'Peek definition needs a saved V file'"; exit; }
-    source=$(readlink -f "$kak_opt_v_plugin_source")
-    helper=${source%/rc/vlang.kak}/scripts/windowing.sh
-    backend=$("$helper" detect "$kak_opt_v_window_backend") || exit
-    if [ "$backend" = none ]; then
-      if [ "$mode" = always ]; then
-        echo "fail 'No supported window backend is active; run v-window-status'"
-      else
-        echo v-doc
-      fi
-      exit
-    fi
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    initial="v-peek-definition-init $(kak_quote "$kak_buffile") $kak_cursor_line $kak_cursor_column"
-    if ! "$helper" open "$backend" right "$kak_session" "$initial"; then
-      if [ "$mode" = always ]; then
-        echo "fail 'Opening the definition pane failed'"
-      else
-        echo v-doc
-      fi
-    fi
-  }
+  v-window-dispatch view peek %opt{v_window_backend} %opt{v_pane_mode} %val{session} %val{buffile} %val{cursor_line} %val{cursor_column}
 }
 define-command v-project-path -docstring 'Open the project explorer, or a project path prompt when disabled' %{
   evaluate-commands %sh{
@@ -637,19 +575,7 @@ define-command v-project-path -docstring 'Open the project explorer, or a projec
   }
 }
 define-command v-new-view -docstring 'Open another view of the current file in the same session' %{
-  evaluate-commands %sh{
-    : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
-      "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
-      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" \
-      "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
-    source=$(readlink -f "$kak_opt_v_plugin_source")
-    helper=${source%/rc/vlang.kak}/scripts/windowing.sh
-    backend=$("$helper" detect "$kak_opt_v_window_backend") || exit
-    [ "$backend" != none ] || { echo "fail 'No supported window backend is active; run v-window-status'"; exit; }
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    initial="buffer $(kak_quote "$kak_bufname"); select $kak_cursor_line.$kak_cursor_column,$kak_cursor_line.$kak_cursor_column"
-    "$helper" open "$backend" right "$kak_session" "$initial" || echo "fail 'Opening a Kakoune client failed'"
-  }
+  v-window-dispatch view buffer %opt{v_window_backend} %opt{v_pane_mode} %val{session} %val{bufname} %val{cursor_line} %val{cursor_column}
 }
 define-command v-close-view -docstring 'Close this Kakoune client and its pane or window' %{
   quit
@@ -1437,18 +1363,13 @@ define-command v-session-save -docstring 'Checkpoint buffers and client position
   }
   v-session-save-buffers %val{buflist}
   v-session-save-clients %val{client_list}
+  v-window-dispatch checkpoint %opt{v_window_backend}
+}
+define-command -hidden -params 1 v-window-finish-checkpoint %{
   evaluate-commands %sh{
     source=$(readlink -f "$kak_opt_v_plugin_source")
     : "$kak_client" "$kak_opt_v_session_checkpoint"
-    helper=${source%/rc/vlang.kak}/scripts/windowing.sh
-    : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
-      "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
-      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
-    if ! backend=$("$helper" detect "$kak_opt_v_window_backend"); then
-      echo "fail 'Could not detect a checkpoint pane host'"
-      exit
-    fi
-    "${source%/rc/vlang.kak}/scripts/session-buffer.sh" finish "$backend" || echo "fail 'Could not finish checkpoint'"
+    "${source%/rc/vlang.kak}/scripts/session-buffer.sh" finish "$1" || echo "fail 'Could not finish checkpoint'"
   }
 }
 define-command -hidden -params 1 v-session-check-buffer %{
@@ -1494,15 +1415,7 @@ define-command -hidden v-restart-recover-now %{
   quit! 75
 }
 define-command -hidden -params 2 v-session-open-client %{
-  evaluate-commands %sh{
-    source=$(readlink -f "$kak_opt_v_plugin_source")
-    helper=${source%/rc/vlang.kak}/scripts/windowing.sh
-    : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
-      "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
-      "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
-    initial="source '$(printf %s "$1" | sed "s/'/''/g")'"
-    "$helper" open "$2" right "$kak_session" "$initial" || echo "echo -debug 'A view could not reopen; its checkpoint remains available'"
-  }
+  v-window-dispatch recover %arg{2} %val{session} %arg{1}
 }
 define-command v-restart-recover -docstring 'Restart with recovery copies and recreate additional views' %{
   prompt 'Restart with recovery copies and recreate views? Type yes: ' %{ evaluate-commands %sh{
