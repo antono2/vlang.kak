@@ -41,6 +41,9 @@ fn (fixture SetupFixture) setup(options []string, failure string) ! {
 	}
 	output += child.stdout_read()
 	errors += child.stderr_read()
+	if errors.contains('Using shell defaults.') {
+		return error('Setup did not use the V defaults reader\n${output}${errors}')
+	}
 	if failure == '' {
 		if child.code != 0 {
 			return error('Setup exited with status ${child.code}\n${output}${errors}')
@@ -88,6 +91,14 @@ fn check(root string, kak string) ! {
 	for setting in ['v_pane_mode off', 'v_window_backend tmux', 'v_live_search_enabled false'] {
 		assert baseline.contains('set-option global ' + setting)
 	}
+	// Later stored values win, and explicit flags override the stored file.
+	os.write_file(generated, baseline +
+		'set-option global v_pane_mode always\nset-option global v_window_backend invalid\n')!
+	fixture.setup([], 'Unknown window backend: invalid')!
+	assert os.read_file(generated)!.ends_with('set-option global v_window_backend invalid\n')
+	fixture.setup(['--window-backend', 'tmux'], '')!
+	assert os.read_file(generated)!.contains('set-option global v_pane_mode always')
+	fixture.setup(['--pane-mode', 'off'], '')!
 	fixture.setup(['--update'], '')!
 	assert os.read_file(generated)!.contains('set-option global v_pane_mode off')
 	assert os.read_file(target)! == original_settings
@@ -164,7 +175,8 @@ fn check_persisted_settings(root string, search_path string) ! {
 	assert output_update.ends_with('v-update-check-background\n')
 	capture(program, ['v_pane_mode', 'auto'], true, environment: environment)!
 	assert os.is_link(path) && os.real_path(path) == target
-	expected := personal_settings + '\n# >>> vlang.kak preferences >>>\ntry %{ set-option global v_update_check_enabled true }\nset-option global v_pane_mode auto\n# <<< vlang.kak preferences <<<\n'
+	expected := personal_settings +
+		'\n# >>> vlang.kak preferences >>>\ntry %{ set-option global v_update_check_enabled true }\nset-option global v_pane_mode auto\n# <<< vlang.kak preferences <<<\n'
 	assert os.read_file(target)! == expected
 	mut backups := []string{}
 	for name in os.ls(root)!.filter(it.starts_with('personal.kak.vlang-backup.')) {

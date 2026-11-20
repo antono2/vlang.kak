@@ -1,0 +1,30 @@
+# Read and validate stored choices for setup before a V compiler is available.
+if [ -z "$integrate" ]; then
+  if [ -f "$settings_file" ]; then
+    integrate=$(sed -n 's/^# vlang.kak integrate: //p' "$settings_file" | tail -n 1)
+  fi
+  if [ -z "$integrate" ] && [ -f "$config_home/kak/kakrc" ] &&
+     grep -q '^# >>> vlang.kak managed >>>$' "$config_home/kak/kakrc"; then
+    integrate=true
+  fi
+fi
+integrate=${integrate:-false}
+if [ -f "$settings_file" ]; then
+  [ -n "$explorer" ] || explorer=$(sed -n 's/^set-option global v_explorer_enabled //p' "$settings_file" | tail -n 1)
+  [ -n "$live_search" ] || live_search=$(sed -n 's/^set-option global v_live_search_enabled //p' "$settings_file" | tail -n 1)
+  [ -n "$pane_mode" ] || pane_mode=$(sed -n 's/^set-option global v_pane_mode //p' "$settings_file" | tail -n 1)
+  [ -n "$window_backend" ] || window_backend=$(sed -n 's/^set-option global v_window_backend //p' "$settings_file" | tail -n 1)
+fi
+explorer=${explorer:-true}
+live_search=${live_search:-true}
+pane_mode=${pane_mode:-auto}
+window_backend=${window_backend:-auto}
+case "$explorer:$live_search" in
+  true:true|true:false|false:true|false:false) ;;
+  *) echo 'Explorer and live search choices must be true or false.' >&2; exit 2 ;;
+esac
+case "$pane_mode" in auto|always|off) ;; *) echo "Unknown pane mode: $pane_mode" >&2; exit 2 ;; esac
+case "$window_backend" in
+  auto|tmux|zellij|wezterm|kitty|screen|native) ;;
+  *) echo "Unknown window backend: $window_backend" >&2; exit 2 ;;
+esac
