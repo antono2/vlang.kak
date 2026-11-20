@@ -1,11 +1,11 @@
 // Check that setup and migration preserve personal files, symlinks and settings.
 import os
 import rand
-import releasetest { capture, execute }
+import releasetest { capture, capture_result, execute }
 import time
 
-const process_timeout = 20 * time.second
-const process_poll = 10 * time.millisecond
+// A cold setup can bootstrap the debugger compiler while preparing its helpers.
+const setup_timeout = time.minute
 const original_settings = '# personal settings\nmap global user b ":echo mine<ret>"\n'
 const personal_settings = '# keep my settings\n'
 const unrelated_plugin = '# another plugin\n'
@@ -19,36 +19,17 @@ fn (fixture SetupFixture) setup(options []string, failure string) ! {
 	program := os.join_path(@DIR, '..', 'scripts', 'setup.sh')
 	mut args := ['--prefix', fixture.prefix, '--no-build', '--no-lsp', '--no-vls', '--no-explorer']
 	args << options
-	mut child := os.new_process(program)
-	child.set_args(args)
-	child.set_environment(fixture.env)
-	child.set_redirect_stdio()
-	child.run()
-	defer { child.close() }
-	deadline := time.sys_mono_now() + u64(process_timeout)
-	mut output := ''
-	mut errors := ''
-	for child.is_alive() {
-		output += child.stdout_read()
-		errors += child.stderr_read()
-		if time.sys_mono_now() >= deadline {
-			child.signal_kill()
-			child.status = .running
-			child.wait()
-			return error('Setup timed out\n${output}${errors}')
-		}
-		time.sleep(process_poll)
-	}
-	output += child.stdout_read()
-	errors += child.stderr_read()
+	result := capture_result(program, args, environment: fixture.env, timeout: setup_timeout)!
+	output := result.stdout
+	errors := result.stderr
 	if errors.contains('Using shell defaults.') {
 		return error('Setup did not use the V defaults reader\n${output}${errors}')
 	}
 	if failure == '' {
-		if child.code != 0 || errors.contains('Using shell configuration') {
-			return error('Setup exited with status ${child.code}\n${output}${errors}')
+		if result.code != 0 || errors.contains('Using shell configuration') {
+			return error('Setup exited with status ${result.code}\n${output}${errors}')
 		}
-	} else if child.code == 0 || !errors.contains(failure) {
+	} else if result.code == 0 || !errors.contains(failure) {
 		return error('Setup did not report ${failure}\n${output}${errors}')
 	}
 	if errors.contains('Using shell path checks.') {

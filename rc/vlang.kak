@@ -570,34 +570,8 @@ define-command -params 1 v-project-edit -docstring 'Open a file from the current
   edit -existing -- %arg{1}
 }
 complete-command -menu v-project-edit shell-script-candidates %{
-  case "$kak_buffile" in
-    /*) file=$kak_buffile ;;
-    '') file=$PWD/ ;;
-    *) file=$PWD/$kak_buffile ;;
-  esac
-  directory=${file%/*}
-  [ -n "$directory" ] || directory=/
-  root=$directory
-  current=$directory
-  while :; do
-    if [ -f "$current/v.mod" ] || [ -d "$current/.git" ]; then
-      root=$current
-      break
-    fi
-    parent=${current%/*}
-    [ -n "$parent" ] || parent=/
-    [ "$parent" != "$current" ] || break
-    current=$parent
-  done
-  if command -v rg >/dev/null 2>&1; then
-    (cd "$root" && rg --files --hidden --glob '!.git')
-  elif git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git -C "$root" ls-files --cached --others --exclude-standard
-  else
-    (cd "$root" && find . -type f -not -path './.git/*')
-  fi | while IFS= read -r path; do
-    printf '%s/%s\n' "$root" "${path#./}"
-  done
+  source=$(readlink -f "$kak_opt_v_plugin_source")
+  "${source%/rc/vlang.kak}/scripts/explorer.sh" candidates "$kak_buffile"
 }
 define-command v-project-files -docstring 'Find a project file using path completion' %{
   execute-keys ':v-project-edit<space>'
@@ -800,27 +774,8 @@ define-command v-project-path -docstring 'Open the project explorer, or a projec
       printf 'v-tree-pane\n'
       exit
     fi
-    case "$kak_buffile" in
-      /*) file=$kak_buffile ;;
-      '') file=$PWD/ ;;
-      *) file=$PWD/$kak_buffile ;;
-    esac
-    root=${file%/*}
-    [ -n "$root" ] || root=/
-    current=$root
-    while :; do
-      if [ -f "$current/v.mod" ] || [ -d "$current/.git" ]; then
-        root=$current
-        break
-      fi
-      parent=${current%/*}
-      [ -n "$parent" ] || parent=/
-      [ "$parent" != "$current" ] || break
-      current=$parent
-    done
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    printf 'prompt -file-completion -init %s %s %%{ edit -existing -- %%val{text} }\n' \
-      "$(kak_quote "$root/")" "$(kak_quote 'Project path: ')"
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/explorer.sh" prompt "$kak_buffile" || echo "fail 'Could not open the project path prompt'"
   }
 }
 define-command v-new-view -docstring 'Open another view of the current file in the same session' %{

@@ -312,7 +312,9 @@ set-option global v_live_search_enabled false
 ```
 
 With the explorer off, `:v-project-path` returns to a project-root path
-prompt with Tab completion. With live search off, `:v-search` still searches
+prompt with Tab completion. The cached V explorer helper prepares the prompt
+and project-file candidates. Both commands also work on editor-only
+installations through the POSIX helper. With live search off, `:v-search` still searches
 the project after you press Enter.
 
 ### Window and pane management
