@@ -2,6 +2,7 @@
 import crypto.sha256
 import os
 import rand
+import time
 
 // A numeric cache version keeps these files eligible for the existing cleanup command.
 const cache_version = '1'
@@ -41,7 +42,18 @@ fn compile_helper(cache string, source string, expected string, destination stri
 	mut child := os.new_process(compiler)
 	defer { child.close() }
 	child.set_args(args)
+	quiet := tool == 'windowing'
+	if quiet {
+		child.set_redirect_stdio()
+	}
 	child.run()
+	if quiet {
+		for child.is_alive() {
+			_ = child.stdout_read()
+			_ = child.stderr_read()
+			time.sleep(5 * time.millisecond)
+		}
+	}
 	child.wait()
 	if child.code != 0 || !cached_tool(path) {
 		return error_with_code('Could not build the Kakoune ${tool} helper.', if child.code > 0 {
@@ -56,11 +68,7 @@ fn compile_helper(cache string, source string, expected string, destination stri
 	os.rename_dir(path, destination)!
 }
 
-fn run(args []string) ! {
-	if args.len < 2 || args[1] !in ['debug', 'explorer', 'preferences'] {
-		return error('Expected a helper cache directory and tool name.')
-	}
-	cache, tool := args[0], args[1]
+fn prepare_helper(cache string, tool string) !string {
 	source := os.join_path(@DIR, tool + '.v')
 	content := fingerprint(source)!
 	// Include the source path because a compiled helper can embed its checkout.
@@ -68,6 +76,20 @@ fn run(args []string) ! {
 	destination := cache + '/${tool}-${cache_version}${identity}'
 	if !cached_tool(destination) {
 		compile_helper(cache, source, content, destination, tool)!
+	}
+	return destination
+}
+
+fn run(args []string) ! {
+	if args.len < 2 || args[1] !in ['debug', 'explorer', 'preferences', 'windowing'] {
+		return error('Expected a helper cache directory and tool name.')
+	}
+	cache, tool := args[0], args[1]
+	destination := prepare_helper(cache, tool) or {
+		if tool == 'windowing' {
+			return os.execvp(os.join_path(@DIR, 'windowing-posix'), args[2..])
+		}
+		return err
 	}
 	if args.len > 2 && args[2] == '--prepare' {
 		return

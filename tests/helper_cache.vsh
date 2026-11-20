@@ -10,7 +10,7 @@ fn check() ! {
 	tools := os.join_path(os.dir(@DIR), 'scripts')
 	scripts := os.join_path(root, "test's scripts")
 	os.mkdir(scripts)!
-	for name in ['helper-cache.sh', 'helper-cache.vsh', 'preferences.sh'] {
+	for name in ['helper-cache.sh', 'helper-cache.vsh', 'preferences.sh', 'windowing.sh'] {
 		target := os.join_path(scripts, name)
 		os.cp(os.join_path(tools, name), target)!
 		if name.ends_with('.sh') { os.chmod(target, 0o755)! }
@@ -67,6 +67,19 @@ fn check() ! {
 	assert failure.stderr.contains('Could not build the Kakoune preferences helper')
 	assert os.ls(cache)!.len == 3
 	assert os.ls(cache)!.all(!it.starts_with('.'))
+
+	pane := os.join_path(scripts, 'windowing.sh')
+	pane_source := os.join_path(scripts, 'windowing.v')
+	posix := os.join_path(scripts, 'windowing-posix')
+	os.write_file(posix, '#!/bin/sh\nprintf "POSIX pane\\n"\n')!
+	os.chmod(posix, 0o755)!
+	os.write_file(pane_source, 'invalid pane source')!
+	fallback := execute(pane, ['open'], true, environment: env)!
+	assert fallback.stdout == 'POSIX pane\n' && fallback.stderr == ''
+	os.write_file(pane_source, "fn main() { println('Native pane'); exit(125) }")!
+	native := execute(pane, ['open'], false, environment: env)!
+	assert native.code == 125 && native.stdout == 'Native pane\n'
+	assert capture(pane, ['open'], true, environment: without_compiler)! == 'POSIX pane\n'
 	println('ok - native helpers preserve arguments, reuse cached binaries without V and rebuild on content changes')
 }
 

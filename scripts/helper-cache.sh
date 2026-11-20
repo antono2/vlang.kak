@@ -3,7 +3,14 @@
 set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cache=${XDG_CACHE_HOME:-$HOME/.cache}/vlang.kak
-signature=$(printf '%s' "$script_dir" | cksum)
+fallback() {
+    if [ "${1:-}" = windowing ]; then
+        shift
+        exec "$script_dir/windowing-posix" "$@"
+    fi
+    exit 1
+}
+signature=$(printf '%s' "$script_dir" | cksum) || fallback "$@"
 dispatcher=$cache/helper-dispatch-${signature%% *}
 source=$script_dir/helper-cache.vsh
 if ! command -v v >/dev/null 2>&1; then
@@ -22,18 +29,25 @@ if ! command -v v >/dev/null 2>&1; then
             ;;
     esac
 fi
-if [ ! -x "$dispatcher" ] || [ -L "$dispatcher" ] || [ "$source" -nt "$dispatcher" ]; then
+prepare() (
     command -v v >/dev/null 2>&1 || {
         echo 'Install V or add it to PATH to build the Kakoune helpers.' >&2
         exit 1
     }
-    mkdir -p -- "$cache"
-    stage=$(mktemp -d "$cache/.helper-dispatch.XXXXXXXX")
+    mkdir -p -- "$cache" || exit 1
+    stage=$(mktemp -d "$cache/.helper-dispatch.XXXXXXXX") || exit 1
     trap 'rm -f -- "$stage/dispatcher"; rmdir -- "$stage"' EXIT
     trap 'exit 130' HUP INT TERM
-    v -skip-running -o "$stage/dispatcher" "$source"
-    mv -fT -- "$stage/dispatcher" "$dispatcher"
-    rmdir -- "$stage"
+    v -skip-running -o "$stage/dispatcher" "$source" || exit 1
+    mv -fT -- "$stage/dispatcher" "$dispatcher" || exit 1
+    rmdir -- "$stage" || exit 1
     trap - EXIT HUP INT TERM
+)
+if [ ! -x "$dispatcher" ] || [ -L "$dispatcher" ] || [ "$source" -nt "$dispatcher" ]; then
+    if [ "${1:-}" = windowing ]; then
+        prepare >/dev/null 2>&1 || fallback "$@"
+    else
+        prepare
+    fi
 fi
 exec "$dispatcher" "$cache" "$@"
