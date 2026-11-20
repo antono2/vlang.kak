@@ -123,7 +123,7 @@ fn run(args []string) ! {
 		return
 	}
 	fallback := tool in ['windowing', 'history']
-		|| (tool == 'explorer' && args.len > 2 && args[2] in ['prompt', 'candidates'])
+		|| (tool == 'explorer' && args.len > 2 && args[2] in ['prompt', 'candidates', 'search'])
 	destination := prepare_helper(cache, tool, fallback) or {
 		if fallback {
 			return os.execvp(os.join_path(@DIR, tool + '-posix'), args[2..])

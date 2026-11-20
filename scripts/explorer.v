@@ -5,6 +5,10 @@ import x.json2
 import os
 import time
 
+const search_preview_lines = 12
+const search_preview_columns = 140
+const default_grep_command = 'grep -RHn'
+
 struct Row {
 	path      string
 	directory bool
@@ -106,6 +110,105 @@ fn list_project_files(root string) !string {
 	} else {
 		command_output(root, 'find',
 			['.', '-name', '.git', '-prune', '-o', '-type', 'f', '-print0'])!
+	}
+}
+
+struct SearchPreview {
+mut:
+	lines []string
+	line  string
+}
+
+fn (mut preview SearchPreview) append(chunk string) {
+	parts := chunk.split('\n')
+	for index, part in parts {
+		// A UTF-8 character occupies at most four bytes. Bound the partial
+		// line even when a match in a generated file spans many read blocks.
+		remaining := search_preview_columns * 4 - preview.line.len
+		preview.line += if part.len > remaining { part[..remaining] } else { part }
+		if index == parts.len - 1 {
+			break
+		}
+		preview.finish_line()
+		if preview.lines.len == search_preview_lines {
+			break
+		}
+	}
+}
+
+fn (mut preview SearchPreview) finish_line() {
+	preview.lines << preview.line.trim_right('\r').limit(search_preview_columns)
+	preview.line = ''
+}
+
+fn preview_matches(root string, pattern string) ![]string {
+	rg := os.find_abs_path_of_executable('rg') or { '' }
+	path := if rg != '' { rg } else { os.find_abs_path_of_executable('grep')! }
+	mut args := if rg != '' {
+		['-n', '--no-heading', '--color', 'never']
+	} else {
+		['-RHn', '--exclude-dir=.git']
+	}
+	mut child := os.new_process(path)
+	defer { child.close() }
+	child.set_work_folder(root)
+	args << ['-e', pattern, '.']
+	child.set_args(args)
+	child.set_redirect_stdio()
+	child.run()
+	mut matches := SearchPreview{}
+	for child.is_alive() {
+		chunk := child.stdout_read()
+		matches.append(chunk)
+		_ = child.stderr_read()
+		if matches.lines.len == search_preview_lines {
+			child.signal_term()
+			child.wait()
+			return matches.lines
+		}
+		if chunk == '' {
+			time.sleep(5 * time.millisecond)
+		}
+	}
+	matches.append(child.stdout_slurp())
+	child.wait()
+	if matches.line != '' && matches.lines.len < search_preview_lines {
+		matches.finish_line()
+	}
+	return matches.lines
+}
+
+fn project_search(root string, mode string, pattern string, grepcmd string) ! {
+	match mode {
+		'preview' {
+			if pattern == '' {
+				println("info -title 'Project search' 'Type a pattern; Enter opens all results'")
+				return
+			}
+			lines := preview_matches(root, pattern) or { []string{} }
+			message := if lines.len == 0 { 'No matches yet' } else { lines.join('\n') }
+			println("info -title 'Project search · Enter for all' ${kak_quote(message)}")
+		}
+		'results' {
+			if pattern == '' {
+				return
+			}
+			if grepcmd == default_grep_command {
+				command := if _ := os.find_abs_path_of_executable('rg') {
+					'rg -n --no-heading'
+				} else {
+					'grep -RHn --exclude-dir=.git'
+				}
+				println('set-option window grepcmd ${kak_quote(command)}')
+			}
+			println('grep -e ${kak_quote(pattern)} ${kak_quote(root)}')
+			if grepcmd == default_grep_command {
+				println('unset-option window grepcmd')
+			}
+		}
+		else {
+			return error('Expected search mode preview or results')
+		}
 	}
 }
 
@@ -274,6 +377,12 @@ fn run() ! {
 		}
 		'candidates' {
 			project_candidates(buffer_root(path))!
+		}
+		'search' {
+			if os.args.len != 6 {
+				return error('Usage: explorer search BUFFER MODE PATTERN GREPCMD')
+			}
+			project_search(buffer_root(path), os.args[3], os.args[4], os.args[5])!
 		}
 		'render' {
 			render(path, os.args[3], os.args.len > 4 && os.args[4] == 'true')!
