@@ -83,34 +83,32 @@ mkdir -p "$config_home"
 config_home=$(CDPATH= cd -- "$config_home" && pwd)
 settings_file=$prefix/opt/vlang-kakoune/ide-config/kak/kakrc
 if [ ! -f "$settings_file" ]; then settings_file=$config_home/kak/kakrc; fi
-if [ -z "$integrate" ]; then
-  if [ -f "$settings_file" ]; then
-    integrate=$(sed -n 's/^# vlang.kak integrate: //p' "$settings_file" | tail -n 1)
-  fi
-  if [ -z "$integrate" ] && [ -f "$config_home/kak/kakrc" ] &&
-     grep -q '^# >>> vlang.kak managed >>>$' "$config_home/kak/kakrc"; then
-    integrate=true
+. "$script_dir/managed-v.inc"
+defaults_status=125
+if defaults_compiler=$(find_maintenance_v --prefix "$prefix"); then
+  defaults_status=0
+  setup_defaults=$(run_maintenance_program "$defaults_compiler" "$script_dir/setup-defaults.vsh" \
+    "$settings_file" "$config_home/kak/kakrc" "$integrate" "$explorer" "$live_search" \
+    "$pane_mode" "$window_backend") || defaults_status=$?
+  if [ "$defaults_status" -eq 125 ]; then
+    echo 'V could not prepare the setup defaults command. Using shell defaults.' >&2
   fi
 fi
-integrate=${integrate:-false}
-if [ -f "$settings_file" ]; then
-  [ -n "$explorer" ] || explorer=$(sed -n 's/^set-option global v_explorer_enabled //p' "$settings_file" | tail -n 1)
-  [ -n "$live_search" ] || live_search=$(sed -n 's/^set-option global v_live_search_enabled //p' "$settings_file" | tail -n 1)
-  [ -n "$pane_mode" ] || pane_mode=$(sed -n 's/^set-option global v_pane_mode //p' "$settings_file" | tail -n 1)
-  [ -n "$window_backend" ] || window_backend=$(sed -n 's/^set-option global v_window_backend //p' "$settings_file" | tail -n 1)
-fi
-explorer=${explorer:-true}
-live_search=${live_search:-true}
-pane_mode=${pane_mode:-auto}
-window_backend=${window_backend:-auto}
-case "$explorer:$live_search" in
-  true:true|true:false|false:true|false:false) ;;
-  *) echo 'Explorer and live search choices must be true or false.' >&2; exit 2 ;;
-esac
-case "$pane_mode" in auto|always|off) ;; *) echo "Unknown pane mode: $pane_mode" >&2; exit 2 ;; esac
-case "$window_backend" in
-  auto|tmux|zellij|wezterm|kitty|screen|native) ;;
-  *) echo "Unknown window backend: $window_backend" >&2; exit 2 ;;
+case "$defaults_status" in
+  0)
+    # Read one value per line without treating kakrc contents as shell code.
+    {
+      IFS= read -r integrate
+      IFS= read -r explorer
+      IFS= read -r live_search
+      IFS= read -r pane_mode
+      IFS= read -r window_backend
+    } <<EOF
+$setup_defaults
+EOF
+    ;;
+  125) . "$script_dir/setup-defaults-posix" ;;
+  *) exit "$defaults_status" ;;
 esac
 case "$prefix" in
   *"'"*|*'

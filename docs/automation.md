@@ -7,6 +7,25 @@ requirements are reported together. It builds all requested tools and prepares
 the V helpers before switching the managed installation to those versions.
 Managed VLS must answer an LSP initialization request before activation.
 
+Setup and update keep the choices saved by the last setup. Pass a flag to
+change a choice. A new installation uses these defaults.
+
+| Setting | Setup and update flags | Default |
+| --- | --- | --- |
+| Add the IDE to your personal Kakoune config | `--integrate` (opt in) | Isolated config only |
+| Project explorer | `--explorer`, `--no-explorer` | Enabled |
+| Live search previews | `--live-search`, `--no-live-search` | Enabled |
+| Pane behavior | `--pane-mode auto\|always\|off` | `auto` |
+| Window provider | `--window-backend auto\|tmux\|zellij\|wezterm\|kitty\|screen\|native` | `auto` |
+
+For an editor-only setup using your system Kakoune, run:
+
+```sh
+./scripts/setup.sh --no-build --no-lsp --no-vls --no-explorer
+```
+
+Setup can read and preserve these preferences even when V is unavailable.
+
 If the current V compiler cannot compile the helpers/current VLS, setup builds
 the release-tested V revision under `PREFIX/opt/vlang-v`. `kak-v` uses it through
 its own PATH. Your existing V compiler and shell configuration remain intact.
