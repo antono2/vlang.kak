@@ -8,7 +8,7 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cache=${XDG_CACHE_HOME:-$HOME/.cache}/vlang.kak
 fallback() {
     case "${1:-}:${2:-}" in
-        windowing:*) shift; exec "$script_dir/windowing-posix" "$@" ;;
+        windowing:*|history:*) tool=$1; shift; exec "$script_dir/$tool-posix" "$@" ;;
         checkpoint:--read) shift 2; exec "$script_dir/session-checkpoint-posix" "$@" ;;
     esac
     exit 1
@@ -48,7 +48,7 @@ prepare() (
 )
 if [ ! -x "$dispatcher" ] || [ -L "$dispatcher" ] || [ "$source" -nt "$dispatcher" ]; then
     case "${1:-}:${2:-}" in
-        windowing:*|checkpoint:--read) prepare >/dev/null 2>&1 || fallback "$@" ;;
+        windowing:*|history:*|checkpoint:--read) prepare >/dev/null 2>&1 || fallback "$@" ;;
         *) prepare ;;
     esac
 fi

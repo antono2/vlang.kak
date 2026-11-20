@@ -404,6 +404,8 @@ configure Yazi. Keep personal plugin loading and key mappings in
 `:v-history` (`Space i V`) shows the current file's recent commits. Choose one
 to open a read-only scratch buffer with V syntax. `:v-history-file HEAD~1`
 opens a specific revision directly; it also accepts a branch, tag or commit.
+These commands use the cached V helper when available. Editor-only
+installations can browse the same history through the POSIX helper.
 The working file stays unchanged. For a side-by-side comparison, run
 `:v-new-view` first, then open history in one client and the live file in the
 other with `:buffer`.

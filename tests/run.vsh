@@ -89,23 +89,64 @@ fn (suite Suite) highlighting(file string, expectations string) ! {
 }
 
 fn (mut suite Suite) history() ! {
-	project := os.join_path(suite.scratch, 'history-project')
+	directory := "history project's files"
+	project := os.join_path(suite.scratch, directory)
 	source := os.join_path(project, 'main.v')
+	literal := os.join_path(project, "file's [x].v")
+	other := os.join_path(project, "file's x.v")
 	initial := 'module main\n\nfn old_version() {}\n'
+	historical_blob := initial + '\n\n'
 	edited := 'module main\n\nfn working_version() {}\n'
 	os.mkdir(project)!
 	os.write_file(source, initial)!
+	os.write_file(literal, historical_blob)!
 	capture('git', ['init', '-q'], true, work_folder: project)!
-	capture('git', ['add', 'main.v'], true, work_folder: project)!
+	capture('git', ['--literal-pathspecs', 'add', '--', source, literal], true, work_folder: project)!
 	capture('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm',
-		'first V version'], true, work_folder: project)!
+		"first V version's subject"], true, work_folder: project)!
+	first := capture('git', ['rev-parse', 'HEAD'], true, work_folder: project)!.trim_space()
+	os.write_file(other, edited)!
+	capture('git', ['add', '--', other], true, work_folder: project)!
+	capture('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm',
+		'unrelated file'], true, work_folder: project)!
 	os.write_file(source, edited)!
-	suite.kak_case('historical V scratch view', 'history-project/main.v', 'history.kak')!
+	suite.kak_case('historical V scratch view', os.join_path(directory, 'main.v'), 'history.kak')!
 	suite.compare_file('expected/history.v', 'history-content',
 		'history view shows the committed version')!
 	if os.read_file(source)! != edited {
 		return error('The history view changed the working file')
 	}
+	suite.history_helpers(project, literal, first, historical_blob)!
+}
+
+fn (suite Suite) history_helpers(project string, file string, revision string, contents string) ! {
+	dispatcher := os.real_path(os.join_path(@DIR, '..', 'scripts', 'helper-cache.sh'))
+	compiler_free := os.join_path(suite.scratch, 'history-no-v')
+	os.mkdir(compiler_free)!
+	for program in ['cksum', 'dirname', 'git', 'readlink', 'sed'] {
+		os.symlink(os.find_abs_path_of_executable(program)!, os.join_path(compiler_free, program))!
+	}
+	mut fallback := suite.env.clone()
+	fallback['PATH'] = compiler_free
+	fallback['XDG_CACHE_HOME'] = os.join_path(suite.scratch, 'history-fallback-cache')
+	for environment in [suite.env, fallback] {
+		menu := capture(dispatcher, ['history', 'menu', file], true, environment: environment)!
+		assert menu.contains("first V version''s subject") && !menu.contains('unrelated file')
+		assert menu.contains('v-history-file HEAD')
+		options := capture(dispatcher, ['history', 'prepare', file, revision], true,
+			environment: environment
+		)!
+		assert options.contains("v_history_path 'file''s [x].v'")
+		assert capture(dispatcher, ['history', 'show', project, revision, os.file_name(file)],
+			true, environment: environment)! == contents
+		assert capture(dispatcher, ['history', 'prepare', file, '--help'], false,
+			environment: environment
+		)! == "fail 'Pass a branch, tag, or commit name'\n"
+	}
+	cache := os.join_path(suite.env['XDG_CACHE_HOME'], 'vlang.kak')
+	assert os.ls(cache)!.any(it.starts_with('history-'))
+	assert !os.exists(fallback['XDG_CACHE_HOME'])
+	println('ok - native and POSIX Git history preserve literal paths and blob bytes')
 }
 
 fn (mut suite Suite) detect(file string, expected string) ! {
@@ -210,6 +251,7 @@ fn check() ! {
 	os.write_file(os.join_path(config, 'kak', 'kakrc'), kakrc.join('\n') + '\n')!
 	mut env := os.environ()
 	env['XDG_CONFIG_HOME'] = config
+	env['XDG_CACHE_HOME'] = os.join_path(scratch, 'cache')
 	mut suite := Suite{
 		scratch: scratch
 		kak:     kak
