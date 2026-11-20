@@ -44,7 +44,17 @@ fn check_lanes(helper string) ! {
 	mut fallback := native.clone()
 	fallback['PATH'] = bin
 	fallback['XDG_CACHE_HOME'] = os.join_path(root, 'fallback-cache')
+	program := os.join_path(root, "tool's runner")
+	os.write_file(program, '#!/bin/sh\nprintf "<%s>\\n" "$@"\n')!
+	os.chmod(program, 0o700)!
+	make_args := ['task', 'make', program, '', "argument's value", '$' + '(touch ' + marker + ')',
+		'ends with a newline\n']
 	for lane in [native, fallback] {
+		make := shell_command(capture(helper, make_args, true, environment: lane)!)
+		assert capture('/bin/sh', ['-c', make], true)! == "<>\n<argument's value>\n<$" + '(touch ' +
+			marker + ')>\n<ends with a newline\n>\n'
+		assert !os.exists(marker)
+		assert capture(helper, ['task', 'make'], true, environment: lane)! == "fail 'Expected task mode and arguments'\n"
 		planned := shell_command(capture(helper, commands, true, environment: lane)!)
 		output := capture('/bin/sh', ['-c', planned], true)!
 		assert output == "V task output\n<${source}>\n<>\n<argument's value>\n<$" + '(touch ' +

@@ -1,4 +1,4 @@
-// Translate project tasks and saved-test selections into Kakoune commands.
+// Render project and maintenance tasks as Kakoune commands.
 module main
 
 import os
@@ -141,6 +141,12 @@ fn run(args []string) ! {
 	mode := args[0]
 	values := args[1..]
 	match mode {
+		'make' {
+			if values.len > 0 && values[0] != '' {
+				println('v-make-command ' + kak_quote(values.map(shell_quote(it)).join(' ')))
+				return
+			}
+		}
 		'project' {
 			if values.len >= 9 {
 				project_task(values)
