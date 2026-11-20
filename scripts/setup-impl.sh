@@ -119,39 +119,27 @@ esac
 prefix=$(mkdir -p "$prefix" && CDPATH= cd -- "$prefix" && pwd)
 
 # Validate user-facing paths before any download or build.
-check_path=$config_home/kak/kakrc
-if [ "$integrate" = true ]; then
-  if [ -L "$check_path" ] && [ ! -e "$check_path" ]; then echo "Broken kakrc link: $check_path" >&2; exit 1; fi
-  if [ -f "$check_path" ] && ! awk '
-    /^# >>> vlang.kak managed >>>$/ { if (opened || count++) exit 1; opened=1 }
-    /^# <<< vlang.kak managed <<<$/{ if (!opened) exit 1; opened=0 }
-    END { if (opened) exit 1 }
-  ' "$check_path"; then echo "Malformed managed block in $check_path" >&2; exit 1; fi
-  for item in vlang.kak vlang-site-runtime; do
-    link=$config_home/kak/autoload/$item
-    if [ -e "$link" ] && [ ! -L "$link" ]; then echo "Existing unmanaged autoload entry: $link" >&2; exit 1; fi
-    if [ "$item" = vlang.kak ] && [ -L "$link" ] && [ "$(readlink -f "$link")" != "$repo_dir/rc/vlang.kak" ]; then
-      echo "Conflicting plugin link: $link" >&2; exit 1
-    fi
-  done
-fi
-check_managed_file() {
-  if [ -L "$1" ] || { [ -e "$1" ] && ! grep -q -F -x "$2" "$1"; }; then
-    echo "Existing unmanaged file: $1. Choose another --prefix or move it yourself." >&2
-    exit 1
+. "$script_dir/managed-v.inc"
+check_setup_paths() {
+  setup_paths_phase=$1
+  if setup_paths_compiler=$(find_maintenance_v --prefix "$prefix"); then
+    setup_paths_status=0
+    run_maintenance_program "$setup_paths_compiler" "$script_dir/setup-paths.vsh" \
+      "$setup_paths_phase" "$prefix" "$repo_dir" "$config_home" "$integrate" || setup_paths_status=$?
+    [ "$setup_paths_status" -eq 125 ] || return "$setup_paths_status"
+    echo 'V could not prepare the setup path checks. Using shell path checks.' >&2
   fi
+  . "$script_dir/setup-paths-posix"
+  case "$setup_paths_phase" in all|personal) check_personal_paths ;; esac
+  case "$setup_paths_phase" in all|managed) check_managed_paths ;; esac
 }
-if [ "$repair" = true ]; then "$script_dir/managed-state.sh" repair-links "$prefix"; fi
-if [ -d "$prefix/opt/vlang-kakoune/current/share/kak" ]; then check_managed_file "$prefix/bin/kak" '# vlang.kak managed Kakoune launcher'; fi
-check_managed_file "$prefix/bin/kak-v" '# vlang.kak managed IDE launcher'
-check_managed_file "$prefix/opt/vlang-kakoune/ide-config/kak/kakrc" '# vlang.kak managed isolated configuration'
-for link in "$prefix/opt/vlang-kakoune/ide-config/kak/autoload/vlang.kak" \
-            "$prefix/opt/vlang-kakoune/ide-config/kak/autoload/vlang-site-runtime"; do
-  if [ -e "$link" ] && [ ! -L "$link" ]; then
-    echo "Existing unmanaged autoload entry: $link. Choose another --prefix." >&2
-    exit 1
-  fi
-done
+if [ "$repair" = true ]; then
+  check_setup_paths personal
+  "$script_dir/managed-state.sh" repair-links "$prefix"
+  check_setup_paths managed
+else
+  check_setup_paths all
+fi
 
 if [ "$update" = true ] && [ "${VLANG_KAK_SKIP_PULL:-0}" != 1 ]; then
   if [ -d "$repo_dir/.git" ] && [ -z "$(git -C "$repo_dir" status --porcelain)" ]; then
