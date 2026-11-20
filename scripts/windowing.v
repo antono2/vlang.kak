@@ -2,54 +2,14 @@
 module main
 
 import os
+import windowhost { available, client, detect }
 
-const backends = ['tmux', 'zellij', 'wezterm', 'kitty', 'screen', 'native']
 const stdout_fd = 1
 const default_screen_window = '0'
 const native_client = 'exec kak -c "$VLANG_VIEW_SESSION" -e "$VLANG_VIEW_COMMAND"'
 const native_detach = 'setsid sh -c "$1" vlang-terminal "$2" < /dev/null > /dev/null 2>&1 &'
 const usage = 'Usage: windowing.sh detect [auto|tmux|zellij|wezterm|kitty|screen|native]
        windowing.sh open BACKEND left|right SESSION KAKOUNE_COMMANDS'
-
-fn client(name string) string {
-	return os.getenv('kak_client_env_' + name)
-}
-
-fn available(program string) bool {
-	os.find_abs_path_of_executable(program) or { return false }
-	return true
-}
-
-fn active(backend string) bool {
-	return match backend {
-		'tmux' { client('TMUX') != '' && available('tmux') }
-		'zellij' {
-			client('ZELLIJ') != '' && client('ZELLIJ_SESSION_NAME') != '' && available('zellij')
-		}
-		'wezterm' { client('WEZTERM_PANE') != '' && available('wezterm') }
-		'kitty' { client('KITTY_WINDOW_ID') != '' && (available('kitten') || available('kitty')) }
-		'screen' { client('STY') != '' && available('screen') }
-		'native' {
-			client('ITERM_SESSION_ID') != '' || client('WAYLAND_DISPLAY') != '' || client('DISPLAY') != ''
-		}
-		else { false }
-	}
-}
-
-fn detect(requested string) !string {
-	if requested != 'auto' {
-		if requested !in backends {
-			return error_with_code('Unknown window backend: ${requested}', 2)
-		}
-		return if active(requested) { requested } else { 'none' }
-	}
-	for backend in backends {
-		if active(backend) {
-			return backend
-		}
-	}
-	return 'none'
-}
 
 fn forward(name string, value string) {
 	if value == '' {
@@ -127,8 +87,8 @@ fn open(backend string, side string, session string, initial string) ! {
 		}
 		'zellij' {
 			os.setenv('ZELLIJ_PANE_ID', client('ZELLIJ_PANE_ID'), true)
-			mut args := ['--session', client('ZELLIJ_SESSION_NAME'), 'action', 'new-pane', '--direction',
-				side, '--near-current-pane', '--close-on-exit', '--cwd', cwd, '--']
+			mut args := ['--session', client('ZELLIJ_SESSION_NAME'), 'action', 'new-pane',
+				'--direction', side, '--near-current-pane', '--close-on-exit', '--cwd', cwd, '--']
 			args << kak
 			launch('zellij', args, true)!
 		}
@@ -172,14 +132,21 @@ fn open(backend string, side string, session string, initial string) ! {
 			args << kak
 			launch('screen', args, false)!
 		}
-		'native' { open_native(session, initial)! }
-		else { return error_with_code('Unknown window backend: ${backend}', 2) }
+		'native' {
+			open_native(session, initial)!
+		}
+		else {
+			return error_with_code('Unknown window backend: ${backend}', 2)
+		}
 	}
 }
 
 fn dispatch(args []string) ! {
-	match args[0] or { '' } {
-		'--help', '-h' { println(usage) }
+	command := args[0] or { '' }
+	match command {
+		'--help', '-h' {
+			println(usage)
+		}
 		'detect' {
 			requested := args[1] or { '' }
 			println(detect(if requested == '' { 'auto' } else { requested })!)
@@ -190,7 +157,9 @@ fn dispatch(args []string) ! {
 			}
 			open(args[1], args[2], args[3], args[4])!
 		}
-		else { return error_with_code(usage, 2) }
+		else {
+			return error_with_code(usage, 2)
+		}
 	}
 }
 

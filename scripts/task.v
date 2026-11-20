@@ -72,18 +72,6 @@ fn project_task(args []string) {
 	print_task(root, command, task == 'test')
 }
 
-fn test_name(line string) string {
-	declaration, _ := line.split_once('(') or { return '' }
-	words := declaration.fields()
-	start := if words.len == 3 && words[0] == 'pub' { 1 } else { 0 }
-	if words.len != start + 2 || words[start] != 'fn' || !words[start + 1].starts_with('test_') {
-		return ''
-	}
-	name := words[start + 1]
-	suffix := name['test_'.len..]
-	return if suffix.len > 0 && suffix.bytes().all(it.is_alnum() || it == `_`) { name } else { '' }
-}
-
 fn nearest_task(buffer string, modified string, cursor int, command string) ! {
 	if !buffer.ends_with('_test.v') {
 		refuse('Open a _test.v file to run a test at the cursor')
@@ -100,7 +88,7 @@ fn nearest_task(buffer string, modified string, cursor int, command string) ! {
 	file := os.real_path(buffer)
 	mut chosen := ''
 	for index, line in os.read_lines(file)! {
-		name := test_name(line)
+		name := projectroot.test_name(line)
 		if name == '' {
 			continue
 		}

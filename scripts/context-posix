@@ -1,0 +1,203 @@
+#!/bin/sh
+# Render editor menus when V cannot be used. The caller passes client names.
+
+bind_debug() {
+    mode=v-debug
+    phase=$kak_opt_v_debug_phase
+    case "$phase" in building|starting|running|stopped) mode=user ;; esac
+    case "$kak_opt_filetype" in v-debug-*) mode=user ;; *)
+      [ "$kak_opt_v_debug_source" != true ] || [ "$kak_opt_filetype" = v ] || mode=user ;;
+    esac
+    map_key() {
+      if [ "$mode" = v-debug ]; then
+        printf "map window user B ':v-debug-menu<ret>' -docstring 'Debugging…'\n"
+      fi
+      printf "map -docstring '%s' -- window %s '%s' ':%s<ret>'\n" "$3" "$mode" "$1" "$2"
+    }
+    phase=$kak_opt_v_debug_phase
+    if [ "$mode" = user ] && [ -n "$kak_opt_v_debug_directory" ] && [ "$kak_opt_v_debug_enabled" = true ]; then
+      case "$phase" in idle|failed|exited) map_key B v-debug 'Relaunch debugger' ;; esac
+    fi
+    if [ "$kak_opt_v_debug_enabled" = true ] && [ "$kak_modified" = false ] && [ "$kak_opt_filetype" = v ] && [ -n "$kak_buffile" ] && [ -f "$kak_buffile" ]; then
+      if command -v "$kak_opt_v_debug_adapter" >/dev/null 2>&1; then
+        case "$phase" in running) ;; *) map_key '!' v-debug-breakpoint 'Toggle breakpoint' ;; esac
+        map_key Y v-debug-breakpoints 'Breakpoints'
+        case "$phase" in idle|failed|exited)
+          label='Build and debug'
+          [ "$kak_opt_v_debug_build" != false ] || label='Debug executable'
+          case "$kak_buffile" in *_test.v) label='Debug V test' ;; esac
+          map_key B v-debug "$label"
+          ;; esac
+      fi
+    fi
+    if [ -n "$kak_opt_v_debug_directory" ]; then map_key Q v-debug-output 'Program and debugger output'; fi
+    case "$phase" in
+      building|starting|running|stopped)
+        map_key Z v-debug-stop 'Stop debugging'
+        map_key Q v-debug-output 'Program and debugger output'
+        ;;
+    esac
+    case "$phase" in
+      stopped)
+        map_key E v-debug-continue 'Continue debugging'
+        map_key O v-debug-next 'Step over'
+        map_key I v-debug-step-in 'Step into'
+        map_key A v-debug-step-out 'Step out'
+        if [ "$kak_modified" = false ] && [ "$kak_opt_readonly" = false ] && [ -n "$kak_buffile" ] && [ -f "$kak_buffile" ]; then
+          map_key G v-debug-run-to-cursor 'Run to cursor'
+        fi
+        map_key M v-debug-stack 'Stack frames'
+        map_key L v-debug-variables 'Variables and watches'
+        map_key '?' v-debug-evaluate 'Evaluate expression'
+        map_key W v-debug-watch 'Add watch…'
+        [ "$kak_opt_v_debug_has_watches" != true ] || map_key '-' v-debug-unwatch 'Remove watch'
+        map_key ':' v-debug-console 'Debugger command'
+        ;;
+      running)
+        map_key K v-debug-pause 'Pause debugging'
+        map_key J v-debug-input 'Send program input'
+        if [ "$kak_opt_filetype" = v-debug-output ]; then
+          map_key '<ret>' v-debug-input 'Send program input'
+        fi
+        ;;
+    esac
+}
+
+    context=$kak_opt_filetype
+    if [ "$kak_bufname" = '*hover*' ] && [ -n "$kak_opt_v_doc_origin" ]; then context=v-doc; fi
+    case "$context" in
+      v|v-tree|v-doc|v-recovery|v-debug-stack|v-debug-variables|v-debug-output|v-debug-breakpoints) ;;
+      make) if [ "$kak_opt_v_task_output" != true ]; then
+        echo "v-unbind-keys; set-option window v_keys_context ''"
+        exit
+      fi ;;
+      lsp-document-symbol|lsp-goto|lsp-diagnostics) [ -n "$kak_opt_v_results_origin" ] || exit 0 ;;
+      *)
+        case "$kak_opt_v_debug_phase:$kak_opt_v_debug_source" in
+          building:true|starting:true|stopped:true|running:true) context=debug-source ;;
+          *) [ -z "$kak_opt_v_keys_context" ] || echo "v-unbind-keys; set-option window v_keys_context ''"; exit 0 ;;
+        esac ;;
+    esac
+    saved=false; test_file=false; history=false
+    if [ -n "$kak_buffile" ] && [ -f "$kak_buffile" ]; then
+      saved=true
+      case "$kak_buffile" in *_test.v) [ "$kak_modified" = false ] && grep -Eq '^[[:space:]]*(pub[[:space:]]+)?fn[[:space:]]+test_[A-Za-z0-9_]+[[:space:]]*\(' "$kak_buffile" && test_file=true ;; esac
+      git --literal-pathspecs -C "$(dirname "$kak_buffile")" ls-files --error-unmatch -- "$(basename "$kak_buffile")" >/dev/null 2>&1 && history=true
+    fi
+    repeat=false; [ -z "$kak_opt_v_last_test_command" ] || repeat=true
+    output=$kak_opt_v_task_available
+    backend=none
+    if [ "$context" = v ]; then
+      : "${kak_client_env_TMUX:-}" "${kak_client_env_TMUX_PANE:-}" "${kak_client_env_ZELLIJ:-}" "${kak_client_env_ZELLIJ_SESSION_NAME:-}" "${kak_client_env_ZELLIJ_PANE_ID:-}" \
+        "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
+        "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}"
+      source=$(readlink -f "$kak_opt_v_plugin_source")
+      helper=${source%/rc/vlang.kak}/scripts/windowing.sh
+      if [ -x "$helper" ]; then backend=$("$helper" detect "$kak_opt_v_window_backend"); fi
+    fi
+    update=${VLANG_KAK_RESTART_ALLOWED:-0}
+    [ "$#" -eq 1 ] || update=0
+    case "$kak_opt_v_debug_phase" in building|starting|running|stopped) update=0 ;; esac
+    signature="$context:$kak_opt_v_pane_mode:$kak_opt_v_explorer_enabled:$kak_opt_v_tree_is_pane:$kak_opt_v_doc_origin:$saved:$test_file:$history:$repeat:$output:$update:$backend:$kak_opt_readonly:$kak_opt_v_debug_enabled:$kak_opt_v_debug_adapter:$kak_opt_v_debug_build:$kak_modified:$kak_opt_v_context_keys:$kak_opt_v_menu_lsp:$kak_opt_v_task_output:$kak_opt_v_debug_phase:$kak_opt_v_debug_has_watches"
+    [ "$signature" != "$kak_opt_v_keys_context" ] || exit 0
+    quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
+    printf 'v-unbind-keys\nset-option window v_keys_context %s\n' "$(quote "$signature")"
+    map_key() { printf 'map window user %s %s -docstring %s\n' "$(quote "$1")" "$(quote ":$2<ret>")" "$(quote "$3")"; }
+    if [ "$context" = v ]; then
+      echo v-default-source-keys
+      if [ "$kak_opt_v_explorer_enabled" != true ]; then
+        map_key F v-project-path 'Open project path…'
+      fi
+      if [ "$backend" = none ] || [ "$kak_opt_v_pane_mode" = off ]; then
+        map_key g v-peek-definition 'Open documentation (peek fallback)'
+      fi
+      if [ "$kak_opt_v_context_keys" = false ]; then
+        bind_debug
+        echo 'trigger-user-hook VKeysApplied'
+        exit
+      fi
+      if [ "$backend" = none ] || [ "$kak_opt_v_pane_mode" = off ]; then
+        echo 'try %{ unmap window user g }'
+      fi
+      [ "$backend" != none ] || echo 'try %{ unmap window user w }'
+      [ "$output" = true ] || echo "try %{ unmap window user '[' }; try %{ unmap window user ']' }"
+      if [ "$kak_opt_v_menu_lsp" != nop ] || [ -z "$kak_buffile" ]; then
+        for key in d g r R a o h H '(' s S e n N; do
+          printf 'try %%{ unmap window user %s }\n' "$(quote "$key")"
+        done
+        for key in c D i m z j k l; do
+          printf 'try %%{ unmap window v-investigation %s }\n' "$(quote "$key")"
+        done
+        [ "$history" = true ] || echo 'try %{ unmap window user i }'
+        map_key f v-fmt 'Format and save with V'
+      fi
+      if [ "$kak_opt_readonly" = true ] || [ -z "$kak_buffile" ]; then
+        for key in R a o f; do printf 'try %%{ unmap window user %s }\n' "$key"; done
+      fi
+      [ "$saved" = true ] || {
+        for key in b t u; do printf 'try %%{ unmap window user %s }\n' "$key"; done
+        for key in C t T v; do printf 'try %%{ unmap window v-testing %s }\n' "$key"; done
+      }
+      if [ "$test_file" = true ]; then
+        map_key T v-test-nearest 'Test at cursor'
+        [ "$repeat" = false ] || map_key x v-repeat-test 'Rerun last test'
+      else
+        echo 'try %{ unmap window v-testing T }'
+      fi
+      [ "$repeat" = true ] || echo 'try %{ unmap window v-testing x }'
+      [ "$history" = true ] || echo 'try %{ unmap window v-investigation V }'
+      [ "$update" = 1 ] || echo 'try %{ unmap window v-maintenance u }; try %{ unmap window v-maintenance r }'
+      [ "$update" = 1 ] || echo 'try %{ unmap window v-maintenance v }'
+      if [ -z "${VLANG_KAK_PREFIX:-}" ]; then
+        for key in b f c C x R; do printf 'try %%{ unmap window v-maintenance %s }\n' "$key"; done
+      fi
+
+    elif [ "$context" = v-tree ]; then
+      map_key '<ret>' 'v-tree-action open' 'Open file or toggle directory'
+      map_key l 'v-tree-action expand' 'Expand directory'
+      map_key h 'v-tree-action collapse' 'Collapse directory or move to parent'
+      map_key p 'v-tree-action preview' 'Preview file'
+      map_key '.' v-tree-hidden 'Toggle hidden files'
+      map_key r v-tree-refresh 'Refresh project tree'
+      label='Return to source'
+      [ "$kak_opt_v_tree_is_pane" != true ] || label='Close tree pane'
+      map_key q v-tree-close "$label"
+    elif [ "$context" = v-recovery ]; then
+      map_key q v-recovery-close 'Close recovered output buffer'
+      echo "map window normal q ':v-recovery-close<ret>' -docstring 'Close recovered output buffer'"
+    elif [ "$context" = v-doc ]; then
+      map_key q v-doc-return 'Return to source'
+      echo "map window normal q ':v-doc-return<ret>' -docstring 'Return to source'"
+      echo "map window normal <esc> ':v-doc-return<ret>' -docstring 'Return to source'"
+    elif [ "${context#v-debug-}" != "$context" ]; then
+      map_key q v-debug-return 'Return to debug source'
+      case "$context" in
+        v-debug-stack) map_key '<ret>' v-debug-select 'Open selected stack frame' ;;
+        v-debug-variables) map_key '<ret>' v-debug-select 'Expand selected value' ;;
+        v-debug-breakpoints) map_key '<ret>' v-debug-select 'Open breakpoint source' ;;
+      esac
+    elif [ "$context" = debug-source ]; then
+      :
+    elif [ "$context" = make ]; then
+      map_key r v-repeat-task 'Rerun this task'
+      map_key q v-task-return 'Return to source'
+      map_key '<ret>' make-jump 'Open location on this line'
+      map_key ']' v-next-task-error 'Next task error'
+      map_key '[' v-previous-task-error 'Previous task error'
+      [ "$repeat" = false ] || map_key x v-repeat-test 'Rerun last test'
+    else
+      map_key n v-results-next 'Next result'
+      map_key N v-results-previous 'Previous result'
+      map_key q v-results-cancel 'Return to source'
+      map_key '<ret>' jump 'Open selected result'
+    fi
+    [ "$repeat" = true ] || echo 'try %{ unmap window user x }'
+    bind_debug
+    case "$context" in
+      v) echo 'trigger-user-hook VKeysApplied' ;;
+      make) echo 'trigger-user-hook VTaskKeysApplied' ;;
+      v-tree) echo 'trigger-user-hook VTreeKeysApplied' ;;
+      v-doc) echo 'trigger-user-hook VDocKeysApplied' ;;
+      v-debug-*|debug-source) echo 'trigger-user-hook VDebugKeysApplied' ;;
+      *) echo 'trigger-user-hook VResultsKeysApplied' ;;
+    esac
