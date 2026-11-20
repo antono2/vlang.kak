@@ -20,6 +20,8 @@ Ubuntu. `--apply`, or `setup.sh --install-dependencies`, explicitly requests tho
 package changes and may ask for sudo credentials. Other distributions receive
 the dependency list. Older distribution packages may not satisfy the C++23 or
 GDB DAP requirements; preflight/health report those limitations.
+Package previews and preflight checks use V when a working compiler is
+available. Both checks can run before the compiler is installed.
 
 ## Ownership and safe removal
 
