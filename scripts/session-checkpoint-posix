@@ -4,6 +4,12 @@ set -eu
 umask 077
 quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
 fail() { printf 'fail %s\n' "$(quote "$1")"; exit 1; }
+write_restart_state() {
+  temporary=$(mktemp -- "$1.XXXXXXXX") || fail 'Could not write restart state'
+  trap 'rm -f -- "$temporary"' EXIT
+  printf '%s\n' "$2" > "$temporary" && mv -fT -- "$temporary" "$1" ||
+    fail 'Could not write restart state'
+}
 client_source() {
   # A client ID is a SHA-256 digest encoded as 64 lowercase hex characters.
   case $1 in *[!0-9a-f]*) fail 'Invalid checkpoint client identity' ;; esac
@@ -12,6 +18,32 @@ client_source() {
   [ -f "$client_file" ] || fail 'Checkpoint client instructions are missing'
 }
 case $1 in
+  restart-files)
+    state=${VLANG_KAK_RESTART_STATE:-}
+    [ -n "$state" ] || fail 'Restart requires the managed kak-v launcher'
+    shift
+    commands=nop
+    for name do
+      [ -f "$name" ] || continue
+      quoted=$(quote "$name")
+      commands="$commands
+$(printf 'try %%{ buffer %s } catch %%{ edit -- %s }' "$quoted" "$quoted")"
+    done
+    resume_file=${kak_buffile:-}
+    resume_line=${kak_cursor_line:-}
+    resume_column=${kak_cursor_column:-}
+    if [ ! -f "$resume_file" ]; then
+      resume_file=${kak_opt_v_update_resume_file:-}
+      resume_line=${kak_opt_v_update_resume_line:-}
+      resume_column=${kak_opt_v_update_resume_column:-}
+    fi
+    if [ -f "$resume_file" ]; then
+      commands="$commands
+$(printf 'buffer %s\nselect %s.%s,%s.%s' "$(quote "$resume_file")" \
+  "$resume_line" "$resume_column" "$resume_line" "$resume_column")"
+    fi
+    write_restart_state "$state" "$commands"
+    exit 0 ;;
   begin)
     [ "$#" -eq 2 ] && [ -n "$2" ] || fail 'Expected a checkpoint root'
     mkdir -p -- "$2" || fail 'Could not create checkpoint root'
@@ -48,10 +80,7 @@ $(printf 'v-session-open-client %s %s' "$(quote "$client_file")" "$(quote "$back
     if [ "$extra_views" = true ] && { [ -z "$backend" ] || [ "$backend" = none ]; }; then
       fail 'Restoring extra views requires a supported pane host; checkpoint saved'
     fi
-    temporary=$(mktemp -- "$state.XXXXXXXX") || fail 'Could not write restart state'
-    trap 'rm -f -- "$temporary"' EXIT
-    printf '%s\n' "$commands" > "$temporary" && mv -fT -- "$temporary" "$state" ||
-      fail 'Could not write restart state'
+    write_restart_state "$state" "$commands"
     exit 0 ;;
 esac
 directory=$kak_opt_v_session_checkpoint

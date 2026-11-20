@@ -146,11 +146,41 @@ fn replay(directory string, state string) ! {
 			commands += 'v-session-open-client ${quote(path)} ${quote(host)}\n'
 		}
 	}
+	write_restart_state(state, commands)!
+}
+
+fn write_restart_state(state string, commands string) ! {
 	stage := os.join_path(os.dir(state), '.restart-' + rand.uuid_v4())
 	os.mkdir(stage, mode: 0o700)!
 	defer { os.rmdir_all(stage) or {} }
 	write_checkpoint(stage, 'state.kak', 'w', commands)!
 	os.rename_dir(os.join_path(stage, 'state.kak'), state)!
+}
+
+fn save_restart_files(files []string) ! {
+	state := os.getenv('VLANG_KAK_RESTART_STATE')
+	if state == '' {
+		return error('Restart requires the managed kak-v launcher')
+	}
+	mut commands := 'nop\n'
+	for name in files {
+		if os.is_file(name) {
+			quoted := quote(name)
+			commands += 'try %{ buffer ${quoted} } catch %{ edit -- ${quoted} }\n'
+		}
+	}
+	mut file := os.getenv('kak_buffile')
+	mut line := os.getenv('kak_cursor_line')
+	mut column := os.getenv('kak_cursor_column')
+	if !os.is_file(file) {
+		file = os.getenv('kak_opt_v_update_resume_file')
+		line = os.getenv('kak_opt_v_update_resume_line')
+		column = os.getenv('kak_opt_v_update_resume_column')
+	}
+	if os.is_file(file) {
+		commands += 'buffer ${quote(file)}\nselect ${line}.${column},${line}.${column}\n'
+	}
+	write_restart_state(state, commands)!
 }
 
 fn run(args []string) ! {
@@ -181,6 +211,13 @@ fn run(args []string) ! {
 }
 
 args := os.args[1..]
+if args.len > 0 && args[0] == 'restart-files' {
+	save_restart_files(args[1..]) or {
+		println('fail ${quote(err.msg())}')
+		exit(1)
+	}
+	exit(0)
+}
 if args.len > 0 && args[0] == 'begin' {
 	if args.len != 2 || args[1] == '' {
 		println("fail 'Expected a checkpoint root'")

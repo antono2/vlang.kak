@@ -37,6 +37,41 @@ fn check_publication(root string, launcher string, lane map[string]string, nativ
 	assert capture(launcher, ['restore', latest], true, environment: env)!.contains('client-')
 }
 
+fn check_saved_file_restart(root string, launcher string, lane map[string]string) ! {
+	first := os.join_path(root, "owner's file.v")
+	second := os.join_path(root, 'another file.v')
+	missing := os.join_path(root, 'scratch buffer')
+	state := os.join_path(root, 'saved restart.kak')
+	target := os.join_path(root, 'old state')
+	for file in [first, second, target] {
+		os.write_file(file, 'original\n')!
+	}
+	os.symlink(target, state)!
+	mut env := lane.clone()
+	env['VLANG_KAK_RESTART_STATE'] = state
+	env['kak_buffile'] = missing
+	env['kak_opt_v_update_resume_file'] = first
+	env['kak_opt_v_update_resume_line'] = '2'
+	env['kak_opt_v_update_resume_column'] = '3'
+	assert capture(launcher, ['restart-files', first, missing, second], true, environment: env)! == ''
+	first_quoted := first.replace("'", "''")
+	second_quoted := second.replace("'", "''")
+	assert os.read_file(state)! ==
+		"nop\ntry %{ buffer '${first_quoted}' } catch %{ edit -- '${first_quoted}' }\n" +
+		"try %{ buffer '${second_quoted}' } catch %{ edit -- '${second_quoted}' }\n" +
+		"buffer '${first_quoted}'\nselect 2.3,2.3\n"
+	assert !os.is_link(state) && os.read_file(target)! == 'original\n'
+	assert (os.stat(state)!.mode & 0o777) == 0o600
+	env['kak_buffile'] = second
+	env['kak_cursor_line'] = '4'
+	env['kak_cursor_column'] = '5'
+	assert capture(launcher, ['restart-files', second], true, environment: env)! == ''
+	assert os.read_file(state)!.ends_with("buffer '${second_quoted}'\nselect 4.5,4.5\n")
+	env.delete('VLANG_KAK_RESTART_STATE')
+	failed := execute(launcher, ['restart-files'], false, environment: env)!
+	assert failed.stdout.contains('Restart requires the managed kak-v launcher')
+}
+
 fn check() ! {
 	root := os.join_path(os.temp_dir(), "recovery reader's " + rand.uuid_v4())
 	os.mkdir(root, mode: 0o700)!
@@ -104,6 +139,7 @@ fn check() ! {
 		publication := os.join_path(root, 'publication-${i}')
 		os.mkdir(publication)!
 		check_publication(publication, launcher, lane, i == 0)!
+		check_saved_file_restart(publication, launcher, lane)!
 		assert os.exists(fallback_marker) == (i > 0)
 	}
 
@@ -111,7 +147,7 @@ fn check() ! {
 	os.write_file(os.join_path(scripts, 'session-checkpoint.vsh'), 'invalid helper source')!
 	assert capture(launcher, ['restore', checkpoint], true, environment: env)! == expected
 	assert os.exists(fallback_marker)
-	println('ok - native and POSIX checkpoints publish completed saves and preserve recovery commands')
+	println('ok - native and POSIX checkpoints and saved-file restart preserve editor state')
 }
 
 check() or {

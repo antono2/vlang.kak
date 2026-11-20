@@ -2,8 +2,8 @@
 # Select the checkpoint helper and keep session saves available without V.
 set -eu
 case ${1:-} in
-  --help|-h) echo 'Usage: session-buffer.sh [begin ROOT|buffer|client|main|finish BACKEND|--prepare DIRECTORY|restore DIRECTORY|restart DIRECTORY STATE]'; exit 0 ;;
-  begin|restore|restart)
+  --help|-h) echo 'Usage: session-buffer.sh [begin ROOT|buffer|client|main|finish BACKEND|--prepare DIRECTORY|restore DIRECTORY|restart DIRECTORY STATE|restart-files [FILE...]]'; exit 0 ;;
+  begin|restore|restart|restart-files)
     script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
     if command -v v >/dev/null 2>&1; then
       exec "$script_dir/helper-cache.sh" checkpoint --read "$@"
