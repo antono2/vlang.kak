@@ -41,6 +41,13 @@ fn setup_tools(root string, kak string) !string {
 	return vls
 }
 
+fn launcher_pid(prefix string) !string {
+	root := os.join_path(prefix, 'opt', 'vlang-kakoune')
+	directories := (os.ls(root)!).filter(it.starts_with('restart.'))
+	require(directories.len == 1, 'Expected one active launcher state directory')!
+	return os.read_file(os.join_path(root, directories[0], 'owner-pid'))!.trim_space()
+}
+
 fn exercise(root string, kak string) ! {
 	repo := os.dir(@DIR)
 	prefix := os.join_path(root, 'prefix')
@@ -65,6 +72,12 @@ fn exercise(root string, kak string) ! {
 	expected_cursor := '${first} 2 2'
 	require(editor.value(cursor_expression)! == expected_cursor, 'Initial cursor position differs')!
 	original_pid := editor.value(pid_expression)!
+	launcher := launcher_pid(prefix)!
+	$if linux {
+		program := os.readlink('/proc/${launcher}/exe')!
+		require(os.file_name(program).starts_with('launcher-'),
+			'Expected the managed session to run under the V launcher, got ${program}')!
+	}
 	require(editor.value(setting_expression)! == 'preserved', 'Personal settings were not loaded')!
 
 	// Exercise the V entry point directly so a compilation failure cannot hide behind the fallback.
@@ -86,6 +99,7 @@ fn exercise(root string, kak string) ! {
 	require(editor.value(pid_expression)! == original_pid, 'Failed update restarted Kakoune')!
 
 	editor.restart('v-update --no-build --no-lsp')!
+	require(launcher_pid(prefix)! == launcher, 'Restart replaced the launcher process')!
 	require(!os.exists(os.join_path(prefix, 'opt', 'vlang-v')),
 		'External VLS update installed a managed compiler')!
 	require(editor.value(pid_expression)! != original_pid,

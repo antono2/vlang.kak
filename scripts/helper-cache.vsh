@@ -117,7 +117,7 @@ fn materialize_checkpoint(writer string, directory string) ! {
 
 fn run(args []string) ! {
 	if args.len < 2
-		|| args[1] !in ['debug', 'explorer', 'preferences', 'windowing', 'checkpoint', 'history', 'task', 'context', 'settings'] {
+		|| args[1] !in ['debug', 'explorer', 'preferences', 'windowing', 'checkpoint', 'history', 'task', 'context', 'settings', 'launcher'] {
 		return error('Expected a helper cache directory and tool name.')
 	}
 	cache, tool := args[0], args[1]
@@ -135,7 +135,7 @@ fn run(args []string) ! {
 		materialize_checkpoint(writer, args[2])!
 		return
 	}
-	fallback := tool in ['windowing', 'history', 'task', 'context']
+	fallback := tool in ['windowing', 'history', 'task', 'context', 'launcher']
 		|| (tool == 'settings' && args.len > 2 && args[2] in ['--file', '--menu'])
 		|| (tool == 'explorer' && args.len > 2 && args[2] in ['prompt', 'candidates', 'search'])
 	destination := prepare_helper(cache, tool, fallback) or {
@@ -144,7 +144,7 @@ fn run(args []string) ! {
 		}
 		return err
 	}
-	if args.len > 2 && args[2] == '--prepare' {
+	if tool != 'launcher' && args.len > 2 && args[2] == '--prepare' {
 		return
 	}
 	os.execvp(destination, args[2..])!
