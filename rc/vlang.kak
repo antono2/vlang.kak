@@ -898,40 +898,13 @@ define-command -params .. v-update -docstring 'Update the managed V IDE, then re
 # Keep historical content in a scratch buffer so the working tree is untouched.
 define-command -params 1 v-history-file -docstring 'Open this file at a Git revision in a read-only V scratch buffer' %{
   evaluate-commands %sh{
-    file=$kak_buffile
-    [ -f "$file" ] || { echo "fail 'Open a saved V file before browsing history'"; exit; }
-    file=$(readlink -f "$file")
-    repo=$(git -C "${file%/*}" rev-parse --show-toplevel 2>/dev/null) || {
-      echo "fail 'The current file is not in a Git repository'"
-      exit
-    }
-    case "$file" in
-      "$repo"/*) path=${file#"$repo"/} ;;
-      *) echo "fail 'The current file is outside the Git repository'"; exit ;;
-    esac
-    ref=$1
-    case "$ref" in
-      ''|-*) echo "fail 'Pass a branch, tag, or commit name'"; exit ;;
-    esac
-    commit=$(git -C "$repo" rev-parse --verify "$ref^{commit}" 2>/dev/null) || {
-      echo "fail 'Unknown Git revision'"
-      exit
-    }
-    git -C "$repo" cat-file -e "$commit:$path" 2>/dev/null || {
-      echo "fail 'This file does not exist at that revision'"
-      exit
-    }
-    short=$(git -C "$repo" rev-parse --short=12 "$commit")
-    name="*v-history:$short:$path*"
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    printf 'set-option window v_history_repo %s\n' "$(kak_quote "$repo")"
-    printf 'set-option window v_history_commit %s\n' "$(kak_quote "$commit")"
-    printf 'set-option window v_history_path %s\n' "$(kak_quote "$path")"
-    printf 'set-option window v_history_buffer %s\n' "$(kak_quote "$name")"
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/helper-cache.sh" history prepare "$kak_buffile" "$1" || echo "fail 'Could not prepare file history'"
   }
   evaluate-commands -save-regs v %{
     set-register v %sh{
-      git -C "$kak_opt_v_history_repo" show "$kak_opt_v_history_commit:$kak_opt_v_history_path"
+      source=$(readlink -f "$kak_opt_v_plugin_source")
+      "${source%/rc/vlang.kak}/scripts/helper-cache.sh" history show "$kak_opt_v_history_repo" "$kak_opt_v_history_commit" "$kak_opt_v_history_path"
     }
     edit! -scratch -- %opt{v_history_buffer}
     execute-keys i<c-r>v<esc>
@@ -942,25 +915,8 @@ define-command -params 1 v-history-file -docstring 'Open this file at a Git revi
 
 define-command v-history -docstring 'Pick a recent version of the current V file' %{
   evaluate-commands %sh{
-    file=$kak_buffile
-    [ -f "$file" ] || { echo "fail 'Open a saved V file before browsing history'"; exit; }
-    file=$(readlink -f "$file")
-    repo=$(git -C "${file%/*}" rev-parse --show-toplevel 2>/dev/null) || {
-      echo "fail 'The current file is not in a Git repository'"
-      exit
-    }
-    case "$file" in
-      "$repo"/*) path=${file#"$repo"/} ;;
-      *) echo "fail 'The current file is outside the Git repository'"; exit ;;
-    esac
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    printf 'menu %s %s' "$(kak_quote 'HEAD  current commit')" "$(kak_quote 'v-history-file HEAD')"
-    git -C "$repo" log -n 30 --format='%h %s' HEAD -- "$path" |
-      while read -r hash subject; do
-        [ -n "$hash" ] || continue
-        printf ' %s %s' "$(kak_quote "$hash  $subject")" "$(kak_quote "v-history-file $hash")"
-      done
-    printf '\n'
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/helper-cache.sh" history menu "$kak_buffile" || echo "fail 'Could not list file history'"
   }
 }
 

@@ -15,6 +15,18 @@ fn fingerprint(path string) !string {
 	return sha256.sum(os.read_bytes(path)!).hex()
 }
 
+fn helper_fingerprint(source string, tool string) !string {
+	mut contents := fingerprint(source)!
+	if tool == 'history' {
+		// The history helper imports the shared Git runner.
+		module_dir := os.join_path(@DIR, 'managedfiles')
+		for name in os.ls(module_dir)!.filter(it.ends_with('.v')).sorted() {
+			contents += '\n' + name + '\n' + fingerprint(os.join_path(module_dir, name))!
+		}
+	}
+	return contents
+}
+
 fn supports_old_compiler(compiler string) bool {
 	mut child := os.new_process(compiler)
 	defer { child.close() }
@@ -42,7 +54,7 @@ fn compile_helper(cache string, source string, expected string, destination stri
 	mut child := os.new_process(compiler)
 	defer { child.close() }
 	child.set_args(args)
-	quiet := tool == 'windowing' || tool == 'checkpoint'
+	quiet := tool in ['windowing', 'checkpoint', 'history']
 	if quiet {
 		child.set_redirect_stdio()
 	}
@@ -62,7 +74,7 @@ fn compile_helper(cache string, source string, expected string, destination stri
 			1
 		})
 	}
-	if fingerprint(source)! != expected {
+	if helper_fingerprint(source, tool)! != expected {
 		return error('The ${tool} helper source changed during compilation. Retry the command.')
 	}
 	os.rename_dir(path, destination)!
@@ -71,7 +83,7 @@ fn compile_helper(cache string, source string, expected string, destination stri
 fn prepare_helper(cache string, tool string) !string {
 	name := if tool == 'checkpoint' { 'session-checkpoint.vsh' } else { tool + '.v' }
 	source := os.join_path(@DIR, name)
-	content := fingerprint(source)!
+	content := helper_fingerprint(source, tool)!
 	// Include the source path because a compiled helper can embed its checkout.
 	identity := sha256.hexhash(source + '\n' + content)
 	destination := cache + '/${tool}-${cache_version}${identity}'
@@ -92,7 +104,8 @@ fn materialize_checkpoint(writer string, directory string) ! {
 }
 
 fn run(args []string) ! {
-	if args.len < 2 || args[1] !in ['debug', 'explorer', 'preferences', 'windowing', 'checkpoint'] {
+	if args.len < 2
+		|| args[1] !in ['debug', 'explorer', 'preferences', 'windowing', 'checkpoint', 'history'] {
 		return error('Expected a helper cache directory and tool name.')
 	}
 	cache, tool := args[0], args[1]
@@ -111,8 +124,8 @@ fn run(args []string) ! {
 		return
 	}
 	destination := prepare_helper(cache, tool) or {
-		if tool == 'windowing' {
-			return os.execvp(os.join_path(@DIR, 'windowing-posix'), args[2..])
+		if tool in ['windowing', 'history'] {
+			return os.execvp(os.join_path(@DIR, tool + '-posix'), args[2..])
 		}
 		return err
 	}

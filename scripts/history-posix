@@ -1,0 +1,45 @@
+#!/bin/sh
+# Keep history available in editor installations without V.
+set -eu
+quote() { escaped=$(printf '%s.' "$1" | sed "s/'/''/g"); printf "'%s'" "${escaped%.}"; }
+fail() { printf 'fail %s\n' "$(quote "$1")"; exit 1; }
+
+case "${1:-}" in
+  show)
+    [ "$#" -eq 4 ] || exit 2
+    exec git -C "$2" show --end-of-options "$3:$4" ;;
+  prepare) [ "$#" -eq 3 ] || exit 2 ;;
+  menu) [ "$#" -eq 2 ] || exit 2 ;;
+  *) exit 2 ;;
+esac
+[ -f "$2" ] || fail 'Open a saved V file before browsing history'
+file=$(readlink -f -- "$2")
+repo=$(git -C "${file%/*}" rev-parse --show-toplevel 2>/dev/null) ||
+  fail 'The current file is not in a Git repository'
+case "$file" in
+  "$repo"/*) path=${file#"$repo"/} ;;
+  *) fail 'The current file is outside the Git repository' ;;
+esac
+case "$1" in
+  prepare)
+    case "$3" in ''|-*) fail 'Pass a branch, tag, or commit name' ;; esac
+    commit=$(git -C "$repo" rev-parse --verify --end-of-options "$3^{commit}" 2>/dev/null) ||
+      fail 'Unknown Git revision'
+    git -C "$repo" cat-file -e "$commit:$path" 2>/dev/null ||
+      fail 'This file does not exist at that revision'
+    short=$(git -C "$repo" rev-parse --short=12 "$commit")
+    printf 'set-option window v_history_repo %s\n' "$(quote "$repo")"
+    printf 'set-option window v_history_commit %s\n' "$(quote "$commit")"
+    printf 'set-option window v_history_path %s\n' "$(quote "$path")"
+    printf 'set-option window v_history_buffer %s\n' "$(quote "*v-history:$short:$path*")"
+    ;;
+  menu)
+    printf "%s" "menu 'HEAD  current commit' 'v-history-file HEAD'"
+    git -C "$repo" --literal-pathspecs log -n 30 --format='%h %s' HEAD -- "$path" 2>/dev/null |
+      while read -r hash subject; do
+        [ -n "$hash" ] || continue
+        printf ' %s %s' "$(quote "$hash  $subject")" "$(quote "v-history-file $hash")"
+      done
+    printf '\n'
+    ;;
+esac
