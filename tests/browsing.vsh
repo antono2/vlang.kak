@@ -103,6 +103,31 @@ fn check_project_targets(mut editor editorui.Client, root string, project string
 	println('ok - rendered project targets preserve quoted and multiline filenames and offer a manual path')
 }
 
+fn check_result_navigation(mut editor editorui.Client, root string) ! {
+	source := os.join_path(root, "it's a=source.v")
+	os.write_file(source, 'module main\nfn main() {}\n')!
+	selection := '2.4,2.7'
+	editor.remote('edit ${quote(source)}; select ${selection}')!
+	editor.remote("set-option -add global v_results_origins 'unrelated=elsewhere'")!
+	editor.remote('v-results-prepare; edit -scratch *navigation-results*; v-results-init')!
+	require(editor.value('%opt{v_results_origin}')! == source, 'Results lost the source path')!
+	require(editor.value('%opt{modelinefmt}')!.contains('Tab/S-Tab browse'),
+		'Results omitted their browse and return hints')!
+	editor.keys('q')
+	editor.wait_value(buffer_file, source, false, 'q returned to the source file')!
+	require(editor.value('%val{selection_desc}')! == selection,
+		'Returning from results did not restore the selection')!
+
+	// Simulate the hover view without starting a language server.
+	editor.remote("define-command lsp-hover-buffer %{ edit -scratch '*hover*' }")!
+	editor.remote('v-doc')!
+	require(editor.value('%opt{v_doc_origin}')! == source, 'Hover lost the source path')!
+	editor.remote('v-doc-return')!
+	require(editor.value(buffer_file)! == source
+		&& editor.value('%val{selection_desc}')! == selection,
+		'Returning from hover did not restore the source selection')!
+}
+
 fn exercise(kak string) ! {
 	root := os.join_path(os.temp_dir(), 'vlang-browsing-' + rand.uuid_v4())
 	os.mkdir(root)!
@@ -196,6 +221,7 @@ fn exercise(kak string) ! {
 	editor.remote('nop')!
 	require(editor.value(buffer_file)! == source, 'Empty search changed the source file')!
 	check_project_targets(mut editor, root, project, target)!
+	check_result_navigation(mut editor, root)!
 	println('ok - rendered tree, project prompts and completion, and live search')
 }
 

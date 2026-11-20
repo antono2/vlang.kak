@@ -288,8 +288,10 @@ declare-option -hidden str v_results_modeline
 declare-option -hidden str-to-str-map v_results_origins
 declare-option -hidden str-to-str-map v_results_selections
 define-command -hidden -params 2 v-results-remember %{
-  set-option -add global v_results_origins "%val{client}=%arg{1}"
-  set-option -add global v_results_selections "%val{client}=%arg{2}"
+  evaluate-commands %sh{
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/helper-cache.sh" navigation remember-results "$kak_client" "$1" "$2"
+  }
 }
 define-command -hidden v-results-prepare %{
   evaluate-commands -try-client %opt{toolsclient} -verbatim -- v-results-remember %val{bufname} %val{selection_desc}
@@ -321,37 +323,28 @@ hook -group v-results global WinSetOption filetype=lsp-(document-symbol|goto|dia
 define-command -hidden v-results-init %{
   remove-hooks window v-results-init
   evaluate-commands %sh{
-    origin=
-    selection=
-    eval "set -- $kak_quoted_opt_v_results_origins"
-    for entry do
-      [ "${entry%%=*}" != "$kak_client" ] || origin=${entry#*=}
-    done
-    eval "set -- $kak_quoted_opt_v_results_selections"
-    for entry do
-      [ "${entry%%=*}" != "$kak_client" ] || selection=${entry#*=}
-    done
-    [ -n "$origin" ] || exit
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    printf 'set-option window v_results_origin %s\n' "$(kak_quote "$origin")"
-    printf 'set-option window v_results_selection %s\n' "$(kak_quote "$selection")"
-    cat <<'KAK'
-set-option window v_results_modeline %opt{modelinefmt}
-set-option -add window modelinefmt '  [Tab/S-Tab browse | Enter open | q/Esc back]'
-map window normal <tab> ':v-results-next<ret>' -docstring 'Next result'
-map window normal <s-tab> ':v-results-previous<ret>' -docstring 'Previous result'
-map window normal q ':v-results-cancel<ret>' -docstring 'Return to source'
-map window normal <esc> ':v-results-cancel<ret>' -docstring 'Return to source'
-hook -once -always window WinSetOption filetype=.* %{
-  try %{ unmap window normal <tab> ':v-results-next<ret>' }
-  try %{ unmap window normal <s-tab> ':v-results-previous<ret>' }
-  try %{ unmap window normal q ':v-results-cancel<ret>' }
-  try %{ unmap window normal <esc> ':v-results-cancel<ret>' }
-  set-option window modelinefmt %opt{v_results_modeline}
-}
-KAK
+    eval "set -- $kak_quoted_opt_v_results_origins '' $kak_quoted_opt_v_results_selections"
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/helper-cache.sh" navigation results "$kak_client" "$@"
   }
   v-refresh-keys
+}
+define-command -hidden -params 2 v-results-install %{
+  set-option window v_results_origin %arg{1}
+  set-option window v_results_selection %arg{2}
+  set-option window v_results_modeline %opt{modelinefmt}
+  set-option -add window modelinefmt '  [Tab/S-Tab browse | Enter open | q/Esc back]'
+  map window normal <tab> ':v-results-next<ret>' -docstring 'Next result'
+  map window normal <s-tab> ':v-results-previous<ret>' -docstring 'Previous result'
+  map window normal q ':v-results-cancel<ret>' -docstring 'Return to source'
+  map window normal <esc> ':v-results-cancel<ret>' -docstring 'Return to source'
+  hook -once -always window WinSetOption filetype=.* %{
+    try %{ unmap window normal <tab> ':v-results-next<ret>' }
+    try %{ unmap window normal <s-tab> ':v-results-previous<ret>' }
+    try %{ unmap window normal q ':v-results-cancel<ret>' }
+    try %{ unmap window normal <esc> ':v-results-cancel<ret>' }
+    set-option window modelinefmt %opt{v_results_modeline}
+  }
 }
 
 define-command v-definition -docstring 'Go to the V symbol definition' %{ v-results-prepare; lsp-definition }
@@ -381,31 +374,24 @@ declare-option -hidden str-to-str-map v_doc_origins
 declare-option -hidden str-to-str-map v_doc_selections
 declare-option -hidden str v_doc_origin
 declare-option -hidden str v_doc_selection
-define-command -hidden -params 1 v-doc-remember %{
-  set-option -add global v_doc_origins "%arg{1}=%val{bufname}"
-  set-option -add global v_doc_selections "%arg{1}=%val{selection_desc}"
-}
 define-command v-doc -docstring 'Show VLS documentation; q or Esc returns to source' %{
   evaluate-commands %sh{
-    target=${kak_opt_docsclient:-$kak_client}
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    printf 'v-doc-remember %s\n' "$(kak_quote "$target")"
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/helper-cache.sh" navigation remember-doc "${kak_opt_docsclient:-$kak_client}" "$kak_bufname" "$kak_selection_desc"
   }
   lsp-hover-buffer
 }
 define-command -hidden v-doc-init %{
   evaluate-commands %sh{
     [ "$kak_bufname" = '*hover*' ] || exit
-    origin=; selection=
-    eval "set -- $kak_quoted_opt_v_doc_origins"
-    for entry do [ "${entry%%=*}" != "$kak_client" ] || origin=${entry#*=}; done
-    eval "set -- $kak_quoted_opt_v_doc_selections"
-    for entry do [ "${entry%%=*}" != "$kak_client" ] || selection=${entry#*=}; done
-    [ -n "$origin" ] || exit
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    printf 'set-option window v_doc_origin %s\nset-option window v_doc_selection %s\n' \
-      "$(kak_quote "$origin")" "$(kak_quote "$selection")"
+    eval "set -- $kak_quoted_opt_v_doc_origins '' $kak_quoted_opt_v_doc_selections"
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/helper-cache.sh" navigation doc "$kak_client" "$@"
   }
+}
+define-command -hidden -params 2 v-doc-install %{
+  set-option window v_doc_origin %arg{1}
+  set-option window v_doc_selection %arg{2}
 }
 define-command v-doc-return -docstring 'Return from documentation to the original source selection' %{
   v-results-return %opt{v_doc_origin} %opt{v_doc_selection}
