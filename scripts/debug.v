@@ -19,6 +19,13 @@ fn C.ptsname(int) &char
 fn C.read(int, voidptr, usize) isize
 fn C.write(int, voidptr, usize) isize
 fn C.close(int) int
+fn C.dup(int) int
+fn C.setsid() int
+fn C.fcntl(int, int, ...int) int
+
+const debug_start_timeout = 2 * time.second
+const debug_poll = 20 * time.millisecond
+const debug_ready = 'R'
 
 // Runs inside GDB's existing Python runtime; no external Python helper.
 const v_gdb_printers = r"
@@ -282,17 +289,26 @@ fn active(dir string) bool {
 	return locked
 }
 
+fn acquire_debug_lock(dir string, wait_for_cleanup bool) !int {
+	path := os.join_path(dir, 'lock')
+	fd := C.open(path.str, C.O_RDWR | C.O_CREAT, 0o600)
+	if fd < 0 {
+		return error('Could not open debugger lock: ${path}')
+	}
+	// Exit status can reach the editor just before the adapter releases the lock.
+	deadline := time.sys_mono_now() + u64(debug_start_timeout)
+	for C.flock(fd, C.LOCK_EX | C.LOCK_NB) != 0 {
+		if !wait_for_cleanup || read_state(dir).phase !in ['idle', 'exited', 'failed']
+			|| time.sys_mono_now() >= deadline {
+			C.close(fd)
+			return error('A debugger is already active. Stop it before launching again.')
+		}
+		time.sleep(debug_poll)
+	}
+	return fd
+}
+
 fn configure(dir string) ! {
-	// Exit/stop status can reach the editor just before the adapter cleanup
-	// releases its lock. Let an immediate relaunch finish that cleanup first.
-	deadline := time.now().unix_milli() + 2000
-	for active(dir) && read_state(dir).phase in ['idle', 'exited', 'failed']
-		&& time.now().unix_milli() < deadline {
-		time.sleep(20 * time.millisecond)
-	}
-	if active(dir) {
-		return error('A debugger is already active. Stop it before launching again.')
-	}
 	file := os.getenv('kak_buffile')
 	if file == '' || !os.is_file(file) {
 		return error('Open a saved V source file before debugging.')
@@ -1136,6 +1152,215 @@ fn debug_view_command(command string, dir string, args []string) !string {
 	return error('Invalid debugger view command arguments')
 }
 
+// POSIX cksum folds the byte length into the CRC. Preserve the cache keys
+// used by existing sessions so their breakpoints and panel files stay visible.
+fn checksum_byte(initial u32, value u8) u32 {
+	mut crc := initial ^ (u32(value) << 24)
+	for _ in 0 .. 8 {
+		high_bit := (crc & 0x80000000) != 0
+		crc <<= 1
+		if high_bit {
+			crc ^= 0x04c11db7
+		}
+	}
+	return crc
+}
+
+fn session_checksum(session string) u32 {
+	mut crc := u32(0)
+	for value in session.bytes() {
+		crc = checksum_byte(crc, value)
+	}
+	mut length := session.len
+	for length > 0 {
+		crc = checksum_byte(crc, u8(length & 0xff))
+		length >>= 8
+	}
+	return ~crc
+}
+
+fn debug_directory(requested string) !string {
+	mut directory := requested
+	if directory == '' {
+		cache := os.getenv_opt('XDG_CACHE_HOME') or { '' }
+		root := if cache == '' { os.join_path(os.home_dir(), '.cache') } else { cache }
+		directory = os.join_path(root, 'vlang.kak', 'debug-${session_checksum(os.getenv('kak_session'))}')
+	}
+	dir := os.real_path(directory)
+	os.mkdir_all(dir)!
+	os.chmod(dir, 0o700) or {}
+	return dir
+}
+
+fn configure_once(dir string) ! {
+	lock_fd := acquire_debug_lock(dir, true)!
+	defer { C.close(lock_fd) }
+	configure(dir)!
+}
+
+fn read_debug_settings(dir string) !Settings {
+	return json2.decode[Settings](os.read_file(os.join_path(dir, 'settings.json'))!)
+}
+
+fn run_debugger(dir string, settings Settings) {
+	mut debugger := Debugger{ dir: dir, settings: settings, state: read_state(dir) }
+	debugger.run() or {
+		debugger.state.phase = 'failed'
+		debugger.state.message = err.msg()
+		debugger.log('\n${err.msg()}\n')
+		debugger.publish()
+	}
+}
+
+fn redirect_debugger(dir string) ! {
+	mut log := os.open_file(os.join_path(dir, 'daemon.log'), 'w', 0o600)!
+	defer { log.close() }
+	mut null_input := os.open_file('/dev/null', 'r')!
+	defer { null_input.close() }
+	if os.fd_dup2(null_input.fd, C.STDIN_FILENO) < 0 || os.fd_dup2(log.fd, C.STDOUT_FILENO) < 0
+		|| os.fd_dup2(log.fd, C.STDERR_FILENO) < 0 {
+		return error('Could not redirect debugger input and output')
+	}
+}
+
+fn run_detached_debugger(dir string, lock_fd int) ! {
+	if lock_fd <= C.STDERR_FILENO || C.fcntl(lock_fd, C.F_SETFD, C.FD_CLOEXEC) < 0 || C.setsid() < 0 {
+		return error('Could not detach the debugger process')
+	}
+	defer { C.close(lock_fd) }
+	os.signal_ignore(.hup)
+	settings := read_debug_settings(dir)!
+	// Keep a temporary copy of stdout for the launcher's readiness signal.
+	ready := C.dup(C.STDOUT_FILENO)
+	if ready < 0 {
+		return error('Could not open the debugger readiness pipe')
+	}
+	redirect_debugger(dir) or {
+		C.close(ready)
+		return err
+	}
+	acknowledged := C.write(ready, debug_ready.str, usize(debug_ready.len))
+	C.close(ready)
+	if acknowledged != debug_ready.len {
+		return error('Could not acknowledge debugger launch')
+	}
+	run_debugger(dir, settings)
+}
+
+fn launch_debugger(dir string) ! {
+	lock_fd := acquire_debug_lock(dir, true)!
+	defer { C.close(lock_fd) }
+	configure(dir)!
+	spawn_debugger(dir, lock_fd) or {
+		mut state := read_state(dir)
+		state.phase = 'failed'
+		state.message = err.msg()
+		write_json(os.join_path(dir, 'state.json'), state) or {
+			return error('${state.message} Could not record the launch failure: ${err}')
+		}
+		return err
+	}
+}
+
+fn spawn_debugger(dir string, lock_fd int) ! {
+	// The new process inherits this open lock. It closes it on exit, while
+	// the launcher releases its copy after the daemon redirects its output.
+	mut child := os.new_process(os.executable())
+	defer { child.close() }
+	child.set_args(['daemon', dir, lock_fd.str()])
+	child.set_redirect_stdio()
+	child.run()
+	if child.pid <= 0 {
+		return error('Could not start the debugger process')
+	}
+	deadline := time.sys_mono_now() + u64(debug_start_timeout)
+	for time.sys_mono_now() < deadline {
+		if child.stdout_read() == debug_ready {
+			return
+		}
+		if !child.is_alive() {
+			detail := child.stderr_read().trim_space()
+			log := os.join_path(dir, 'daemon.log')
+			message := if detail == '' {
+				'Debugger could not start. See ${log}'
+			} else {
+				'Debugger could not start. ${detail}'
+			}
+			return error(message)
+		}
+		time.sleep(debug_poll)
+	}
+	child.signal_kill()
+	child.wait()
+	return error('Debugger did not start. See ${os.join_path(dir, 'daemon.log')}')
+}
+
+fn queue_action(dir string, arguments []string) ! {
+	if arguments.len == 0 {
+		return error('Expected a debugger action')
+	}
+	action := arguments[0]
+	args := arguments[1..]
+	if action != 'toggle' {
+		if !active(dir) {
+			return error('No active debugger. Run v-debug first.')
+		}
+		write_json(os.join_path(dir, 'request-${time.now().unix_micro()}-${os.getpid()}.json'),
+			Action{ command: action, args: args })!
+		return
+	}
+	if args.len < 2 {
+		return error('Breakpoints require a saved file and a positive source line')
+	}
+	if active(dir) && read_state(dir).phase == 'running' {
+		return error('Pause debugging before changing breakpoints')
+	}
+	file := os.real_path(args[0])
+	line := args[1].int()
+	if !os.is_file(file) || line < 1 {
+		return error('Breakpoints require a saved file and a positive source line')
+	}
+	condition := if args.len > 2 { args[2] } else { '' }
+	mut points := read_breakpoints(dir)
+	mut found := -1
+	for i, point in points {
+		if point.file == file && point.line == line {
+			found = i
+			break
+		}
+	}
+	if found >= 0 {
+		points.delete(found)
+	} else {
+		points << Breakpoint{ file: file, line: line, condition: condition }
+	}
+	write_json(os.join_path(dir, 'breakpoints.json'), points)!
+	if active(dir) {
+		write_json(os.join_path(dir, 'request-${time.now().unix_micro()}-${os.getpid()}.json'),
+			Action{ command: 'breakpoint', args: [file] })!
+	} else {
+		mut state := read_state(dir)
+		state.breakpoints = points
+		write_json(os.join_path(dir, 'state.json'), state)!
+		print(render_commands(dir, state))
+	}
+}
+
+fn call_debugger(directory string, args []string) ! {
+	start := args == ['start']
+	if !start && (args.len < 2 || args[0] != 'action') {
+		return error('Expected a debugger launch or action')
+	}
+	dir := debug_directory(directory)!
+	println('set-option global v_debug_directory ${quote(dir)}')
+	if start {
+		launch_debugger(dir)!
+		println("set-option global v_debug_phase building\necho 'Building the debug target; output opens automatically'")
+	} else {
+		queue_action(dir, args[1..])!
+	}
+}
+
 fn main() {
 	if os.args.len < 3 {
 		eprintln('Usage: debug COMMAND DIRECTORY [ARGS...]')
@@ -1152,6 +1377,19 @@ fn main() {
 		}
 		return
 	}
+	if command == 'call' {
+		call_debugger(os.args[2], os.args[3..]) or {
+			println('fail ${quote(err.msg())}')
+		}
+		return
+	}
+	if command == 'daemon' && os.args.len == 4 {
+		run_detached_debugger(os.args[2], os.args[3].int()) or {
+			eprintln(err)
+			exit(1)
+		}
+		return
+	}
 	dir := os.real_path(os.args[2])
 	os.mkdir_all(dir) or {
 		eprintln(err)
@@ -1160,33 +1398,23 @@ fn main() {
 	os.chmod(dir, 0o700) or {}
 	match command {
 		'configure' {
-			configure(dir) or {
+			configure_once(dir) or {
 				println('fail ${quote(err.msg())}')
 				exit(1)
 			}
 		}
 		'run' {
-			settings := json2.decode[Settings](os.read_file(os.join_path(dir, 'settings.json')) or {
-				eprintln(err)
-				exit(1)
-			}) or {
+			lock_fd := acquire_debug_lock(dir, false) or {
 				eprintln(err)
 				exit(1)
 			}
-			lock_path := os.join_path(dir, 'lock')
-			fd := C.open(lock_path.str, 2 | 64, 0o600)
-			if fd < 0 || C.flock(fd, 2 | 4) != 0 {
-				eprintln('A debugger is already active')
+			defer { C.close(lock_fd) }
+			C.fcntl(lock_fd, C.F_SETFD, C.FD_CLOEXEC)
+			settings := read_debug_settings(dir) or {
+				eprintln(err)
 				exit(1)
 			}
-			defer { C.close(fd) }
-			mut debugger := Debugger{ dir: dir, settings: settings, state: read_state(dir) }
-			debugger.run() or {
-				debugger.state.phase = 'failed'
-				debugger.state.message = err.msg()
-				debugger.log('\n${err.msg()}\n')
-				debugger.publish()
-			}
+			run_debugger(dir, settings)
 		}
 		'active' {
 			if !active(dir) { exit(1) }
@@ -1212,56 +1440,9 @@ fn main() {
 			if file != '' { println('edit -existing ${quote(file)} ${line}') }
 		}
 		'queue' {
-			if os.args.len < 4 { exit(2) }
-			action := os.args[3]
-			args := os.args[4..]
-			if action == 'toggle' {
-				if args.len < 2 { exit(2) }
-				if active(dir) && read_state(dir).phase == 'running' {
-					println('fail ' + quote('Pause debugging before changing breakpoints'))
-					exit(1)
-				}
-				file := os.real_path(args[0])
-				line := args[1].int()
-				if !os.is_file(file) || line < 1 {
-					println('fail ' + quote('Breakpoints require a saved file and a positive source line'))
-					exit(1)
-				}
-				condition := if args.len > 2 { args[2] } else { '' }
-				mut points := read_breakpoints(dir)
-				mut found := -1
-				for i, point in points {
-					if point.file == file && point.line == line {
-						found = i
-						break
-					}
-				}
-				if found >= 0 {
-					points.delete(found)
-				} else {
-					points << Breakpoint{ file: file, line: line, condition: condition }
-				}
-				write_json(os.join_path(dir, 'breakpoints.json'), points) or {
-					eprintln(err)
-					exit(1)
-				}
-				if !active(dir) {
-					mut state := read_state(dir)
-					state.breakpoints = points
-					write_json(os.join_path(dir, 'state.json'), state) or {}
-					print(render_commands(dir, state))
-				} else {
-					write_json(os.join_path(dir, 'request-${time.now().unix_micro()}-${os.getpid()}.json'), Action{ command: 'breakpoint', args: [file] }) or {}
-				}
-			} else {
-				if !active(dir) {
-					println('fail ${quote('No active debugger. Run v-debug first.')}')
-					exit(1)
-				}
-				write_json(os.join_path(dir, 'request-${time.now().unix_micro()}-${os.getpid()}.json'), Action{ command: action, args: args }) or {
-					eprintln(err)
-					exit(1)
-				}
+			queue_action(dir, os.args[3..]) or {
+				println('fail ${quote(err.msg())}')
+				exit(1)
 			}
 		}
 		else {

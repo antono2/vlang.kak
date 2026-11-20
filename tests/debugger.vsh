@@ -236,12 +236,13 @@ fn (mut check Check) navigation() ! {
 	require(['Step over', 'Run to cursor', 'Add watch', 'Evaluate expression'].all(menu.contains(it)),
 		'Missing stopped debugger actions')!
 	rejection := os.join_path(check.root, 'restart-rejection')
-	for command in ['v-restart', 'v-update --no-build --no-lsp'] {
+	for command in ['v-restart', 'v-update --no-build --no-lsp', 'v-debug'] {
 		if os.exists(rejection) {
 			os.rm(rejection)!
 		}
 		check.command('try %{ ${command}; echo -to-file ${quote(rejection)} allowed } catch %{ echo -to-file ${quote(rejection)} %val{error} }')!
-		require(os.read_file(rejection)!.contains('Stop debugging') && check.state().phase == 'stopped',
+		expected := if command == 'v-debug' { 'A debugger is already active' } else { 'Stop debugging' }
+		require(os.read_file(rejection)!.contains(expected) && check.state().phase == 'stopped',
 			'The live debugger did not block ${command}')!
 	}
 	require(state.file == check.main_file && state.breakpoints.len == 1 && state.breakpoints[0].verified
@@ -517,6 +518,35 @@ fn (mut check Check) wait_watch(present bool) ! {
 	})!
 }
 
+fn (mut check Check) default_directory() ! {
+	session_file := os.join_path(check.root, 'session-name')
+	os.write_file(session_file, check.editor.session_name())!
+	checksum := capture('cksum', [session_file], true)!.fields()[0]
+	cache := os.getenv('XDG_CACHE_HOME')
+	cache_root := if cache == '' { os.join_path(os.home_dir(), '.cache') } else { cache }
+	expected := os.join_path(cache_root, 'vlang.kak', 'debug-' + checksum)
+	require(!os.exists(expected) && !os.is_link(expected), 'Debugger test cache directory already exists')!
+	defer { os.rmdir_all(expected) or {} }
+	check.command("set-option global v_debug_directory ''")!
+	check.command('select ${addition_cursor}; v-debug-breakpoint')!
+	require(check.editor.value('%opt{v_debug_directory}')! == expected && os.is_file(os.join_path(expected, 'breakpoints.json')),
+		'Default debugger directory differs from the existing session checksum')!
+	check.command('v-debug-breakpoint; set-option global v_debug_directory ${quote(check.state_dir)}')!
+}
+
+fn (mut check Check) launch_failure() ! {
+	// A directory at the log path forces the detached process to fail before it can run GDB.
+	blocker := os.join_path(check.state_dir, 'daemon.log')
+	os.mkdir_all(blocker)!
+	defer { os.rmdir(blocker) or {} }
+	diagnostic := os.join_path(check.root, 'launch-rejection')
+	check.command('try %{ v-debug } catch %{ echo -to-file ${quote(diagnostic)} %val{error} }')!
+	require(os.read_file(diagnostic)!.contains('Debugger could not start'),
+		'Expected a diagnostic for a failed daemon launch')!
+	require(check.state().phase == 'failed', 'The failed launch left an active phase on disk')!
+	check.wait_unlocked()!
+}
+
 fn (mut check Check) exercise() ! {
 	empty := os.join_path(check.root, 'empty-panel-guidance')
 	check.command("set-option global v_debug_directory ''")!
@@ -524,6 +554,8 @@ fn (mut check Check) exercise() ! {
 	require(os.read_file(empty)!.contains('Launch the debugger or set a breakpoint first'),
 		'Missing guidance before a debugger session')!
 	check.command('set-option global v_debug_directory ${quote(check.state_dir)}')!
+	check.default_directory()!
+	check.launch_failure()!
 	check.navigation()!
 	check.input_and_exit()!
 	check.launch_modes()!
