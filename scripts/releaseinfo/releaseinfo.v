@@ -8,6 +8,9 @@ import time
 pub const release_remote = 'https://github.com/antono2/vlang.kak.git'
 const tag_prefix = 'refs/tags/'
 const poll_interval = 10 * time.millisecond
+// Abort remote release lookups after 10 seconds below one byte per second.
+const git_low_speed_bytes_per_second = 1
+const git_low_speed_seconds = 10
 
 pub struct Release {
 pub:
@@ -63,7 +66,8 @@ pub fn git_at(repo string, args []string) !string {
 }
 
 fn remote_git(suffix []string) !string {
-	mut args := ['-c', 'http.lowSpeedLimit=1', '-c', 'http.lowSpeedTime=10', 'ls-remote']
+	mut args := ['-c', 'http.lowSpeedLimit=${git_low_speed_bytes_per_second}', '-c',
+		'http.lowSpeedTime=${git_low_speed_seconds}', 'ls-remote']
 	args << suffix
 	return git(args)
 }

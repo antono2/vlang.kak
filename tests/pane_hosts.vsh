@@ -9,6 +9,8 @@ import x.json2
 
 const wait_timeout = 30 * time.second
 const server_timeout = 10 * time.second
+const debug_write_grace_period = 100 * time.millisecond
+const navigation_repetitions = 2
 const usage = 'Usage: v run tests/pane_hosts.vsh PREFIX BACKEND [--artifacts DIRECTORY]'
 const source_client = 'source'
 const unsaved_marker = 'unsaved pane check'
@@ -190,7 +192,7 @@ fn (check Check) exercise() ! {
 	original := initial[0]
 	check.assert_backend()!
 	check.remote(source_client, "execute-keys 'gei // ${unsaved_marker}<esc>'")!
-	for attempt in 0 .. 2 {
+	for attempt in 0 .. navigation_repetitions {
 		check.tree(original, attempt == 0)!
 		check.peek_and_view(original)!
 	}
@@ -204,7 +206,7 @@ fn (check Check) collect() {
 	}
 	debug_path := os.join_path(check.host.root, 'kak-debug')
 	check.post('evaluate-commands -draft -buffer *debug* %{ write -force ${quote(debug_path)} }') or {}
-	time.sleep(100 * time.millisecond)
+	time.sleep(debug_write_grace_period)
 	check.post('kill!') or {}
 }
 

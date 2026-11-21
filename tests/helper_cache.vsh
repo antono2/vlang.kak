@@ -3,6 +3,9 @@ import os
 import rand
 import releasetest { capture, execute }
 
+const native_pane_exit_status = 125
+const checkpoint_timestamp_offset_seconds = 60
+
 fn check() ! {
 	root := os.join_path(os.temp_dir(), 'vlang-helper-cache-' + rand.uuid_v4())
 	os.mkdir(root, mode: 0o700)!
@@ -81,9 +84,9 @@ fn check() ! {
 	os.write_file(pane_source, 'invalid pane source')!
 	fallback := execute(pane, ['open'], true, environment: env)!
 	assert fallback.stdout == 'POSIX pane\n' && fallback.stderr == ''
-	os.write_file(pane_source, "fn main() { println('Native pane'); exit(125) }")!
+	os.write_file(pane_source, "fn main() { println('Native pane'); exit(${native_pane_exit_status}) }")!
 	native := execute(pane, ['open'], false, environment: env)!
-	assert native.code == 125 && native.stdout == 'Native pane\n'
+	assert native.code == native_pane_exit_status && native.stdout == 'Native pane\n'
 	assert capture(pane, ['open'], true, environment: without_compiler)! == 'POSIX pane\n'
 
 	session := os.join_path(scripts, 'session-buffer.sh')
@@ -101,7 +104,7 @@ fn check() ! {
 	assert writers.len == 1
 	writer := os.join_path(cache, writers[0])
 	// A rewrite would change the sentinel timestamp even if the cache name stayed the same.
-	saved_stamp := os.file_last_mod_unix(writer) - 60
+	saved_stamp := os.file_last_mod_unix(writer) - checkpoint_timestamp_offset_seconds
 	os.utime(writer, saved_stamp, saved_stamp)!
 	assert capture(session, ['--prepare', second], true, environment: without_compiler)! == ''
 	assert os.ls(second)!.len == 0

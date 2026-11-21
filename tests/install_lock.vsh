@@ -7,6 +7,10 @@ import time
 const process_start_index = 22 - 3
 const owner_timeout = 5 * time.second
 const owner_poll = 10 * time.millisecond
+// Give the child time to hold the lock until the test kills it.
+const owner_hold_seconds = 30
+// This PID would alias PID 1 if parsed into an unchecked 32-bit integer.
+const overflowing_pid = (u64(1) << 32) + 1
 
 const owner_setup = '. "$1/scripts/install-lock.inc"; prefix=$2; state=$prefix/opt/vlang-state; '
 
@@ -62,7 +66,7 @@ fn exercise(prefix string) ! {
 	check_status(prefix, 1, true)!
 	assert os.exists(owner)
 
-	for invalid_pid in ['0', '4294967297'] {
+	for invalid_pid in ['0', overflowing_pid.str()] {
 		os.write_file(owner, '${invalid_pid} 0 setup\n')!
 		assert check_status(prefix, 2, false)!.contains('unknown owner')
 		check_status(prefix, 1, true)!
@@ -97,8 +101,9 @@ fn exercise(prefix string) ! {
 	assert !os.exists(lock_dir)
 
 	mut child := os.new_process(os.find_abs_path_of_executable('sh')!)
-	child.set_args(['-eu', '-c', owner_setup + 'lock_acquire interrupted; exec sleep 30', 'test',
-		repo, prefix])
+	child.set_args(['-eu', '-c',
+		owner_setup + 'lock_acquire interrupted; exec sleep ${owner_hold_seconds}', 'test', repo,
+		prefix])
 	child.run()
 	defer {
 		kill_owner(mut child)
