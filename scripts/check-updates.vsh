@@ -9,7 +9,7 @@ import time
 fn C.kak_track_maintenance_signals() int
 fn C.kak_maintenance_signal() int
 
-const check_interval = 7 * 24 * time.hour
+const check_interval = 7 * time.day
 const delivery_timeout = 5 * time.second
 const delivery_poll = 20 * time.millisecond
 const usage = 'Usage: check-updates.sh [--background | --notify SESSION CLIENT]'

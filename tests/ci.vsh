@@ -3,6 +3,8 @@ import os
 import releasetest
 import time
 
+// The pinned Git repositories use SHA-1 object IDs.
+const git_sha1_hex_digits = 40
 const kakoune_master = 'refs/heads/master'
 const upstream_kakoune = 'https://github.com/mawww/kakoune.git'
 
@@ -21,7 +23,7 @@ fn github_line(file_env string, line string) ! {
 }
 
 fn revision(value string) !string {
-	if value.len != 40 || !value.bytes().all((it >= `0` && it <= `9`) || (it >= `a` && it <= `f`)) {
+	if value.len != git_sha1_hex_digits || !value.bytes().all((it >= `0` && it <= `9`) || (it >= `a` && it <= `f`)) {
 		return error('Expected a full Git revision, got "${value}"')
 	}
 	return value

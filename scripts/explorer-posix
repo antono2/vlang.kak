@@ -1,4 +1,8 @@
 #!/bin/sh
+
+# Keep the search preview bounds aligned with explorer.v.
+search_preview_lines=12
+search_preview_columns=140
 # Keep project prompts, completion and search usable before V is installed.
 set -eu
 [ "$#" -ge 2 ] || exit 2
@@ -55,7 +59,7 @@ case "$1" in
             rg -n --no-heading --color never -e "$4" .
           else
             grep -RHn --exclude-dir=.git -e "$4" .
-          fi 2>/dev/null | head -n 12 | cut -c 1-140
+          fi 2>/dev/null | head -n "$search_preview_lines" | cut -c "1-$search_preview_columns"
         )
         printf "info -title 'Project search · Enter for all' %s\n" "$(kak_quote "${matches:-No matches yet}")" ;;
       results)

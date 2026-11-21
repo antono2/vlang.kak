@@ -7,6 +7,10 @@ import releasetest { capture, execute }
 import time
 
 const setup_timeout = time.minute
+// Keep the release in use until the test's deferred cleanup stops the worker.
+const release_worker_sleep_seconds = '60'
+const release_worker_exec_polls = 100
+const release_worker_exec_poll = 10 * time.millisecond
 const saved_selection = '1.2,1.3'
 const personal_header = '# personal\n'
 
@@ -280,7 +284,7 @@ fn (life Lifecycle) cleanup_releases(state string) ! {
 	os.write_file(os.join_path(restart, 'owner-pid'), os.getpid().str() + '\n')!
 	os.write_file(os.join_path(restart, 'tool-releases'), os.join_path(releases, 'session') + '\n')!
 	mut worker := os.new_process(live)
-	worker.set_args(['60'])
+	worker.set_args([release_worker_sleep_seconds])
 	worker.run()
 	defer {
 		if worker.is_alive() {
@@ -291,12 +295,12 @@ fn (life Lifecycle) cleanup_releases(state string) ! {
 	}
 	// Wait for the child to exec so its /proc link identifies the release.
 	mut executable := ''
-	for _ in 0 .. 100 {
+	for _ in 0 .. release_worker_exec_polls {
 		executable = os.readlink('/proc/${worker.pid}/exe') or { '' }
 		if executable == live {
 			break
 		}
-		time.sleep(10 * time.millisecond)
+		time.sleep(release_worker_exec_poll)
 	}
 	require(executable == live, 'Could not start the release usage control')!
 	preview := life.script('cleanup', ['--prefix', life.prefix])!
@@ -365,8 +369,7 @@ fn (life Lifecycle) checkpoints() ! {
 
 	dispatch := os.join_path(life.root, 'dispatch')
 	printf_args := quote("printf '<%s>\\n' .")
-	life.editor(
-		'define-command -override -params 1 v-make-command %{ echo -to-file ${quote(dispatch)} %arg{1} }; ' +
+	life.editor('define-command -override -params 1 v-make-command %{ echo -to-file ${quote(dispatch)} %arg{1} }; ' +
 		'set-option global v_run_command ${printf_args}; v-project-preference load; v-run-project; quit!', [
 		source,
 	], env)!

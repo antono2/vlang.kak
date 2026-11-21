@@ -27,7 +27,9 @@ case "$1" in
       fail 'Unknown Git revision'
     git -C "$repo" cat-file -e "$commit:$path" 2>/dev/null ||
       fail 'This file does not exist at that revision'
-    short=$(git -C "$repo" rev-parse --short=12 "$commit")
+    # Match history.v when naming the history buffer.
+    history_buffer_commit_digits=12
+    short=$(git -C "$repo" rev-parse --short="$history_buffer_commit_digits" "$commit")
     printf 'set-option window v_history_repo %s\n' "$(quote "$repo")"
     printf 'set-option window v_history_commit %s\n' "$(quote "$commit")"
     printf 'set-option window v_history_path %s\n' "$(quote "$path")"

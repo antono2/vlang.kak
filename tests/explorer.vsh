@@ -4,6 +4,11 @@ import rand
 import releasetest { capture }
 import x.json2
 
+// Both the native helper and the POSIX fallback must fit the same preview.
+const expected_search_preview_lines = 12
+const expected_search_preview_columns = 140
+const clipped_search_marker = 'beyond-preview'
+
 struct Row {
 	path string
 }
@@ -41,7 +46,9 @@ fn check_project_paths(helper string, root string) ! {
 	os.write_file(os.join_path(repo, 'tracked.v'), 'module main\n')!
 	capture('git', ['add', 'tracked.v'], true, work_folder: repo)!
 	capture('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm',
-		'project path fixture'], true, work_folder: repo)!
+		'project path fixture'], true,
+		work_folder: repo
+	)!
 	capture('git', ['worktree', 'add', '--detach', worktree], true, work_folder: repo)!
 	os.write_file(os.join_path(worktree, '.gitignore'), 'ignored.v\n')!
 	os.write_file(os.join_path(worktree, 'ignored.v'), 'module main\n')!
@@ -50,8 +57,9 @@ fn check_project_paths(helper string, root string) ! {
 	file := os.join_path(folder, "it's café.v")
 	os.write_file(file, 'module main\n')!
 	pattern := "-needle 'quoted'"
-	line := '// ' + pattern + ' ' + 'x'.repeat(180) + ' beyond-preview'
-	os.write_file(os.join_path(worktree, 'tracked.v'), (line + '\n').repeat(14))!
+	line := '// ' + pattern + ' ' + 'x'.repeat(expected_search_preview_columns) + ' ' +
+		clipped_search_marker
+	os.write_file(os.join_path(worktree, 'tracked.v'), (line + '\n').repeat(expected_search_preview_lines + 1))!
 	mut env := os.environ()
 	env['XDG_CACHE_HOME'] = os.join_path(root, 'native-cache')
 	capture(helper, ['--prepare'], true, environment: env)!
@@ -76,8 +84,8 @@ fn check_project_paths(helper string, root string) ! {
 			environment: lane
 		)!
 		assert preview.starts_with("info -title 'Project search · Enter for all' ")
-		assert preview.count('tracked.v:') == 12 && preview.contains("-needle ''quoted''")
-		assert !preview.contains('beyond-preview')
+		assert preview.count('tracked.v:') == expected_search_preview_lines && preview.contains("-needle ''quoted''")
+		assert !preview.contains(clipped_search_marker)
 		missing := capture(helper, ['search', file, 'preview', 'absent-needle', 'grep -RHn'], true,
 			environment: lane
 		)!

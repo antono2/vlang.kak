@@ -11,6 +11,8 @@ const poll = 30 * time.millisecond
 // An in-editor update can compile its helpers before restarting.
 const restart_timeout = time.minute
 const quit_timeout = 5 * time.second
+const forced_close_grace = time.Duration(time.second)
+const diagnostic_tail_bytes = 4000
 const ready_file = 'ready'
 
 struct KeyEvent {
@@ -105,7 +107,12 @@ fn (mut editor Client) read_output() {
 
 pub fn (mut editor Client) diagnostic(label string) IError {
 	editor.read_output()
-	tail := editor.output[if editor.output.len > 4000 { editor.output.len - 4000 } else { 0 }..]
+	tail_start := if editor.output.len > diagnostic_tail_bytes {
+		editor.output.len - diagnostic_tail_bytes
+	} else {
+		0
+	}
+	tail := editor.output[tail_start..]
 	return error('${label}\n${editor.errors}\n${tail}')
 }
 
@@ -199,7 +206,7 @@ pub fn (mut editor Client) close() {
 			os.fd_close(editor.process.stdio_fd[0])
 			editor.process.stdio_fd[0] = -1
 		}
-		deadline := time.sys_mono_now() + u64(time.second)
+		deadline := time.sys_mono_now() + u64(forced_close_grace)
 		for editor.process.is_alive() && time.sys_mono_now() < deadline {
 			editor.read_output()
 			time.sleep(poll)

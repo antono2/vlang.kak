@@ -25,8 +25,10 @@ refresh() {
   date -u +%FT%TZ > "$state/update-checked"
   cat "$state/update-status"
 }
+refresh_interval_days=7
+# find counts whole days and +N means strictly more than N.
 if [ "$#" -eq 0 ] || [ ! -f "$state/update-checked" ] ||
-  [ -n "$(find "$state/update-checked" -mtime +6 -print)" ]; then
+  [ -n "$(find "$state/update-checked" -mtime "+$((refresh_interval_days - 1))" -print)" ]; then
   refresh
 fi
 if [ "${1:-}" = --notify ]; then

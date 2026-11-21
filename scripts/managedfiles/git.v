@@ -4,6 +4,8 @@ module managedfiles
 import os
 import time
 
+const git_output_poll_interval = 15 * time.millisecond
+
 pub fn git_at(repo string, args []string) !string {
 	mut child := os.new_process('git')
 	defer { child.close() }
@@ -19,7 +21,7 @@ pub fn git_at(repo string, args []string) !string {
 	for child.is_alive() {
 		output += child.stdout_read()
 		diagnostics += child.stderr_read()
-		time.sleep(15 * time.millisecond)
+		time.sleep(git_output_poll_interval)
 	}
 	output += child.stdout_slurp()
 	diagnostics += child.stderr_slurp()

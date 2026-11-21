@@ -8,6 +8,8 @@ const key = 'KAKOUNE_VERSION='
 // git ls-remote --exit-code uses 2 when no refs match.
 const missing_remote_ref = 2
 const git_name = 'user.name=github-actions[bot]'
+// Kakoune uses SHA-1 Git object IDs.
+const git_sha1_hex_digits = 40
 const git_email = 'user.email=41898282+github-actions[bot]@users.noreply.github.com'
 const usage = 'Usage: v run tests/propose-kakoune-update.vsh VERIFIED_SHA DEFAULT_BRANCH'
 
@@ -50,9 +52,9 @@ fn remote_branch(branch string, pin string) !bool {
 }
 
 fn propose(revision string, base string) ! {
-	if revision.len != 40 || !revision.bytes().all((it >= `0` && it <= `9`)
+	if revision.len != git_sha1_hex_digits || !revision.bytes().all((it >= `0` && it <= `9`)
 		|| (it >= `a` && it <= `f`)) {
-		return error('Expected the verified 40-character Kakoune commit SHA')
+		return error('Expected the verified ${git_sha1_hex_digits}-character Kakoune commit SHA')
 	}
 	if base == '' {
 		return error('Missing GitHub default branch')

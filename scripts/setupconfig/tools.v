@@ -3,6 +3,9 @@ module setupconfig
 
 import os
 
+// The shell dispatcher reserves this status for a failed native bootstrap.
+const bootstrap_fallback_status = 125
+
 pub fn runtime(prefix string) !string {
 	executable := os.find_abs_path_of_executable('kak') or {
 		return error('Kakoune is not installed.')
@@ -45,8 +48,11 @@ pub fn run_tool(program string, args []string) ! {
 	child.run()
 	child.wait()
 	if child.code != 0 {
-		// Reserve 125 for the shell bootstrap's compilation fallback.
-		status := if child.code > 0 && child.code != 125 { child.code } else { 1 }
+		status := if child.code > 0 && child.code != bootstrap_fallback_status {
+			child.code
+		} else {
+			1
+		}
 		return error_with_code('${program} exited with status ${child.code}', status)
 	}
 }
