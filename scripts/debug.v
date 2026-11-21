@@ -1362,13 +1362,25 @@ fn call_debugger(directory string, args []string) ! {
 	if !start && (args.len < 2 || args[0] != 'action') {
 		return error('Expected a debugger launch or action')
 	}
+	action := if args.len > 1 && args[1] == 'run-to-cursor' {
+		if os.getenv('kak_opt_v_debug_phase') != 'stopped' {
+			return error('Pause debugging before running to the cursor')
+		}
+		if args.len != 4 || os.getenv('kak_modified') != 'false'
+			|| os.getenv('kak_opt_readonly') != 'false' || !os.is_file(args[2]) {
+			return error('Run to cursor requires an unmodified saved source file')
+		}
+		['runToCursor', args[2], args[3]]
+	} else {
+		args[1..]
+	}
 	dir := debug_directory(directory)!
 	println('set-option global v_debug_directory ${quote(dir)}')
 	if start {
 		launch_debugger(dir)!
 		println("set-option global v_debug_phase building\necho 'Building the debug target; output opens automatically'")
 	} else {
-		queue_action(dir, args[1..])!
+		queue_action(dir, action)!
 	}
 }
 
