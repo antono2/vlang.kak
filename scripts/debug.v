@@ -25,44 +25,61 @@ fn C.fcntl(int, int, ...int) int
 
 const debug_start_timeout = 2 * time.second
 const debug_poll = 20 * time.millisecond
+const build_poll = 30 * time.millisecond
+const adapter_shutdown_grace = time.Duration(time.second)
+const adapter_initialize_timeout = time.Duration(10 * time.second)
+const editor_check_interval = time.Duration(5 * time.second)
 const debug_ready = 'R'
+const dap_header_end = '\r\n\r\n'
+const max_dap_payload_bytes = 10_000_000
+const terminal_read_bytes = 8192
+// Trim in batches to keep the output file bounded without copying on every write.
+const max_output_bytes = 200_000
+const retained_output_bytes = 150_000
+const posix_cksum_polynomial = u32(0x04c11db7)
+const crc32_high_bit = u32(1) << 31
 
 // Runs inside GDB's existing Python runtime; no external Python helper.
 const v_gdb_printers = r"
 import gdb
 import json
 
+# Bound memory reads and result sizes even when inspecting corrupt data.
+MAX_VALID_LENGTH = 10_000_000
+MAX_STRING_BYTES = 4096
+MAX_ARRAY_CHILDREN = 100
+
 class VString:
     def __init__(self, value):
         self.value = value
     def to_string(self):
         length = int(self.value['len'])
-        if length < 0 or length > 10000000:
+        if length < 0 or length > MAX_VALID_LENGTH:
             return '<invalid V string length>'
         if not length:
             return json.dumps('')
         try:
-            data = gdb.selected_inferior().read_memory(int(self.value['str']), min(length, 4096))
+            data = gdb.selected_inferior().read_memory(int(self.value['str']), min(length, MAX_STRING_BYTES))
         except (gdb.error, RuntimeError):
             return '<unreadable V string>'
         text = bytes(data).decode('utf-8', errors='replace')
-        return json.dumps(text, ensure_ascii=False) + (' …' if length > 4096 else '')
+        return json.dumps(text, ensure_ascii=False) + (' …' if length > MAX_STRING_BYTES else '')
 
 class VArray:
     def __init__(self, value, element):
         self.value, self.element = value, element
     def to_string(self):
         length = int(self.value['len'])
-        if length < 0 or length > 10000000:
+        if length < 0 or length > MAX_VALID_LENGTH:
             return '<invalid V array length>'
-        suffix = '; first 100 shown' if length > 100 else ''
+        suffix = f'; first {MAX_ARRAY_CHILDREN} shown' if length > MAX_ARRAY_CHILDREN else ''
         return '[]' + str(self.element).replace('main__', '') + ' (len=' + str(length) + suffix + ')'
     def children(self):
         length = int(self.value['len'])
-        if length < 0 or length > 10000000:
+        if length < 0 or length > MAX_VALID_LENGTH:
             return
         data = self.value['data'].cast(self.element.pointer())
-        for index in range(min(length, 100)):
+        for index in range(min(length, MAX_ARRAY_CHILDREN)):
             yield '[' + str(index) + ']', data[index]
 
 class VStruct:
@@ -280,11 +297,11 @@ fn read_breakpoints(dir string) []Breakpoint {
 
 fn active(dir string) bool {
 	path := os.join_path(dir, 'lock')
-	fd := C.open(path.str, 2 | 64, 0o600)
+	fd := C.open(path.str, C.O_RDWR | C.O_CREAT, 0o600)
 	if fd < 0 {
 		return false
 	}
-	locked := C.flock(fd, 2 | 4) != 0
+	locked := C.flock(fd, C.LOCK_EX | C.LOCK_NB) != 0
 	C.close(fd)
 	return locked
 }
@@ -375,7 +392,7 @@ fn (mut d Debugger) send(command string, arguments map[string]json2.Any, referen
 		'command':   json2.Any(command)
 		'arguments': json2.Any(arguments)
 	})
-	d.adapter.stdin_write('Content-Length: ${body.len}\r\n\r\n${body}')
+	d.adapter.stdin_write('Content-Length: ${body.len}${dap_header_end}${body}')
 }
 
 fn (mut d Debugger) editor(commands string) bool {
@@ -397,8 +414,8 @@ fn (mut d Debugger) editor(commands string) bool {
 
 fn (mut d Debugger) log(text string) {
 	d.state.output += text
-	if d.state.output.len > 200000 {
-		d.state.output = d.state.output[d.state.output.len - 150000..]
+	if d.state.output.len > max_output_bytes {
+		d.state.output = d.state.output[d.state.output.len - retained_output_bytes..]
 	}
 }
 
@@ -982,7 +999,7 @@ fn (mut d Debugger) run() ! {
 					}
 				}
 			}
-			time.sleep(30 * time.millisecond)
+			time.sleep(build_poll)
 		}
 		d.log(build.stdout_read())
 		d.log(build.stderr_read())
@@ -1005,7 +1022,7 @@ fn (mut d Debugger) run() ! {
 	d.adapter.set_redirect_stdio()
 	d.adapter.run()
 	// A PTY gives debug programs real standard input and terminal output.
-	d.pty = C.posix_openpt(2 | 256 | 2048)
+	d.pty = C.posix_openpt(C.O_RDWR | C.O_NOCTTY | C.O_NONBLOCK)
 	if d.pty >= 0 && (C.grantpt(d.pty) != 0 || C.unlockpt(d.pty) != 0) {
 		C.close(d.pty)
 		d.pty = -1
@@ -1023,13 +1040,13 @@ fn (mut d Debugger) run() ! {
 		d.input += chunk
 		d.log(d.adapter.stderr_read())
 		for {
-			separator := d.input.index('\r\n\r\n') or { break }
+			separator := d.input.index(dap_header_end) or { break }
 			header := d.input[..separator]
 			length := header.all_after('Content-Length:').trim_space().int()
-			if length <= 0 || length > 10000000 {
+			if length <= 0 || length > max_dap_payload_bytes {
 				return error('Invalid DAP message length')
 			}
-			offset := separator + 4
+			offset := separator + dap_header_end.len
 			if d.input.len < offset + length {
 				break
 			}
@@ -1038,7 +1055,7 @@ fn (mut d Debugger) run() ! {
 			d.message(message)
 		}
 		if d.pty >= 0 {
-			mut bytes := []u8{len: 8192}
+			mut bytes := []u8{len: terminal_read_bytes}
 			count := unsafe { C.read(d.pty, bytes.data, usize(bytes.len)) }
 			if count > 0 {
 				d.log(bytes[..int(count)].bytestr())
@@ -1060,7 +1077,7 @@ fn (mut d Debugger) run() ! {
 			d.action(request)
 		}
 		now := time.now().unix_milli()
-		if d.stopping && now - d.stop_time > 1000 {
+		if d.stopping && now - d.stop_time > adapter_shutdown_grace.milliseconds() {
 			break
 		}
 		if !d.adapter.is_alive() {
@@ -1069,10 +1086,10 @@ fn (mut d Debugger) run() ! {
 			}
 			break
 		}
-		if !d.configured && now - started > 10000 {
+		if !d.configured && now - started > adapter_initialize_timeout.milliseconds() {
 			return error('Adapter did not initialize. GDB must include DAP support.')
 		}
-		if now - d.last_editor_check > 5000 {
+		if now - d.last_editor_check > editor_check_interval.milliseconds() {
 			d.last_editor_check = now
 			if !d.editor('nop') {
 				d.send('disconnect', {
@@ -1082,7 +1099,7 @@ fn (mut d Debugger) run() ! {
 				d.stop_time = now
 			}
 		}
-		time.sleep(20 * time.millisecond)
+		time.sleep(debug_poll)
 	}
 }
 
@@ -1157,10 +1174,10 @@ fn debug_view_command(command string, dir string, args []string) !string {
 fn checksum_byte(initial u32, value u8) u32 {
 	mut crc := initial ^ (u32(value) << 24)
 	for _ in 0 .. 8 {
-		high_bit := (crc & 0x80000000) != 0
+		high_bit := (crc & crc32_high_bit) != 0
 		crc <<= 1
 		if high_bit {
-			crc ^= 0x04c11db7
+			crc ^= posix_cksum_polynomial
 		}
 	}
 	return crc
