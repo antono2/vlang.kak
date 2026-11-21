@@ -624,13 +624,9 @@ define-command -params .. v-update -docstring 'Update the managed V IDE, then re
   set-option global v_update_resume_line %val{cursor_line}
   set-option global v_update_resume_column %val{cursor_column}
   evaluate-commands %sh{
-    shell_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/'\\\\''/g")"; }
-    kak_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
-    command=$(shell_quote "$VLANG_KAK_REPO/scripts/update-session.sh")
-    for value in "$VLANG_KAK_PREFIX" "$kak_session" "$kak_client" "$kak_client_pid" "$@"; do
-      command="$command $(shell_quote "$value")"
-    done
-    printf 'v-make-command %s\n' "$(kak_quote "$command")"
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/helper-cache.sh" task make "$VLANG_KAK_REPO/scripts/update-session.sh" \
+      "$VLANG_KAK_PREFIX" "$kak_session" "$kak_client" "$kak_client_pid" "$@"
   }
 }
 
@@ -1257,12 +1253,10 @@ define-command -hidden -params 1.. v-maintenance-task %{
       "${kak_client_env_WEZTERM_PANE:-}" "${kak_client_env_WEZTERM_UNIX_SOCKET:-}" "${kak_client_env_KITTY_WINDOW_ID:-}" "${kak_client_env_KITTY_LISTEN_ON:-}" \
       "${kak_client_env_STY:-}" "${kak_client_env_WINDOW:-}" "${kak_client_env_SCREENDIR:-}" "${kak_opt_termcmd:-}" "${kak_client_env_XAUTHORITY:-}" "${kak_client_env_XDG_RUNTIME_DIR:-}" "${kak_client_env_ITERM_SESSION_ID:-}" "${kak_client_env_WAYLAND_DISPLAY:-}" "${kak_client_env_DISPLAY:-}" "$kak_opt_v_window_backend"
     source=$(readlink -f "$kak_opt_v_plugin_source")
-    script=${source%/rc/vlang.kak}/scripts/$1.sh
+    scripts=${source%/rc/vlang.kak}/scripts
+    script=$scripts/$1.sh
     shift
-    shell_quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/'\\\\''/g")"; }
-    command=$(shell_quote "$script")
-    for argument do command="$command $(shell_quote "$argument")"; done
-    printf "v-make-command '%s'\n" "$(printf %s "$command" | sed "s/'/''/g")"
+    "$scripts/helper-cache.sh" task make "$script" "$@"
   }
 }
 define-command v-health -docstring 'Check IDE tools and configuration' %{ v-maintenance-task health }

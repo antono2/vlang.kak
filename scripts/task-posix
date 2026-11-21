@@ -38,6 +38,13 @@ mode=${1:-}
 [ "$#" -ge 1 ] || exit 2
 shift
 case "$mode" in
+    make)
+        [ -n "${1:-}" ] || { refuse 'Expected task mode and arguments'; exit; }
+        command=$(shell_quote "$1")
+        shift
+        for argument do command="$command $(shell_quote "$argument")"; done
+        printf 'v-make-command %s\n' "$(kak_quote "$command")"
+        ;;
     project)
         [ "$#" -ge 9 ] || exit 2
         task=$1
