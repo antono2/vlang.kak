@@ -1,4 +1,4 @@
-// Render context-sensitive Kakoune menus, leaving mapping ownership to the editor.
+// Render context-sensitive Kakoune menus and the debugger modeline status.
 module main
 
 import crypto.sha256
@@ -10,6 +10,7 @@ import windowhost
 
 const active_phases = ['building', 'starting', 'running', 'stopped']
 const idle_phases = ['idle', 'failed', 'exited']
+const debug_status_suffix = '  [debug: %opt{v_debug_phase}]'
 const results_types = ['lsp-document-symbol', 'lsp-goto', 'lsp-diagnostics']
 const context_types = ['v', 'v-tree', 'v-doc', 'v-recovery', 'v-debug-stack', 'v-debug-variables',
 	'v-debug-output', 'v-debug-breakpoints']
@@ -376,8 +377,28 @@ fn (editor Editor) commands(context string) []string {
 	return out.lines
 }
 
+fn (editor Editor) render_debug_status() {
+	show := enabled('v_debug_status') && editor.debug_phase in active_phases
+		&& (editor.filetype == 'v' || editor.filetype.starts_with('v-debug-')
+		|| editor.debug_source)
+	if show == enabled('v_debug_status_visible') {
+		return
+	}
+	if show {
+		println('set-option -add window modelinefmt ' + quote(debug_status_suffix))
+	} else {
+		current := option('modelinefmt')
+		if current.ends_with(debug_status_suffix) {
+			println('set-option window modelinefmt ' +
+				quote(current.trim_string_right(debug_status_suffix)))
+		}
+	}
+	println('set-option window v_debug_status_visible ' + show.str())
+}
+
 fn main() {
 	editor := read_editor(os.args.len - 1)
+	editor.render_debug_status()
 	context := editor.context()
 	if context == '' || (context == 'make' && !editor.task_output) {
 		if editor.previous != '' || context == 'make' {
