@@ -1347,6 +1347,17 @@ fn queue_action(dir string, arguments []string) ! {
 }
 
 fn call_debugger(directory string, args []string) ! {
+	if args == ['action', 'unwatch'] {
+		println("prompt 'Remove watch expression: ' %{ v-debug-call action unwatch %val{text} }")
+		return
+	}
+	if args == ['action', 'input'] {
+		if os.getenv('kak_opt_v_debug_phase') != 'running' {
+			return error('Program input is available while running; continue the debugger first')
+		}
+		println("prompt 'Program input: ' %{ v-debug-call action input %val{text} }")
+		return
+	}
 	start := args == ['start']
 	if !start && (args.len < 2 || args[0] != 'action') {
 		return error('Expected a debugger launch or action')

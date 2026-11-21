@@ -948,7 +948,7 @@ define-command -hidden v-debug-require-inactive %{
 define-command -hidden -params 1.. v-debug-call %{
   evaluate-commands %sh{
     # Referencing these values makes Kakoune export them to the V helper.
-    : "$kak_buffile" "$kak_modified" "$kak_client" "$kak_session" "$kak_opt_v_debug_adapter" \
+    : "$kak_buffile" "$kak_modified" "$kak_client" "$kak_session" "$kak_opt_v_debug_adapter" "$kak_opt_v_debug_phase" \
       "$kak_quoted_opt_v_debug_adapter_args" "$kak_opt_v_debug_build_command" \
       "$kak_opt_v_debug_pretty_print" "$kak_opt_v_debug_build" "$kak_opt_v_debug_program" "$kak_opt_v_debug_cwd" \
       "$kak_opt_v_project_target" "$kak_quoted_opt_v_debug_args" "$kak_quoted_opt_v_debug_env" "$kak_opt_v_debug_entry" "$kak_opt_v_debug_break_on_failure"
@@ -988,20 +988,11 @@ define-command v-debug-stop -docstring 'Stop debugging and terminate the launche
 define-command v-debug-evaluate -docstring 'Evaluate a debugger expression in the selected stack frame' %{ prompt 'Debug expression: ' %{ v-debug-call action evaluate %val{text} } }
 define-command v-debug-watch -docstring 'Watch an expression at subsequent stops' %{ prompt 'Watch expression: ' %{ v-debug-call action watch %val{text} } }
 define-command -params 0..1 v-debug-unwatch -docstring 'Remove a watched debugger expression' %{
-  evaluate-commands %sh{
-    if [ "$#" -eq 0 ]; then
-      echo "prompt 'Remove watch expression: ' %{ v-debug-call action unwatch %val{text} }"
-    else
-      printf "v-debug-call action unwatch '%s'\n" "$(printf %s "$1" | sed "s/'/''/g")"
-    fi
-  }
+  v-debug-call action unwatch %arg{@}
 }
 define-command v-debug-console -docstring 'Run a native debugger command' %{ prompt 'Debugger command: ' %{ v-debug-call action console %val{text} } }
 define-command v-debug-input -docstring 'Send a line of input to the debug program' %{
-  evaluate-commands %sh{
-    [ "$kak_opt_v_debug_phase" = running ] || { echo "fail 'Program input is available while running; continue the debugger first'"; exit; }
-    echo "prompt 'Program input: ' %{ v-debug-call action input %val{text} }"
-  }
+  v-debug-call action input
 }
 declare-user-mode v-debug
 define-command v-debug-menu -docstring 'Show available debugging actions' %{ enter-user-mode v-debug }

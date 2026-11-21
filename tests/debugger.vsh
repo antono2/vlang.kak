@@ -288,6 +288,10 @@ fn (mut check Check) input_and_exit() ! {
 	check.wait_state('pause running program', fn (state State) bool {
 		return state.phase == 'stopped' && state.frames.len > 0
 	})!
+	check.sync_phase()!
+	check.command('declare-option str v_test_input_error; try %{ v-debug-input } catch %{ set-option global v_test_input_error %val{error} }')!
+	check.editor.wait_value('%opt{v_test_input_error}', 'Program input is available while running',
+		true, 'refuse program input while stopped')!
 	check.command('v-debug-continue')!
 	check.phase('running')!
 	check.command('v-debug-output')!
@@ -479,6 +483,15 @@ fn (mut check Check) values() ! {
 	check.command('v-debug-variables; select ${watch_row}')!
 	check.editor.keys('<del>')
 	check.wait_watch(false)!
+	literal_watch := "'x' + 0\n"
+	check.command('v-debug-call action watch ${quote(literal_watch)}')!
+	check.wait_state('literal watch added', fn [literal_watch] (state State) bool {
+		return literal_watch in state.watches
+	})!
+	check.command('v-debug-unwatch ${quote(literal_watch)}')!
+	check.wait_state('literal watch removed', fn [literal_watch] (state State) bool {
+		return literal_watch !in state.watches
+	})!
 	check.stop()!
 	check.phase('idle')!
 	check.command('v-debug-return')!
