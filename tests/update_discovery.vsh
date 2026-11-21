@@ -10,6 +10,8 @@ const installed_release = 'v1.0.0'
 const release_commit = '0000000000000000000000000000000000000002'
 const installed_commit = '0000000000000000000000000000000000000001'
 const expected_operations = ['ls-remote tags', 'describe', 'rev-parse', 'ls-remote release']
+const remote_lookup_prefix = ['-c', 'http.lowSpeedLimit=1', '-c', 'http.lowSpeedTime=10', 'ls-remote']
+const sigterm_exit_status = 143 // Shell status 128 + SIGTERM.
 // Age the stamp past the seven-day background refresh interval.
 const expired_stamp_age_days = 8
 const fixture_timeout = 15 * time.second
@@ -25,8 +27,7 @@ fn fake_git(args []string) ! {
 	scenario := os.getenv('DISCOVERY_SCENARIO')
 	mut operation := ''
 	mut response := ''
-	if args.len > 5
-		&& args[..5] == ['-c', 'http.lowSpeedLimit=1', '-c', 'http.lowSpeedTime=10', 'ls-remote'] {
+	if args.len > remote_lookup_prefix.len && args[..remote_lookup_prefix.len] == remote_lookup_prefix {
 		if args.last() == 'refs/tags/${listed_release}^{}' {
 			operation = 'ls-remote release'
 			if scenario != 'lightweight' {
@@ -130,7 +131,7 @@ fn check_interruption(root string, original map[string]string) ! {
 	child.signal_term()
 	os.write_file(barrier + '.continue', '')!
 	child.wait()
-	assert child.code == 143
+	assert child.code == sigterm_exit_status
 	assert !os.exists(lock_path)
 	assert !os.exists(os.join_path(state, 'update-status'))
 	assert !os.exists(os.join_path(state, 'update-checked'))

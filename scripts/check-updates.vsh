@@ -12,6 +12,7 @@ fn C.kak_maintenance_signal() int
 const check_interval = 7 * 24 * time.hour
 const delivery_timeout = 5 * time.second
 const delivery_poll = 20 * time.millisecond
+const shell_signal_exit_base = 128
 const usage = 'Usage: check-updates.sh [--background | --notify SESSION CLIENT]'
 
 struct Notification {
@@ -148,5 +149,5 @@ fn main() {
 		status = 1
 	}
 	signum := C.kak_maintenance_signal()
-	exit(if signum == 0 { status } else { 128 + signum })
+	exit(if signum == 0 { status } else { shell_signal_exit_base + signum })
 }

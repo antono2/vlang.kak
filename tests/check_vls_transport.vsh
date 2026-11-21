@@ -3,11 +3,13 @@ import editorui { quote }
 import os
 import rand
 
+const delayed_response_seconds = '0.2'
+
 fn verify(mut editor editorui.Client, root string) ! {
 	result := os.join_path(root, 'result')
 	os.write_file(result, 'stale\n')!
 	// Socket delivery finishes before the sleeping editor command writes its result.
-	editor.remote('nop %sh{ sleep 0.2 }\necho -to-file ${quote(result)} fresh')!
+	editor.remote('nop %sh{ sleep ${delayed_response_seconds} }\necho -to-file ${quote(result)} fresh')!
 	if os.read_file(result)!.trim_space() != 'fresh' {
 		return error('Read stale state before editor execution')
 	}

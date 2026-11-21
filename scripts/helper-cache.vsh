@@ -6,6 +6,7 @@ import time
 
 // A numeric cache version keeps these files eligible for the existing cleanup command.
 const cache_version = '1'
+const compiler_output_poll = 5 * time.millisecond
 
 fn cached_tool(path string) bool {
 	return os.is_file(path) && !os.is_link(path) && os.is_executable(path)
@@ -70,7 +71,7 @@ fn compile_helper(cache string, source string, expected string, destination stri
 		for child.is_alive() {
 			_ = child.stdout_read()
 			_ = child.stderr_read()
-			time.sleep(5 * time.millisecond)
+			time.sleep(compiler_output_poll)
 		}
 	}
 	child.wait()
@@ -117,7 +118,8 @@ fn materialize_checkpoint(writer string, directory string) ! {
 
 fn run(args []string) ! {
 	if args.len < 2
-		|| args[1] !in ['debug', 'explorer', 'preferences', 'windowing', 'checkpoint', 'history', 'task', 'context', 'settings', 'launcher', 'navigation'] {
+		|| args[1] !in ['debug', 'explorer', 'preferences', 'windowing', 'checkpoint', 'history',
+			'task', 'context', 'settings', 'launcher', 'navigation'] {
 		return error('Expected a helper cache directory and tool name.')
 	}
 	cache, tool := args[0], args[1]

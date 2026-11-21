@@ -5,6 +5,7 @@ import os
 import rand
 
 const restart_status = 75
+const command_not_found_status = 127
 const server_flags = ['-c', '-C', '-d', '-p', '-f']
 const leased_tools = ['kakoune', 'kak-lsp', 'vls', 'v']
 
@@ -15,7 +16,7 @@ fn has_checkpoint(path string) bool {
 
 fn start_editor(args []string, env map[string]string) !int {
 	editor := os.find_abs_path_of_executable('kak') or {
-		return error_with_code('kak: executable not found', 127)
+		return error_with_code('kak: executable not found', command_not_found_status)
 	}
 	mut child := os.new_process(editor)
 	defer { child.close() }
@@ -80,7 +81,7 @@ fn launch(args []string) !int {
 fn main() {
 	status := launch(os.args[1..]) or {
 		eprintln(err)
-		exit(if err.code() == 127 { 127 } else { 1 })
+		exit(if err.code() == command_not_found_status { command_not_found_status } else { 1 })
 	}
 	exit(status)
 }
