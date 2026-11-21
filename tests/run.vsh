@@ -261,6 +261,11 @@ fn check() ! {
 	kak_version := capture(kak, ['-version'], true)!.trim_space()
 	v_version := capture('v', ['version'], true)!.trim_space()
 	println('Testing with ${kak_version} and ${v_version}')
+	// Build the initial editing helpers outside the per-editor timeout.
+	dispatcher := os.join_path(os.dir(@DIR), 'scripts', 'helper-cache.sh')
+	for tool in ['context', 'task', 'navigation'] {
+		capture(dispatcher, [tool, '--prepare'], true, environment: env)!
+	}
 	suite.run()!
 	println('All vlang.kak tests passed')
 }

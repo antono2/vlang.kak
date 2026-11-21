@@ -66,6 +66,23 @@ fn check_helpers(root string, file string) ! {
 		assert signature != ''
 		env['kak_opt_v_keys_context'] = signature
 		assert capture(helper, ['context', 'editor one'], true, environment: env)! == ''
+
+		env['kak_opt_v_debug_status'] = 'true'
+		suffix := '  [debug: %opt{v_debug_phase}]'
+		shown := capture(helper, ['context', 'editor one'], true, environment: env)!
+		assert shown == 'set-option -add window modelinefmt ${quote(suffix)}\n' +
+			'set-option window v_debug_status_visible true\n'
+		env['kak_opt_v_debug_status_visible'] = 'true'
+		personal := "Owner's modeline\n"
+		env['kak_opt_modelinefmt'] = personal + suffix
+		assert capture(helper, ['context', 'editor one'], true, environment: env)! == ''
+		env['kak_opt_v_debug_status'] = 'false'
+		hidden := capture(helper, ['context', 'editor one'], true, environment: env)!
+		assert hidden == 'set-option window modelinefmt ${quote(personal)}\n' +
+			'set-option window v_debug_status_visible false\n'
+		env['kak_opt_modelinefmt'] = personal
+		replaced := capture(helper, ['context', 'editor one'], true, environment: env)!
+		assert replaced == 'set-option window v_debug_status_visible false\n'
 	}
 	assert !os.exists(fallback['XDG_CACHE_HOME'])
 }
@@ -195,7 +212,9 @@ fn check_restart_menu(kak string, root string, source string) ! {
 	}
 	wait_for_run(mut editor, ready, '')!
 	assert editor.value('%val{client_list}')!.fields().sorted() == [
-		editor.client_name(), 'menu-peer']
+		editor.client_name(),
+		'menu-peer',
+	]
 	editor.remote('v-refresh-keys')!
 	text := menu(mut editor, 'Show pane backend', 'U')!
 	check_items(text, ['Restart V IDE', 'Update and restart'], false)!

@@ -1,5 +1,30 @@
 #!/bin/sh
-# Render editor menus when V cannot be used. The caller passes client names.
+# Render editor menus and debugger status when V cannot be used.
+
+quote() {
+    escaped=$(printf '%s.' "$1" | sed "s/'/''/g")
+    printf "'%s'" "${escaped%.}"
+}
+
+debug_status() {
+    suffix='  [debug: %opt{v_debug_phase}]'
+    show=false
+    case "$kak_opt_v_debug_phase" in
+      building|starting|running|stopped)
+        case "$kak_opt_filetype:$kak_opt_v_debug_source" in v:*|v-debug-*|*:true) show=true ;; esac ;;
+    esac
+    if [ "$show" = true ] && [ "$kak_opt_v_debug_status" = true ]; then
+      [ "$kak_opt_v_debug_status_visible" != true ] || return
+      printf 'set-option -add window modelinefmt %s\n' "$(quote "$suffix")"
+      echo 'set-option window v_debug_status_visible true'
+    elif [ "$kak_opt_v_debug_status_visible" = true ]; then
+      current=$kak_opt_modelinefmt
+      case "$current" in
+        *"$suffix") printf 'set-option window modelinefmt %s\n' "$(quote "${current%"$suffix"}")" ;;
+      esac
+      echo 'set-option window v_debug_status_visible false'
+    fi
+}
 
 bind_debug() {
     mode=v-debug
@@ -63,6 +88,7 @@ bind_debug() {
     esac
 }
 
+    debug_status
     context=$kak_opt_filetype
     if [ "$kak_bufname" = '*hover*' ] && [ -n "$kak_opt_v_doc_origin" ]; then context=v-doc; fi
     case "$context" in
@@ -100,7 +126,6 @@ bind_debug() {
     case "$kak_opt_v_debug_phase" in building|starting|running|stopped) update=0 ;; esac
     signature="$context:$kak_opt_v_pane_mode:$kak_opt_v_explorer_enabled:$kak_opt_v_tree_is_pane:$kak_opt_v_doc_origin:$saved:$test_file:$history:$repeat:$output:$update:$backend:$kak_opt_readonly:$kak_opt_v_debug_enabled:$kak_opt_v_debug_adapter:$kak_opt_v_debug_build:$kak_modified:$kak_opt_v_context_keys:$kak_opt_v_menu_lsp:$kak_opt_v_task_output:$kak_opt_v_debug_phase:$kak_opt_v_debug_has_watches"
     [ "$signature" != "$kak_opt_v_keys_context" ] || exit 0
-    quote() { printf "'%s'" "$(printf %s "$1" | sed "s/'/''/g")"; }
     printf 'v-unbind-keys\nset-option window v_keys_context %s\n' "$(quote "$signature")"
     map_key() { printf 'map window user %s %s -docstring %s\n' "$(quote "$1")" "$(quote ":$2<ret>")" "$(quote "$3")"; }
     if [ "$context" = v ]; then

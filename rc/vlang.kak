@@ -1053,28 +1053,6 @@ define-command -hidden v-debug-select %{
     v-debug-view-command select-panel-row %opt{filetype} %val{cursor_line} %reg{v}
   }
 }
-define-command -hidden v-debug-status %{
-  evaluate-commands %sh{
-    suffix='  [debug: %opt{v_debug_phase}]'
-    show=false
-    if [ "$kak_opt_v_debug_status" = true ]; then
-      case "$kak_opt_v_debug_phase:$kak_opt_filetype:$kak_opt_v_debug_source" in
-        building:v:*|starting:v:*|running:v:*|stopped:v:*|building:v-debug-*|starting:v-debug-*|running:v-debug-*|stopped:v-debug-*|building:*:true|starting:*:true|running:*:true|stopped:*:true) show=true ;;
-      esac
-    fi
-    if [ "$show" = true ] && [ "$kak_opt_v_debug_status_visible" != true ]; then
-      printf "set-option -add window modelinefmt '%s'\nset-option window v_debug_status_visible true\n" "$suffix"
-    elif [ "$show" = false ] && [ "$kak_opt_v_debug_status_visible" = true ]; then
-      current=$kak_opt_modelinefmt
-      case "$current" in
-        *"$suffix") printf "set-option window modelinefmt '%s'\n" "$(printf %s "${current%"$suffix"}" | sed "s/'/''/g")" ;;
-      esac
-      echo 'set-option window v_debug_status_visible false'
-    fi
-  }
-}
-hook -group v-debug-status global WinDisplay .* %{ v-debug-status }
-hook -group v-debug-status global WinSetOption (v_debug_phase|v_debug_status|filetype)=.* %{ v-debug-status }
 face global VDebugCurrent default,yellow
 face global VDebugBreakpoint red
 define-command -hidden v-debug-marks %{
@@ -1189,6 +1167,7 @@ define-command -hidden -params .. v-context-refresh %{
       "$kak_opt_v_explorer_enabled" "$kak_opt_v_tree_is_pane" "$kak_opt_v_pane_mode" "$kak_opt_v_window_backend" \
       "$kak_opt_v_task_output" "$kak_opt_v_task_available" "$kak_opt_v_last_test_command" "$kak_opt_v_menu_lsp" \
       "$kak_opt_v_debug_phase" "$kak_opt_v_debug_source" "$kak_opt_v_debug_directory" "$kak_opt_v_debug_enabled" \
+      "$kak_opt_v_debug_status" "$kak_opt_v_debug_status_visible" "$kak_opt_modelinefmt" \
       "$kak_opt_v_debug_adapter" "$kak_opt_v_debug_build" "$kak_opt_v_debug_has_watches" \
       "$kak_client_env_TMUX" "$kak_client_env_ZELLIJ" "$kak_client_env_ZELLIJ_SESSION_NAME" "$kak_client_env_WEZTERM_PANE" \
       "$kak_client_env_KITTY_WINDOW_ID" "$kak_client_env_STY" "$kak_client_env_ITERM_SESSION_ID" "$kak_client_env_WAYLAND_DISPLAY" "$kak_client_env_DISPLAY"
@@ -1197,7 +1176,7 @@ define-command -hidden -params .. v-context-refresh %{
   }
 }
 hook -group v-context-menu global ModeChange pop:insert:normal %{ v-refresh-keys }
-hook -group v-context-menu global WinSetOption (v_context_keys|v_pane_mode|v_explorer_enabled|readonly|lsp_fail_if_disabled|v_debug_phase|v_debug_has_watches|v_debug_enabled|v_debug_adapter|v_debug_build|v_debug_source)=.* %{ v-refresh-keys }
+hook -group v-context-menu global WinSetOption (v_context_keys|v_pane_mode|v_explorer_enabled|readonly|lsp_fail_if_disabled|filetype|v_debug_phase|v_debug_status|v_debug_has_watches|v_debug_enabled|v_debug_adapter|v_debug_build|v_debug_source)=.* %{ v-refresh-keys }
 hook -group v-context-menu global BufWritePost .* %{ v-refresh-keys }
 hook -group v-context-menu global WinDisplay .* %{ v-refresh-keys }
 hook -group v-context-menu global WinSetOption filetype=(v|v-tree|make|lsp-document-symbol|lsp-goto|lsp-diagnostics|v-debug-.*) %{
