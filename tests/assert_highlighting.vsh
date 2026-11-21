@@ -1,19 +1,8 @@
 // Verify syntax faces in the last draw sent by the Kakoune JSON UI.
+import highlightfixture
 import os
 import strconv
 import x.json2
-
-const faces = {
-	'attribute': 'rgb:101001'
-	'comment':   'rgb:202002'
-	'function':  'rgb:303003'
-	'keyword':   'rgb:404004'
-	'meta':      'rgb:505005'
-	'operator':  'rgb:606006'
-	'string':    'rgb:707007'
-	'type':      'rgb:808008'
-	'value':     'rgb:909009'
-}
 
 fn last_draw(path string) ![]json2.Any {
 	mut draw := []json2.Any{}
@@ -61,6 +50,7 @@ fn check(args []string) ! {
 			2)
 	}
 	lines := last_draw(args[0])!
+	faces := highlightfixture.colors()
 	mut failures := []string{}
 	for line in os.read_lines(args[1])! {
 		if line == '' || line.starts_with('#') {
