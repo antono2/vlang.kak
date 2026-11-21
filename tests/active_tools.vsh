@@ -4,6 +4,8 @@ import rand
 import releasetest { capture_result }
 import time
 
+// Keep both sample processes alive until the deferred cleanup stops them.
+const fixture_sleep_seconds = '30'
 const process_wait = 5 * time.second
 const poll_interval = 10 * time.millisecond
 
@@ -35,7 +37,7 @@ fn exercise(root string) ! {
 	os.cp(sleep, managed_program)!
 	os.chmod(managed_program, 0o755)!
 	mut managed := os.new_process(managed_program)
-	managed.set_args(['30'])
+	managed.set_args([fixture_sleep_seconds])
 	managed.set_environment({
 		'VLANG_KAK_PREFIX': prefix
 	})
@@ -44,7 +46,7 @@ fn exercise(root string) ! {
 	wait_for_exec(managed.pid, managed_program)!
 
 	mut unrelated := os.new_process(sleep)
-	unrelated.set_args(['30'])
+	unrelated.set_args([fixture_sleep_seconds])
 	unrelated.set_environment({
 		'VLANG_KAK_PREFIX': prefix + '-other'
 		'MULTILINE':        'line one\nVLANG_KAK_PREFIX=' + prefix

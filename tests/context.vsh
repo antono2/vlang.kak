@@ -5,6 +5,11 @@ import rand
 import releasetest { capture }
 import time
 
+const task_receipt_timeout = 10 * time.second
+const task_receipt_poll = 30 * time.millisecond
+// Kakoune accepts idle_timeout in milliseconds. Keep idle hooks responsive in this test.
+const kak_idle_timeout_ms = 50
+
 fn check_items(text string, items []string, present bool) ! {
 	for item in items {
 		if text.contains(item) != present {
@@ -96,14 +101,14 @@ fn menu(mut editor editorui.Client, expected string, group string) !string {
 }
 
 fn wait_for_run(mut editor editorui.Client, path string, expected string) ! {
-	deadline := time.sys_mono_now() + u64(10 * time.second)
+	deadline := time.sys_mono_now() + u64(task_receipt_timeout)
 	for time.sys_mono_now() < deadline {
 		content := os.read_file(path) or { '' }
 		if (expected == '' && content != '') || (expected != '' && content == expected) {
 			return
 		}
 		editor.offset()
-		time.sleep(30 * time.millisecond)
+		time.sleep(task_receipt_poll)
 	}
 	return editor.diagnostic('The task did not produce the expected receipt')
 }
@@ -236,7 +241,7 @@ fn exercise(kak string) ! {
 	os.mkdir_all(config)!
 	plugin := os.join_path(os.dir(@DIR), 'rc', 'vlang.kak')
 	os.write_file(os.join_path(config, 'kakrc'),
-		'source ${quote(plugin)}\nset-option global idle_timeout 50\n')!
+		'source ${quote(plugin)}\nset-option global idle_timeout ${kak_idle_timeout_ms}\n')!
 	source := os.join_path(root, 'main.v')
 	test := os.join_path(root, 'main_test.v')
 	os.write_file(source, 'module main\nfn main() {}\n')!

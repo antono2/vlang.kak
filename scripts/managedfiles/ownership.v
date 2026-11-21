@@ -5,6 +5,8 @@ import crypto.sha256
 import os
 import strings
 
+const digest_chunk_bytes = 64 * 1024
+
 pub struct ManifestEntry {
 pub:
 	kind     string
@@ -62,7 +64,7 @@ pub fn digest(path string) !string {
 	mut file := os.open(path)!
 	defer { file.close() }
 	mut hash := sha256.new()
-	mut buffer := []u8{len: 64 * 1024}
+	mut buffer := []u8{len: digest_chunk_bytes}
 	for {
 		count := file.read(mut buffer) or {
 			if err is os.Eof {

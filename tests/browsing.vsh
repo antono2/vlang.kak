@@ -6,6 +6,8 @@ import releasetest { capture }
 import time
 import x.json2
 
+const buffer_write_timeout = 15 * time.second
+const buffer_write_poll = 50 * time.millisecond
 const marker = 'unique_browsing_marker'
 const buffer_file = '%val{buffile}'
 
@@ -45,7 +47,7 @@ fn check_failed_helper(mut editor editorui.Client, root string, source string, p
 }
 
 fn search_row(mut editor editorui.Client, path string) !int {
-	deadline := time.sys_mono_now() + u64(15 * time.second)
+	deadline := time.sys_mono_now() + u64(buffer_write_timeout)
 	for time.sys_mono_now() < deadline {
 		editor.remote('write -force ${quote(path)}')!
 		for i, line in os.read_lines(path)! {
@@ -53,7 +55,7 @@ fn search_row(mut editor editorui.Client, path string) !int {
 				return i + 1
 			}
 		}
-		time.sleep(50 * time.millisecond)
+		time.sleep(buffer_write_poll)
 	}
 	return editor.diagnostic('Search results did not contain the expected row')
 }
@@ -77,13 +79,13 @@ fn check_project_targets(mut editor editorui.Client, root string, project string
 	editor.wait_value('%val{bufname}', '*make*', false,
 		'project settings opened in the task buffer')!
 	report := os.join_path(root, 'project-settings')
-	deadline := time.sys_mono_now() + u64(15 * time.second)
+	deadline := time.sys_mono_now() + u64(buffer_write_timeout)
 	for time.sys_mono_now() < deadline {
 		editor.remote('write -force ${quote(report)}')!
 		if os.read_file(report)!.contains('Target: ' + target) {
 			break
 		}
-		time.sleep(50 * time.millisecond)
+		time.sleep(buffer_write_poll)
 	}
 	require(os.read_file(report)!.contains('Target: ' + target),
 		'Project settings did not display the stored target path')!

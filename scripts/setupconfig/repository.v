@@ -20,5 +20,5 @@ pub fn refresh(repo string) !int {
 		return error('Could not fast-forward the plugin checkout.')
 	}
 	// The setup dispatcher reserves this status for an unavailable V bootstrap.
-	return if child.code == 125 { 1 } else { child.code }
+	return if child.code == bootstrap_fallback_status { 1 } else { child.code }
 }

@@ -5,6 +5,8 @@ import managedfiles { git_at }
 import os
 
 const recent_commits = '30'
+// Match the POSIX helper so both open the same named history buffer.
+const history_buffer_commit_digits = 12
 
 struct HistoryFile {
 	repo string
@@ -42,7 +44,7 @@ fn (file HistoryFile) prepare(ref string) ! {
 	git_at(file.repo, ['cat-file', '-e', '${commit}:${file.path}']) or {
 		return error('This file does not exist at that revision')
 	}
-	short := git_at(file.repo, ['rev-parse', '--short=12', commit])!
+	short := git_at(file.repo, ['rev-parse', '--short=${history_buffer_commit_digits}', commit])!
 	println('set-option window v_history_repo ${quote(file.repo)}')
 	println('set-option window v_history_commit ${quote(commit)}')
 	println('set-option window v_history_path ${quote(file.path)}')

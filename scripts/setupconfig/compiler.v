@@ -5,6 +5,8 @@ import os
 import rand
 import time
 
+const compiler_probe_poll = 5 * time.millisecond
+
 pub struct CompilerPlan {
 pub:
 	policy      string
@@ -38,7 +40,7 @@ fn compiler_works(upstream_vls bool) !bool {
 	for child.is_alive() {
 		_ = child.stdout_read()
 		_ = child.stderr_read()
-		time.sleep(5 * time.millisecond)
+		time.sleep(compiler_probe_poll)
 	}
 	child.wait()
 	return child.code == 0

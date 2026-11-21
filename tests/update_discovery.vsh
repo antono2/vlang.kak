@@ -10,6 +10,8 @@ const installed_release = 'v1.0.0'
 const release_commit = '0000000000000000000000000000000000000002'
 const installed_commit = '0000000000000000000000000000000000000001'
 const expected_operations = ['ls-remote tags', 'describe', 'rev-parse', 'ls-remote release']
+// Age the stamp past the seven-day background refresh interval.
+const expired_stamp_age_days = 8
 const fixture_timeout = 15 * time.second
 const fixture_poll = 20 * time.millisecond
 const notification_session = 'discovery-session'
@@ -247,7 +249,7 @@ fn check(kak string) ! {
 		assert discovery(env, [])!.trim_space() == 'Up to date: ${listed_release}'
 	}
 	env['DISCOVERY_SCENARIO'] = 'ahead'
-	old_time := time.utc().unix() - 8 * 24 * 60 * 60
+	old_time := time.utc().add_days(-expired_stamp_age_days).unix()
 	os.utime(stamp, old_time, old_time)!
 	assert discovery(env, ['--background'])!.contains('Installed: ${listed_release}-3-gabc123.')
 	previous_status := os.read_file(status)!

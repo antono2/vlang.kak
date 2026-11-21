@@ -8,6 +8,9 @@ const client_env = 'kak_client_env_'
 const launch_session = 'test-session'
 const quoted_command = 'edit "quoted path"'
 const native_wait = 5 * time.second
+const native_poll_interval = 100 * time.millisecond
+const target_line = '14'
+const target_column = '7'
 
 fn record_arguments(log string) ! {
 	os.write_file(log, os.args[1..].join('\n') + '\n')!
@@ -57,9 +60,12 @@ fn check_views(fixture Fixture) ! {
 	assert fixture.invoke(['status', 'auto', 'off'], {})! == "echo 'Window backend: none; pane mode: off'"
 	assert fixture.invoke(['view', 'tree', 'tmux', 'off', launch_session, path, 'client0'], {})! == 'v-tree'
 	assert fixture.invoke(['view', 'tree', 'tmux', 'auto', launch_session, path, 'client0'], {})! == 'v-tree'
-	assert fixture.invoke(['view', 'peek', 'tmux', 'auto', launch_session, path, '14', '7'], {})! == 'v-doc'
-	assert fixture.invoke(['view', 'peek', 'tmux', 'always', launch_session, '', '14', '7'], {})! == "fail 'Peek definition needs a saved V file'"
-	assert fixture.invoke(['view', 'buffer', 'tmux', 'off', launch_session, path, '14', '7'], {})! == "fail 'No supported window backend is active; run v-window-status'"
+	assert fixture.invoke(['view', 'peek', 'tmux', 'auto', launch_session, path, target_line,
+		target_column], {})! == 'v-doc'
+	assert fixture.invoke(['view', 'peek', 'tmux', 'always', launch_session, '', target_line,
+		target_column], {})! == "fail 'Peek definition needs a saved V file'"
+	assert fixture.invoke(['view', 'buffer', 'tmux', 'off', launch_session, path, target_line,
+		target_column], {})! == "fail 'No supported window backend is active; run v-window-status'"
 	assert fixture.invoke(['checkpoint', 'tmux'], {})! == "v-window-finish-checkpoint 'none'"
 
 	tmux := {
@@ -68,10 +74,12 @@ fn check_views(fixture Fixture) ! {
 	}
 	fixture.invoke(['view', 'tree', 'auto', 'always', launch_session, path, "client 'one'"], tmux)!
 	fixture.check_arguments(['-b', launch_session, "v-tree-pane-init ${quoted} 'client ''one'''"])!
-	fixture.invoke(['view', 'peek', 'auto', 'always', launch_session, path, '14', '7'], tmux)!
-	fixture.check_arguments([launch_session, 'v-peek-definition-init ${quoted} 14 7'])!
-	fixture.invoke(['view', 'buffer', 'auto', 'off', launch_session, path, '14', '7'], tmux)!
-	fixture.check_arguments([launch_session, 'buffer ${quoted}; select 14.7,14.7'])!
+	fixture.invoke(['view', 'peek', 'auto', 'always', launch_session, path, target_line, target_column], tmux)!
+	fixture.check_arguments([launch_session,
+		'v-peek-definition-init ${quoted} ${target_line} ${target_column}'])!
+	fixture.invoke(['view', 'buffer', 'auto', 'off', launch_session, path, target_line, target_column], tmux)!
+	fixture.check_arguments([launch_session,
+		'buffer ${quoted}; select ${target_line}.${target_column},${target_line}.${target_column}'])!
 	assert fixture.invoke(['checkpoint', 'auto'], tmux)! == "v-window-finish-checkpoint 'tmux'"
 	fixture.invoke(['recover', 'tmux', launch_session, path], tmux)!
 	fixture.check_arguments([launch_session, 'source ' + quoted])!
@@ -196,7 +204,7 @@ fn check(helper string, cache_writable bool) ! {
 			fixture.check_arguments(['sh'])!
 			return
 		}
-		time.sleep(100 * time.millisecond)
+		time.sleep(native_poll_interval)
 	}
 	return error('The native terminal did not record its launch')
 }

@@ -9,6 +9,11 @@ import time
 
 const search_preview_lines = 12
 const search_preview_columns = 140
+const file_preview_lines = 24
+const file_preview_columns = 140
+const process_poll_interval = 5 * time.millisecond
+// Three header lines precede the root in the one-based tree buffer.
+const root_display_line = 4
 const default_grep_command = 'grep -RHn'
 const tree_directory_prefix = 'vlang-kak-tree-'
 const tree_state_name = 'tree.json'
@@ -25,7 +30,7 @@ mut:
 	hidden     bool
 	focus      string
 	rows       []Row
-	focus_line int = 4
+	focus_line int = root_display_line
 }
 
 fn kak_quote(value string) string {
@@ -64,7 +69,7 @@ fn command_output(root string, program string, args []string) !string {
 	for child.is_alive() {
 		output += child.stdout_read()
 		_ = child.stderr_read()
-		time.sleep(5 * time.millisecond)
+		time.sleep(process_poll_interval)
 	}
 	output += child.stdout_slurp()
 	child.wait()
@@ -154,7 +159,7 @@ fn preview_matches(root string, pattern string) ![]string {
 			return matches.lines
 		}
 		if chunk == '' {
-			time.sleep(5 * time.millisecond)
+			time.sleep(process_poll_interval)
 		}
 	}
 	matches.append(child.stdout_slurp())
@@ -299,7 +304,7 @@ fn render(path string, origin string, pane bool) !(string, int) {
 		state.expanded << root
 	}
 	state.rows = [Row{}, Row{}, Row{}, Row{ path: root, directory: true }]
-	state.focus_line = 4
+	state.focus_line = root_display_line
 	close_hint := if pane { 'q close pane' } else { 'q back' }
 	mut lines := ['Project: ${root}',
 		'${close_hint}  Enter open/toggle  l expand  h parent  p preview  . hidden  r refresh',
@@ -316,10 +321,10 @@ fn preview(target Row, hidden bool) string {
 	content := os.read_file(target.path) or { return err.msg() }
 	mut lines := []string{}
 	for line in content.split_into_lines() {
-		if lines.len == 24 {
+		if lines.len == file_preview_lines {
 			break
 		}
-		lines << line.replace('\t', '    ').limit(140)
+		lines << line.replace('\t', '    ').limit(file_preview_columns)
 	}
 	return lines.join('\n').replace('\x00', '')
 }
