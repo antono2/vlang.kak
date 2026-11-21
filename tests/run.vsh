@@ -1,11 +1,13 @@
 // Run editor integration cases with the selected Kakoune executable.
 import editorui { quote }
+import highlightfixture
 import os
 import rand
 import releasetest { capture, capture_result, run_inherited }
 import time
 
 const kak_case_timeout = 30 * time.second
+const kak_json_closed_stdin_status = 255
 const fixtures = os.join_path(@DIR, 'fixtures')
 const cases = os.join_path(@DIR, 'cases')
 
@@ -80,7 +82,7 @@ fn (suite Suite) highlighting(file string, expectations string) ! {
 		timeout:     kak_case_timeout
 	)!
 	// The JSON UI can report a client error when stdin closes after the first draw.
-	if result.code !in [0, 255] {
+	if result.code !in [0, kak_json_closed_stdin_status] {
 		return error('Rendering ${file} exited ${result.code}\n${result.stderr}')
 	}
 	transcript := os.join_path(suite.scratch, '${file}.jsonl')
@@ -242,12 +244,10 @@ fn check() ! {
 	config := os.join_path(scratch, 'config')
 	os.mkdir_all(os.join_path(config, 'kak'))!
 	plugin := os.real_path(os.join_path(@DIR, '..', 'rc', 'vlang.kak'))
-	// Distinct RGB values let the JSON assertions identify syntax faces by name.
-	faces := ['attribute rgb:101001', 'comment rgb:202002', 'function rgb:303003',
-		'keyword rgb:404004', 'meta rgb:505005', 'operator rgb:606006', 'string rgb:707007',
-		'type rgb:808008', 'value rgb:909009']
 	mut kakrc := ['source ' + quote(plugin)]
-	kakrc << faces.map('face global ' + it)
+	for face, color in highlightfixture.colors() {
+		kakrc << 'face global ${face} ${color}'
+	}
 
 	os.write_file(os.join_path(config, 'kak', 'kakrc'), kakrc.join('\n') + '\n')!
 	mut env := os.environ()

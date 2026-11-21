@@ -13,6 +13,9 @@ fn C.dup2(int, int) int
 const debugger_timeout = 30 * time.second
 const cleanup_timeout = 5 * time.second
 const poll = 30 * time.millisecond
+const editor_idle_timeout_ms = 50
+// Leave the fake build running long enough for the debugger to cancel it.
+const cancellable_build_seconds = 30
 // One-based source and panel positions in the fixtures below.
 const addition_line = 4
 const return_line = 5
@@ -21,9 +24,8 @@ const caller_line = 8
 const print_line = 9
 const test_line = 4
 const values_line = 11
-const addition_cursor = '4.1,4.1'
-const print_cursor = '9.1,9.1'
-const values_cursor = '11.1,11.1'
+// Well beyond the fixture and the source lines GDB can map to generated code.
+const nonexistent_source_line = 99999
 const first_row = '2.1,2.1'
 const caller_row = '3.1,3.1'
 const watch_row = '4.1,4.1'
@@ -225,7 +227,7 @@ fn (mut check Check) stack_frame(row string) ! {
 
 fn (mut check Check) navigation() ! {
 	check.command("set-option global v_debug_args 'two words'; set-option global v_debug_env 'MODE=local test'")!
-	check.command('select ${addition_cursor}; v-debug-breakpoint-if "a == 2"')!
+	check.command('select ${line_start_selection(addition_line)}; v-debug-breakpoint-if "a == 2"')!
 	require(check.state().breakpoints.map(it.line) == [addition_line], 'Wrong conditional breakpoint line')!
 	launch := check.menu('Build and debug', true)!
 	require(launch.contains('Toggle breakpoint') && !launch.contains('Run to cursor'), 'Wrong launch menu')!
@@ -269,16 +271,16 @@ fn (mut check Check) navigation() ! {
 	check.editor.wait_value('%opt{v_test_cursor_error}', 'Run to cursor requires an unmodified saved source file',
 		true, 'refuse run to cursor in a read-only buffer')!
 	check.command('set-option buffer readonly false')!
-	check.command('v-debug-call action runToCursor ${quote(check.main_file)} 99999')!
+	check.command('v-debug-call action runToCursor ${quote(check.main_file)} ${nonexistent_source_line}')!
 	invalid := check.wait_state('invalid run-to-cursor location', fn (state State) bool {
 		return state.message.contains('No line')
 	})!
 	require(invalid.stopped_at(return_line), 'Invalid Run to Cursor changed the stopped frame')!
-	check.select_row(print_cursor)!
+	check.select_row(line_start_selection(print_line))!
 	check.editor.keys('<space>G')
 	at_print := check.stopped(print_line)!
 	require(at_print.breakpoints.map(it.line) == [addition_line]
-		&& at_print.output.contains('tbreak ') && at_print.output.contains(':9')
+		&& at_print.output.contains('tbreak ') && at_print.output.contains(':${print_line}')
 		&& at_print.watches[sum_watch].starts_with('<unavailable:'), 'Run to Cursor or watch invalidation failed')!
 }
 
@@ -338,7 +340,7 @@ fn (mut check Check) entry_stop() ! {
 }
 
 fn (mut check Check) launch_modes() ! {
-	check.command('select ${addition_cursor}; v-debug-breakpoint')!
+	check.command('select ${line_start_selection(addition_line)}; v-debug-breakpoint')!
 	require(check.state().breakpoints.len == 0, 'Toggling the breakpoint left an active breakpoint')!
 	check.command('v-debug')!
 	check.wait_input()!
@@ -358,7 +360,7 @@ fn (mut check Check) launch_modes() ! {
 	check.stop()!
 	idle := check.phase('idle')!
 	require(idle.line == 0 && idle.variables.len == 0, 'Stop retained frame variables')!
-	check.command("set-option global v_debug_build_command 'sleep 30 #'; v-debug")!
+	check.command("set-option global v_debug_build_command 'sleep ${cancellable_build_seconds} #'; v-debug")!
 	check.phase('building')!
 	check.stop()!
 	cancelled := check.phase('idle')!
@@ -377,7 +379,7 @@ fn (mut check Check) test_targets() ! {
 	test := os.join_path(check.root, 'math_test.v')
 	test_source := 'module main\nfn test_math() {\n    result := 2 + 3\n    println(result)\n    assert result == 5\n}\n'
 	os.write_file(test, test_source)!
-	check.command('edit ${quote(test)}; set-option global v_debug_build true; set-option global v_debug_build_command "v -g -cc gcc"; select ${addition_cursor}; v-debug-breakpoint; v-debug')!
+	check.command('edit ${quote(test)}; set-option global v_debug_build true; set-option global v_debug_build_command "v -g -cc gcc"; select ${line_start_selection(test_line)}; v-debug-breakpoint; v-debug')!
 	state := check.wait_state('V test breakpoint', fn [test] (state State) bool {
 		return state.stopped_in(test) && state.line == test_line
 	})!
@@ -390,7 +392,7 @@ fn (mut check Check) test_targets() ! {
 	check.command('v-debug-unwatch "${sum_watch}"; v-debug-continue')!
 	check.phase('exited')!
 	check.wait_unlocked()!
-	check.command('v-debug-return; edit ${quote(test)}; select ${addition_cursor}; v-debug-breakpoint; set-option global v_debug_entry ""')!
+	check.command('v-debug-return; edit ${quote(test)}; select ${line_start_selection(test_line)}; v-debug-breakpoint; set-option global v_debug_entry ""')!
 	require(check.state().breakpoints.len == 0, 'Test breakpoint was not removed')!
 	os.write_file(test, test_source.replace('result == 5', 'result == 6'))!
 	check.command('edit! ${quote(test)}; v-debug')!
@@ -443,7 +445,7 @@ fn (mut check Check) expanded(names []string) ![]string {
 	return state.variables.map(it.value)
 }
 
-fn panel_row(line int) string {
+fn line_start_selection(line int) string {
 	return '${line}.1,${line}.1'
 }
 
@@ -452,7 +454,7 @@ fn (mut check Check) values() ! {
 	os.mkdir(dir)!
 	path := os.join_path(dir, 'main.v')
 	os.write_file(path, inspected_source)!
-	check.command('edit ${quote(path)}; select ${values_cursor}; v-debug-breakpoint; set-option window modelinefmt CUSTOM-STATUS; v-debug')!
+	check.command('edit ${quote(path)}; select ${line_start_selection(values_line)}; v-debug-breakpoint; set-option window modelinefmt CUSTOM-STATUS; v-debug')!
 	state := check.stopped(values_line)!
 	require(state.variable('greeting')!.value == '"hello V"'
 		&& state.variable('numbers')!.value == '[]int (len=3)'
@@ -466,7 +468,7 @@ fn (mut check Check) values() ! {
 	check.command('v-debug-variables')!
 	// The heading occupies line one, followed by variable rows and watch rows.
 	array_row := state.variables.map(it.name).index('numbers') + 2
-	check.select_row(panel_row(array_row))!
+	check.select_row(line_start_selection(array_row))!
 	check.editor.keys('<ret>')
 	require(check.expanded(['[0]', '[1]', '[2]'])! == ['2', '3', '5'], 'Wrong expanded array values')!
 	check.command('v-debug-call action watch person')!
@@ -476,7 +478,7 @@ fn (mut check Check) values() ! {
 	watch := check.wait_state('expandable watch reference', fn (state State) bool {
 		return state.watch_refs['person'] > 0
 	})!
-	check.select_row(panel_row(watch.variables.len + 2 + watch.watches.keys().index('person')))!
+	check.select_row(line_start_selection(watch.variables.len + 2 + watch.watches.keys().index('person')))!
 	check.editor.keys('<ret>')
 	require(check.expanded(['name', 'age'])! == ['"Ada"', '36'], 'Wrong expanded struct fields')!
 	check.menu('Remove watch', false)!
@@ -547,7 +549,7 @@ fn (mut check Check) default_directory() ! {
 	require(!os.exists(expected) && !os.is_link(expected), 'Debugger test cache directory already exists')!
 	defer { os.rmdir_all(expected) or {} }
 	check.command("set-option global v_debug_directory ''")!
-	check.command('select ${addition_cursor}; v-debug-breakpoint')!
+	check.command('select ${line_start_selection(addition_line)}; v-debug-breakpoint')!
 	require(check.editor.value('%opt{v_debug_directory}')! == expected && os.is_file(os.join_path(expected, 'breakpoints.json')),
 		'Default debugger directory differs from the existing session checksum')!
 	check.command('v-debug-breakpoint; set-option global v_debug_directory ${quote(check.state_dir)}')!
@@ -618,7 +620,7 @@ fn run(kak_path string) ! {
 	config_lines := [
 		'source ${quote(os.join_path(repo, 'rc/vlang.kak'))}',
 		'set-option global v_debug_directory ${quote(state_dir)}',
-		'set-option global idle_timeout 50',
+		'set-option global idle_timeout ${editor_idle_timeout_ms}',
 		'set-option global v_debug_adapter_args -q -nx --interpreter=dap -iex ${adapter_log}',
 	]
 	os.write_file(os.join_path(config, 'kakrc'), config_lines.join('\n') + '\n')!
