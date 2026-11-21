@@ -265,6 +265,9 @@ fn (mut check Check) navigation() ! {
 	require(check.stopped(return_line)!.variable('result')!.value == '5', 'Wrong result after step over')!
 	check.command('set-option buffer readonly true')!
 	require(!check.menu('Step over', false)!.contains('Run to cursor'), 'Readonly buffer offered Run to Cursor')!
+	check.command('declare-option str v_test_cursor_error; try %{ v-debug-run-to-cursor } catch %{ set-option global v_test_cursor_error %val{error} }')!
+	check.editor.wait_value('%opt{v_test_cursor_error}', 'Run to cursor requires an unmodified saved source file',
+		true, 'refuse run to cursor in a read-only buffer')!
 	check.command('set-option buffer readonly false')!
 	check.command('v-debug-call action runToCursor ${quote(check.main_file)} 99999')!
 	invalid := check.wait_state('invalid run-to-cursor location', fn (state State) bool {
@@ -284,6 +287,9 @@ fn (mut check Check) input_and_exit() ! {
 	check.wait_input()!
 	menu := check.menu('Pause debugging', false)!
 	require(!menu.contains('Step over') && !menu.contains('Run to cursor'), 'Running program offered stopped actions')!
+	check.command('try %{ v-debug-run-to-cursor } catch %{ set-option global v_test_cursor_error %val{error} }')!
+	check.editor.wait_value('%opt{v_test_cursor_error}', 'Pause debugging before running to the cursor',
+		true, 'refuse run to cursor while running')!
 	check.command('v-debug-pause')!
 	check.wait_state('pause running program', fn (state State) bool {
 		return state.phase == 'stopped' && state.frames.len > 0

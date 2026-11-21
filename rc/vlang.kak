@@ -948,7 +948,7 @@ define-command -hidden v-debug-require-inactive %{
 define-command -hidden -params 1.. v-debug-call %{
   evaluate-commands %sh{
     # Referencing these values makes Kakoune export them to the V helper.
-    : "$kak_buffile" "$kak_modified" "$kak_client" "$kak_session" "$kak_opt_v_debug_adapter" "$kak_opt_v_debug_phase" \
+    : "$kak_buffile" "$kak_modified" "$kak_opt_readonly" "$kak_client" "$kak_session" "$kak_opt_v_debug_adapter" "$kak_opt_v_debug_phase" \
       "$kak_quoted_opt_v_debug_adapter_args" "$kak_opt_v_debug_build_command" \
       "$kak_opt_v_debug_pretty_print" "$kak_opt_v_debug_build" "$kak_opt_v_debug_program" "$kak_opt_v_debug_cwd" \
       "$kak_opt_v_project_target" "$kak_quoted_opt_v_debug_args" "$kak_quoted_opt_v_debug_env" "$kak_opt_v_debug_entry" "$kak_opt_v_debug_break_on_failure"
@@ -977,11 +977,7 @@ define-command v-debug-next -docstring 'Step over the current source line' %{ v-
 define-command v-debug-step-in -docstring 'Step into the current function' %{ v-debug-call action stepIn }
 define-command v-debug-step-out -docstring 'Finish the current function' %{ v-debug-call action stepOut }
 define-command v-debug-run-to-cursor -docstring 'Continue to a one-time breakpoint at the cursor' %{
-  evaluate-commands %sh{
-    [ "$kak_opt_v_debug_phase" = stopped ] || { echo "fail 'Pause debugging before running to the cursor'"; exit; }
-    [ "$kak_modified" = false ] && [ -n "$kak_buffile" ] && [ -f "$kak_buffile" ] && [ "$kak_opt_readonly" = false ] || { echo "fail 'Run to cursor requires an unmodified saved source file'"; exit; }
-  }
-  v-debug-call action runToCursor %val{buffile} %val{cursor_line}
+  v-debug-call action run-to-cursor %val{buffile} %val{cursor_line}
 }
 define-command v-debug-pause -docstring 'Pause the running debug program' %{ v-debug-call action pause }
 define-command v-debug-stop -docstring 'Stop debugging and terminate the launched program' %{ v-debug-call action stop }
