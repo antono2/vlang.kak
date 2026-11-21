@@ -106,21 +106,8 @@ provide-module v %§
 
   ## ALT FILE
   define-command -hidden -docstring 'Jump to the alternate file (implementation ↔ test)' v-alternative-file %{ evaluate-commands %sh{
-    # looks like _test.c.v files aren't supported by V, so can be ignored
-    case $kak_buffile in
-      *_test.v)
-        altfile=${kak_buffile%_test.v}.v
-        test ! -f "$altfile" && echo "fail 'implementation file not found'" && exit
-      ;;
-      *.v)
-        altfile=${kak_buffile%.v}_test.v
-        test ! -f "$altfile" && echo "fail 'test file not found'" && exit
-      ;;
-      *)
-        echo "fail 'alternative file not found'" && exit
-      ;;
-    esac
-    printf "edit -- '%s'" "$(printf %s "$altfile" | sed "s/'/''/g")"
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/helper-cache.sh" navigation alternate "$kak_buffile"
   }}
 
   ## INDENTATION

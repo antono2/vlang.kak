@@ -2,6 +2,7 @@
 import editorui { quote }
 import os
 import rand
+import releasetest { capture }
 import time
 import x.json2
 
@@ -101,6 +102,45 @@ fn check_project_targets(mut editor editorui.Client, root string, project string
 	editor.wait_event(offset, 'draw_status', ['Target:'])!
 	editor.keys('<esc>')
 	println('ok - rendered project targets preserve quoted and multiline filenames and offer a manual path')
+}
+
+fn check_alternate_files(mut editor editorui.Client, root string) ! {
+	stem := os.join_path(root, "an alternate's %{name} \$HOME\nline")
+	source, test := stem + '.v', stem + '_test.v'
+	for path in [source, test] {
+		os.write_file(path, 'module main\n')!
+	}
+
+	bin := os.join_path(root, 'compiler-free')
+	os.mkdir(bin)!
+	for name in ['cksum', 'dirname', 'sed'] {
+		os.symlink(os.find_abs_path_of_executable(name)!, os.join_path(bin, name))!
+	}
+	helper := os.join_path(os.dir(@DIR), 'scripts', 'helper-cache.sh')
+	mut fallback := os.environ()
+	fallback['PATH'] = bin
+	fallback['XDG_CACHE_HOME'] = os.join_path(root, 'compiler-free-cache')
+	for from, to in {
+		source: test
+		test:   source
+	} {
+		editor.remote('edit ${quote(from)}; alt')!
+		editor.wait_value(buffer_file, to, false, 'alt opened the matching file')!
+		assert capture(helper, ['navigation', 'alternate', from], true, environment: fallback)! == 'edit -- ${quote(to)}\n'
+	}
+
+	editor.remote('declare-option str v_alternate_test_error')!
+	for from, reason in {
+		stem + '-without-test.v':        'test file not found'
+		stem + '-without-source_test.v': 'implementation file not found'
+		stem + '.txt':                   'alternative file not found'
+	} {
+		os.write_file(from, 'module main\n')!
+		editor.remote('edit ${quote(from)}; try %{ v-alternative-file } catch %{ set-option global v_alternate_test_error %val{error} }')!
+		editor.wait_value('%opt{v_alternate_test_error}', reason, true, 'alt reported ${reason}')!
+		require(editor.value(buffer_file)! == from, 'alt changed the buffer on failure')!
+		assert capture(helper, ['navigation', 'alternate', from], true, environment: fallback)! == 'fail ${quote(reason)}\n'
+	}
 }
 
 fn check_result_navigation(mut editor editorui.Client, root string) ! {
@@ -234,7 +274,8 @@ fn exercise(kak string) ! {
 	require(editor.value(buffer_file)! == source, 'Empty search changed the source file')!
 	check_project_targets(mut editor, root, project, target)!
 	check_result_navigation(mut editor, root)!
-	println('ok - rendered tree, project prompts and completion, and live search')
+	check_alternate_files(mut editor, root)!
+	println('ok - rendered project browsing, live search, and alternate files')
 }
 
 if os.args.len != 2 {

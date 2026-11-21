@@ -1,4 +1,4 @@
-// Resolve the source location remembered for a Kakoune result or hover view.
+// Resolve alternate files and the source locations remembered by Kakoune views.
 import os
 
 fn quote(value string) string {
@@ -25,8 +25,29 @@ fn remembered(entries []string, client string) string {
 	return value
 }
 
+fn alternate(file string) {
+	// Kakoune's alternate command pairs .v and _test.v files.
+	path, missing := if file.ends_with('_test.v') {
+		file.trim_string_right('_test.v') + '.v', 'implementation file not found'
+	} else if file.ends_with('.v') {
+		file.trim_string_right('.v') + '_test.v', 'test file not found'
+	} else {
+		println("fail 'alternative file not found'")
+		return
+	}
+	if os.is_file(path) {
+		println('edit -- ' + quote(path))
+	} else {
+		println('fail ' + quote(missing))
+	}
+}
+
 fn navigate(args []string) {
 	if args.len < 2 {
+		return
+	}
+	if args[0] == 'alternate' && args.len == 2 {
+		alternate(args[1])
 		return
 	}
 	action, client := args[0], args[1]
