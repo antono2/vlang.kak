@@ -24,11 +24,12 @@ fn fake_compiler(log string) ! {
 }
 
 struct Fixture {
-	prefix   string
-	git_repo string
-	compiler string
-	log      string
-	scratch  string
+	prefix    string
+	git_repo  string
+	compiler  string
+	log       string
+	scratch   string
+	installer string
 }
 
 @[params]
@@ -53,7 +54,11 @@ fn (fixture Fixture) install(options Installation) !string {
 	if options.ref != '' {
 		args << ['--ref', options.ref]
 	}
-	installer := os.real_path(os.join_path(@DIR, '..', 'scripts', 'install-vls.sh'))
+	installer := if fixture.installer == '' {
+		os.real_path(os.join_path(@DIR, '..', 'scripts', 'install-vls.sh'))
+	} else {
+		fixture.installer
+	}
 	result := capture(installer, args, options.expect_success, environment: env)!
 	assert os.ls(fixture.scratch)!.filter(it.starts_with('vlang-vls-build.')).len == 0
 	return result
@@ -63,7 +68,9 @@ fn commit(git_repo string, description string) !string {
 	os.write_file(os.join_path(git_repo, 'fixture.txt'), description + '\n')!
 	capture('git', ['add', 'fixture.txt'], true, work_folder: git_repo)!
 	capture('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit',
-		'-qm', description], true, work_folder: git_repo)!
+		'-qm', description], true,
+		work_folder: git_repo
+	)!
 	return capture('git', ['rev-parse', 'HEAD'], true, work_folder: git_repo)!.trim_space()
 }
 
@@ -84,6 +91,25 @@ fn check() ! {
 	scratch := os.join_path(root, 'scratch')
 	os.mkdir(scratch, mode: 0o700)!
 	os.symlink(os.executable(), compiler)!
+	// Compile a separate checkout with a local tested pin, independent of HEAD.
+	checkout := os.join_path(root, 'installer checkout')
+	os.mkdir_all(os.join_path(checkout, 'scripts'))!
+	os.mkdir_all(os.join_path(checkout, 'tests'))!
+	source := os.join_path(checkout, 'scripts', 'install-vls.vsh')
+	os.cp(os.join_path(@DIR, '..', 'scripts', 'install-vls.vsh'), source)!
+	os.write_file(os.join_path(checkout, 'tests', 'release.env'), 'VLS_REF=${second}\n')!
+	installer := os.join_path(checkout, 'installer')
+	capture(os.find_abs_path_of_executable('v')!, ['-skip-running', '-o', installer, source], true)!
+	pinned_fixture := Fixture{
+		prefix:    os.join_path(root, 'tested prefix')
+		git_repo:  git_repo
+		compiler:  compiler
+		log:       os.join_path(root, 'tested.log')
+		scratch:   scratch
+		installer: installer
+	}
+	pinned_fixture.install()!
+	assert os.readlink(os.join_path(pinned_fixture.prefix, 'opt', 'vlang-vls', 'current'))! == 'releases/${second}'
 	fixture := Fixture{
 		prefix:   prefix
 		git_repo: git_repo
@@ -97,7 +123,7 @@ fn check() ! {
 	candidate := os.join_path(tool, 'candidate')
 	launcher := os.join_path(prefix, 'bin', 'vls')
 
-	fixture.install()!
+	fixture.install(ref: 'HEAD')!
 	assert os.readlink(current)! == 'releases/${third}'
 	assert os.readlink(launcher)! == os.join_path(current, 'bin', 'vls')
 	assert os.is_executable(launcher)

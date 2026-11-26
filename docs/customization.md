@@ -459,7 +459,7 @@ managed blocks are refused; setup never rewrites the personal `vlang-user.kak`. 
 user owned install directory; `--kakoune-version` and `--lsp-version` select
 release tags; `--no-build` uses an installed Kakoune; `--no-lsp` uses an
 installed kak-lsp; `--vls` links an existing VLS executable. By default, setup
-builds the latest upstream VLS. `--vls-ref` selects a tag or commit, and
+builds the release-tested upstream VLS. Use `--vls-ref HEAD` to try the latest upstream commit. `--vls-ref` selects a tag or commit, and
 `--no-vls` leaves VLS untouched. `scripts/update.sh`
 accepts the same flags and refreshes managed Kakoune, kak-lsp and VLS builds. It
 fast forwards this plugin's checkout only when it is clean, and keeps

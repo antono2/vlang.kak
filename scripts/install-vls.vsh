@@ -4,9 +4,23 @@ import rand
 
 const upstream = 'https://github.com/vlang/vls.git'
 const usage = 'Usage: v run scripts/install-vls.vsh [--ref GIT_REF] [--prefix DIRECTORY] [--v-command PATH]
-Build the latest vlang/vls default branch, or a chosen tag or commit, using V.
+Build the release-tested VLS revision, or a chosen tag or commit, using V.
 Install it under PREFIX/opt/vlang-vls and link PREFIX/bin/vls.
-Default: latest upstream commit, PREFIX=$HOME/.local, V command from PATH.'
+Default: VLS_REF from tests/release.env, PREFIX=$HOME/.local, V command from PATH.
+Use --ref HEAD to try the latest upstream commit.'
+
+fn tested_ref() !string {
+	for line in os.read_lines(os.join_path(os.dir(@DIR), 'tests', 'release.env'))! {
+		if line.starts_with('VLS_REF=') {
+			revision := line.all_after('VLS_REF=')
+			if revision.len == 40 && revision.bytes().all(it.is_hex_digit()) {
+				return revision
+			}
+			return error('Invalid tested VLS revision in tests/release.env.')
+		}
+	}
+	return error('Missing tested VLS revision in tests/release.env.')
+}
 
 struct Options {
 mut:
@@ -140,11 +154,12 @@ fn install(opts Options) ! {
 	build := new_scratch_dir(os.temp_dir(), 'vlang-vls-build.')!
 	defer { os.rmdir_all(build) or {} }
 	source := os.join_path(build, 'vls')
-	if opts.ref == '' {
+	ref := if opts.ref == '' { tested_ref()! } else { opts.ref }
+	if ref == 'HEAD' {
 		run(git, ['clone', '--depth', '1', upstream, source], '')!
 	} else {
 		run(git, ['clone', '--depth', '1', '--no-checkout', upstream, source], '')!
-		run(git, ['fetch', '--depth', '1', '--', 'origin', opts.ref], source)!
+		run(git, ['fetch', '--depth', '1', '--', 'origin', ref], source)!
 		run(git, ['checkout', '--detach', 'FETCH_HEAD'], source)!
 	}
 	commit := source_revision(git, source)!
