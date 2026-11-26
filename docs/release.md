@@ -11,7 +11,7 @@ The release gate pins Kakoune in `tests/release.env`, kak-lsp `v21.0.2`, V commi
 `c9b806b294234408af3794f419439599a293a0ea` and VLS commit
 `436058d058b2ae9cb17d329d7b7f73ec129b2b8a`. The machine-readable
 versions are in `tests/release.env` and the CI workflow. Normal setup and update
-still select the latest tools. A newer upstream version is not automatically
+select the latest tagged Kakoune and kak-lsp releases and the tested VLS revision. A newer upstream version is not automatically
 covered by the pinned release results.
 
 The V 0.5.2 release archive lacks the `json2` standard library required by this
