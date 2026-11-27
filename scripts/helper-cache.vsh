@@ -21,6 +21,7 @@ fn helper_fingerprint(source string, tool string) !string {
 	dependencies := match tool {
 		'history' { ['managedfiles'] }
 		'explorer', 'task' { ['projectroot'] }
+		'workspace' { ['workspacefiles'] }
 		'windowing' { ['windowhost'] }
 		'context' { ['projectroot', 'windowhost'] }
 		else { []string{} }
@@ -119,7 +120,7 @@ fn materialize_checkpoint(writer string, directory string) ! {
 fn run(args []string) ! {
 	if args.len < 2
 		|| args[1] !in ['debug', 'explorer', 'preferences', 'windowing', 'checkpoint', 'history',
-			'task', 'context', 'settings', 'launcher', 'navigation'] {
+			'task', 'context', 'settings', 'launcher', 'navigation', 'workspace'] {
 		return error('Expected a helper cache directory and tool name.')
 	}
 	cache, tool := args[0], args[1]
@@ -146,7 +147,7 @@ fn run(args []string) ! {
 		}
 		return err
 	}
-	if tool != 'launcher' && args.len > 2 && args[2] == '--prepare' {
+	if args.len > 2 && args[2] == '--prepare' {
 		return
 	}
 	os.execvp(destination, args[2..])!

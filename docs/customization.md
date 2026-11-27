@@ -22,6 +22,47 @@ the personal file chosen during setup, even though `kak-v` uses an isolated
 `XDG_CONFIG_HOME` internally. With plug.kak or a manual installation, source
 your personal file from kakrc yourself after loading the plugin.
 
+## Project startup and language-server feedback
+
+`kak-v DIRECTORY` opens that directory's recent existing file or first `v.mod`
+and the tree. `kak-v` without arguments opens the current directory. A file
+argument continues to open that file. Connection, daemon and filter modes keep
+Kakoune's CLI behavior. Open one directory per session; use another session
+for a different independent project. `:v-open-project DIRECTORY` changes the
+workspace in an existing session without closing any buffers.
+
+Put these options in your preserved `vlang-user.kak`, or persist one immediately
+with, for example, `:v-setting v_startup_tree false`:
+
+```kak
+try %{ set-option global v_startup_tree false }       # No startup tree
+try %{ set-option global v_restore_last_file false }  # v.mod; no recent file records
+try %{ set-option global v_lsp_feedback false }       # No request/progress feedback
+```
+
+All three default to `true`. Existing `v_explorer_enabled`, `v_pane_mode` and
+`v_window_backend` choices still apply. With no pane host, the tree temporarily
+uses the current view; `q` returns to the open file. With a host, Enter in the
+tree opens the selected file in the original source view and `q` closes the
+tree view. Disabling the explorer also disables the automatic startup tree.
+The `try` guards allow older plugin versions to load the same settings after a
+rollback; `:v-setting` writes these guards automatically.
+
+Recent file records contain only absolute paths, not file contents or unsaved
+edits, under `$XDG_STATE_HOME/vlang.kak/workspaces/` (default
+`~/.local/state/vlang.kak/workspaces/`). Delete those JSON files to forget them.
+Missing files, malformed records and paths outside the opened directory are
+ignored. An explicit file argument does not restore a different recent file.
+Restarts replay their own checkpoint rather than opening another startup tree.
+
+The LSP status receipt tells you that an explicit action was dispatched and
+that results may take time. It does not track completion: kak-lsp has no general
+request-completion hook for navigation, including requests with no results.
+The separate `[VLS working]` modeline indicator follows actual server progress
+notifications. It appears only when VLS reports progress and clears on its end
+notification. Existing modeline text and kak-lsp progress handlers are retained.
+Background completion and idle requests do not produce status receipts.
+
 ## Key bindings
 
 Kakoune's `Space` key opens user mode. In V windows, the plugin fills that menu with the currently available V IDE actions. V task output and VLS result lists have their own menus. Press `Space` to see the available keys and descriptions; the [README](../README.md#key-bindings) lists them by group. The plugin removes its window mappings when the window switches to another file type.
@@ -55,6 +96,11 @@ To remove an individual default binding in a V window, use `unmap window user KE
 
 Use `User VTreeKeysApplied` for tree-menu overrides and `User VDocKeysApplied` for documentation-menu overrides. Documentation q/Escape restores the source selection; tree q returns to source or closes its dedicated pane.
 
+Use `User VProjectKeysApplied` to customize the project menu shown in `v.mod`
+and an empty directory's project buffer. It provides navigation and maintenance;
+saved manifests also expose project build, run and test commands. Source-only
+LSP actions are hidden. Unrelated JSON buffers keep their existing keys.
+
 Use `User VTaskKeysApplied` for task-output overrides and `User VResultsKeysApplied` for result-list overrides; these run after their respective defaults.
 
 Menus refresh when a buffer is displayed, after saving or leaving insert mode and while idle. `:v-refresh-keys` refreshes explicitly. They use local context (saved test files, read-only state, previous tasks, tracked Git files, enabled LSP, pane backend and restart support); they do not send language-server requests to guess which actions apply to a particular symbol. Hidden actions remain available as commands.
@@ -66,6 +112,10 @@ set-option global v_context_keys false
 ```
 
 Task output provides `Space r` (repeat this task), `Space x` (last test, once available), `Space Enter` (open the current location), `Space [` / `]` (errors) and `Space q` (source and cursor). This applies only to V-created output; ordinary `:make` keeps its own behavior. Result lists provide `Space n` / `N` (browse), `Space Enter` (accept) and `Space q` (return), as well as their direct Tab/Enter/q controls.
+
+These result controls also apply to project searches started by `:v-search`
+or `Space /`, including empty results. `q` or Escape returns to the original
+buffer and selection. Ordinary `:grep` keeps Kakoune's own behavior.
 
 ## Debugger
 

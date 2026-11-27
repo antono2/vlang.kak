@@ -33,7 +33,7 @@ case ${1:-} in
 esac
 name=${1:-}; value=${2:-}
 case "$name:$value" in
-  v_explorer_enabled:true|v_explorer_enabled:false|v_live_search_enabled:true|v_live_search_enabled:false|v_update_check_enabled:true|v_update_check_enabled:false|v_pane_mode:auto|v_pane_mode:always|v_pane_mode:off|v_window_backend:auto|v_window_backend:tmux|v_window_backend:zellij|v_window_backend:wezterm|v_window_backend:kitty|v_window_backend:screen|v_window_backend:native) ;;
+  v_startup_tree:true|v_startup_tree:false|v_restore_last_file:true|v_restore_last_file:false|v_lsp_feedback:true|v_lsp_feedback:false|v_explorer_enabled:true|v_explorer_enabled:false|v_live_search_enabled:true|v_live_search_enabled:false|v_update_check_enabled:true|v_update_check_enabled:false|v_pane_mode:auto|v_pane_mode:always|v_pane_mode:off|v_window_backend:auto|v_window_backend:tmux|v_window_backend:zellij|v_window_backend:wezterm|v_window_backend:kitty|v_window_backend:screen|v_window_backend:native) ;;
   *) invalid ;;
 esac
 mkdir -p "$config"
@@ -50,14 +50,14 @@ awk '
 awk -v name="$name" -v value="$value" '
   /^# >>> vlang.kak preferences >>>$/ { inside=1; found=1 }
   /^# <<< vlang.kak preferences <<<$/{
-    if (name=="v_update_check_enabled") print "try %{ set-option global " name " " value " }"
+    if (name=="v_update_check_enabled" || name=="v_startup_tree" || name=="v_restore_last_file" || name=="v_lsp_feedback") print "try %{ set-option global " name " " value " }"
     else print "set-option global " name " " value
     inside=0
   }
   !(inside && index($0,"set-option global " name " ")>0) { print }
   END { if (!found) {
     print "\n# >>> vlang.kak preferences >>>"
-    if (name=="v_update_check_enabled") print "try %{ set-option global " name " " value " }"
+    if (name=="v_update_check_enabled" || name=="v_startup_tree" || name=="v_restore_last_file" || name=="v_lsp_feedback") print "try %{ set-option global " name " " value " }"
     else print "set-option global " name " " value
     print "# <<< vlang.kak preferences <<<"
   } }

@@ -4,8 +4,21 @@ All notable changes to `vlang.kak` will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Open directories with `kak-v` or `:v-open-project`, restore a recent existing file or discover `v.mod`, and show the project tree using the configured pane mode.
+- Add project-specific Space menus in `v.mod` and empty-directory project buffers; retain unrelated JSON bindings.
+- Acknowledge explicit LSP requests immediately and show actual server progress in the modeline without replacing its existing text.
+- Customize startup tree, recent-file restoration and LSP feedback through preserved settings.
+- Browse V project search results with Tab/Shift-Tab, Enter, q/Escape and a context-aware Space menu, without changing ordinary grep.
+
 ### Fixed
 
+- Keep metadata-free directory trees rooted at the opened directory and allow returning to a scratch project buffer.
+- Keep the project picker and search rooted at the explicitly opened workspace, including a parent directory containing nested modules.
+- Preserve launcher option values when checking whether a client owns a restartable session.
+- Retain the selected workspace across ordinary and recovery restarts; prepare startup helpers during setup instead of compiling them in the first interactive client.
+- Remove the debugger's modeline indicator correctly when another indicator follows it.
 - Start `:v-search` at the project root from nested files in linked Git worktrees.
 - Start V project tasks and tests at the project root from nested files in linked Git worktrees.
 

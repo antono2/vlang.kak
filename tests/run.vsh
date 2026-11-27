@@ -167,6 +167,9 @@ fn (mut suite Suite) run() ! {
 	suite.check_file('keymaps-ok', 'ok', true)!
 	suite.script('context.vsh', [suite.kak])!
 	suite.script('browsing.vsh', [suite.kak])!
+	suite.script('workspaces.vsh', [suite.kak])!
+	suite.script('launcher_args.vsh', [])!
+	suite.script('lsp_feedback.vsh', [suite.kak])!
 
 	suite.kak_case('test at cursor and rerun', 'project/nearest_test.v', 'nearest_test.kak')!
 	suite.check_file('nearest-ok', 'ok', true)!

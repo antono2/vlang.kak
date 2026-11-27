@@ -45,8 +45,10 @@ uses V and tmux. The full acceptance suite also needs GDB with DAP. The fresh in
 | Workflow | Automated checks |
 | --- | --- |
 | Context and tasks | Space menus, saved test-file gating, task rerun, error navigation and source return |
+| Directory startup | V and existing POSIX launchers, quoted paths and option values, recent/missing files, nested modules, empty directories, startup settings, manifest menus and workspace preservation across restarts |
 | Language server | Documentation/signature, definition, references, symbols, diagnostics, rename, formatting, result acceptance and cancellation |
-| Browsing | Tree expand/preview/open with quoted paths; live search preview, results, source jump, cancellation and no matches; historical file content |
+| Browsing | Tree expand/preview/open with quoted paths; live search preview, results, Tab/Enter/q/Escape navigation, source jump, cancellation and no matches; plain grep isolation; historical file content |
+| LSP feedback | Rendered request receipts, server work start/end, personal modeline preservation, opt-out and visible errors |
 | Multiple views | Real tmux tree/peek/view opening and closing, repeated use, independent same-file cursors and preserved source position; release CI also tests Zellij, WezTerm, kitty, Screen, Xterm and Wayland Foot, including unsaved edits and quoted paths |
 | Debugging | Setup/direct context menus, launch, conditional breakpoints, stepping, selected stack frames, Run to Cursor and invalid targets |
 | Values | Strings, expandable arrays/structs/watches, watch removal, breakpoint source jumps/removal, printer opt-out and custom modeline preservation |

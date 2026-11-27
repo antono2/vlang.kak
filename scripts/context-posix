@@ -20,7 +20,7 @@ debug_status() {
     elif [ "$kak_opt_v_debug_status_visible" = true ]; then
       current=$kak_opt_modelinefmt
       case "$current" in
-        *"$suffix") printf 'set-option window modelinefmt %s\n' "$(quote "${current%"$suffix"}")" ;;
+        *"$suffix"*) printf 'set-option window modelinefmt %s\n' "$(quote "${current%%"$suffix"*}${current#*"$suffix"}")" ;;
       esac
       echo 'set-option window v_debug_status_visible false'
     fi
@@ -90,14 +90,16 @@ bind_debug() {
 
     debug_status
     context=$kak_opt_filetype
+    if [ "${kak_buffile##*/}" = v.mod ] || { [ "$kak_bufname" = '*project*' ] && [ -n "$kak_opt_v_workspace_root" ]; }; then context=v-project; fi
     if [ "$kak_bufname" = '*hover*' ] && [ -n "$kak_opt_v_doc_origin" ]; then context=v-doc; fi
     case "$context" in
-      v|v-tree|v-doc|v-recovery|v-debug-stack|v-debug-variables|v-debug-output|v-debug-breakpoints) ;;
+      v|v-project|v-tree|v-doc|v-recovery|v-debug-stack|v-debug-variables|v-debug-output|v-debug-breakpoints) ;;
       make) if [ "$kak_opt_v_task_output" != true ]; then
         echo "v-unbind-keys; set-option window v_keys_context ''"
         exit
       fi ;;
       lsp-document-symbol|lsp-goto|lsp-diagnostics) [ -n "$kak_opt_v_results_origin" ] || exit 0 ;;
+      grep) [ "$kak_opt_v_search_results" = true ] && [ -n "$kak_opt_v_results_origin" ] || { [ -z "$kak_opt_v_keys_context" ] || echo "v-unbind-keys; set-option window v_keys_context ''"; exit 0; } ;;
       *)
         case "$kak_opt_v_debug_phase:$kak_opt_v_debug_source" in
           building:true|starting:true|stopped:true|running:true) context=debug-source ;;
@@ -128,7 +130,22 @@ bind_debug() {
     [ "$signature" != "$kak_opt_v_keys_context" ] || exit 0
     printf 'v-unbind-keys\nset-option window v_keys_context %s\n' "$(quote "$signature")"
     map_key() { printf 'map window user %s %s -docstring %s\n' "$(quote "$1")" "$(quote ":$2<ret>")" "$(quote "$3")"; }
-    if [ "$context" = v ]; then
+    if [ "$context" = v-project ]; then
+      map_key p v-files 'Open file by path'
+      map_key P v-project-files 'Find project file'
+      if [ "$kak_opt_v_explorer_enabled" = true ]; then map_key F v-project-path 'Open project explorer'; else map_key F v-project-path 'Open project path…'; fi
+      map_key / v-search 'Search project text'
+      if [ "$saved" = true ]; then
+        map_key b v-build 'Build project'
+        map_key u v-run-project 'Run project'
+        map_key t v-testing-menu 'Testing'
+        echo "map window v-testing t ':v-test<ret>' -docstring 'Test project'"
+      fi
+      map_key U v-maintenance-menu 'Maintenance'
+      echo v-default-maintenance-keys
+      [ "$update" = 1 ] || echo 'try %{ unmap window v-maintenance u }; try %{ unmap window v-maintenance r }; try %{ unmap window v-maintenance v }'
+      [ -n "$VLANG_KAK_PREFIX" ] || { for key in b f c C x R; do printf 'try %%{ unmap window v-maintenance %s }\n' "$key"; done; }
+    elif [ "$context" = v ]; then
       echo v-default-source-keys
       if [ "$kak_opt_v_explorer_enabled" != true ]; then
         map_key F v-project-path 'Open project path…'
@@ -220,6 +237,7 @@ bind_debug() {
     bind_debug
     case "$context" in
       v) echo 'trigger-user-hook VKeysApplied' ;;
+      v-project) echo 'trigger-user-hook VProjectKeysApplied' ;;
       make) echo 'trigger-user-hook VTaskKeysApplied' ;;
       v-tree) echo 'trigger-user-hook VTreeKeysApplied' ;;
       v-doc) echo 'trigger-user-hook VDocKeysApplied' ;;

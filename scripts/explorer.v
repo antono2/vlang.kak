@@ -38,6 +38,10 @@ fn kak_quote(value string) string {
 }
 
 fn tree_root(origin string) string {
+	workspace := os.getenv('kak_opt_v_workspace_root')
+	if workspace != '' && os.is_dir(workspace) {
+		return workspace
+	}
 	mut path := if origin == '' { os.getwd() } else { os.expand_tilde_to_home(origin) }
 	if !os.is_dir(path) {
 		path = os.dir(path)
@@ -46,6 +50,11 @@ fn tree_root(origin string) string {
 }
 
 fn buffer_root(file string) string {
+	workspace := os.getenv('kak_opt_v_workspace_root')
+	if workspace != '' && os.is_dir(workspace)
+		&& (file == '' || os.real_path(file).starts_with(directory_prefix(workspace))) {
+		return workspace
+	}
 	if file == '' {
 		return projectroot.find(os.getwd())
 	}
@@ -185,18 +194,14 @@ fn project_search(root string, mode string, pattern string, grepcmd string) ! {
 			if pattern == '' {
 				return
 			}
-			if grepcmd == default_grep_command {
-				command := if _ := os.find_abs_path_of_executable('rg') {
+			command := if grepcmd == default_grep_command {
+				if _ := os.find_abs_path_of_executable('rg') {
 					'rg -n --no-heading'
 				} else {
 					'grep -RHn --exclude-dir=.git'
 				}
-				println('set-option window grepcmd ${kak_quote(command)}')
-			}
-			println('grep -e ${kak_quote(pattern)} ${kak_quote(root)}')
-			if grepcmd == default_grep_command {
-				println('unset-option window grepcmd')
-			}
+			} else { grepcmd }
+			println('v-search-run ${kak_quote(command)} ${kak_quote(pattern)} ${kak_quote(root)}')
 		}
 		else {
 			return error('Expected search mode preview or results')
@@ -291,7 +296,7 @@ fn visit(directory string, depth int, mut state State, mut lines []string) {
 
 fn render(path string, origin string, pane bool) !(string, int) {
 	mut state := read_state(path)!
-	root := projectroot.find(origin)
+	root := tree_root(origin)
 	if state.root != root {
 		state = State{
 			root:     root

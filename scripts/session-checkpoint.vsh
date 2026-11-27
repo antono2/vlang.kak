@@ -65,7 +65,18 @@ fn begin_checkpoint(root string) ! {
 		os.rmdir(directory) or {}
 		return err
 	}
+	workspace := workspace_commands()
+	if workspace != '' {
+		write_checkpoint(directory, 'buffers.kak', 'w', workspace)!
+	}
 	println('set-option global v_session_checkpoint ${quote(directory)}')
+}
+
+fn workspace_commands() string {
+	root := os.getenv('kak_opt_v_workspace_root')
+	return if root != '' && os.is_dir(root) {
+		'try %{ set-option global v_workspace_root ${quote(root)}; cd ${quote(root)} }\n'
+	} else { '' }
 }
 
 fn copy_writer(source string, writer string) ! {
@@ -162,7 +173,7 @@ fn save_restart_files(files []string) ! {
 	if state == '' {
 		return error('Restart requires the managed kak-v launcher')
 	}
-	mut commands := 'nop\n'
+	mut commands := 'nop\n' + workspace_commands()
 	for name in files {
 		if os.is_file(name) {
 			quoted := quote(name)

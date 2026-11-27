@@ -189,6 +189,10 @@ fn exercise(kak string) ! {
 	os.write_file(target, 'module main\n// ${marker}\nfn helper() {}\n')!
 	os.write_file(os.join_path(config, 'kakrc'),
 		'source ${quote(plugin)}\nset-option global v_pane_mode off\n')!
+	helper_cache := os.join_path(os.dir(@DIR), 'scripts', 'helper-cache.sh')
+	for tool in ['context', 'navigation', 'preferences', 'explorer'] {
+		capture(helper_cache, [tool, '--prepare'], true)!
+	}
 	mut editor := editorui.open(kak, root, source)!
 	defer { editor.close() }
 
@@ -253,8 +257,18 @@ fn exercise(kak string) ! {
 	editor.keys('<esc>')
 	editor.wait_value(buffer_file, source, false, 'search cancellation preserved source')!
 	editor.keys('<space>/${marker}<ret>')
-	editor.wait_value('%val{bufname}', '*grep*', false, 'search results opened')!
+	editor.wait_value('%val{bufname}', '*v-search*', false, 'search results opened')!
+	offset = editor.offset()
+	editor.keys('<space>')
+	editor.wait_info(offset, 'Next result')!
+	editor.keys('<esc>')
+	editor.keys('q')
+	editor.wait_value(buffer_file, source, false, 'q returned from search results')!
+	editor.keys('<space>/${marker}<ret>')
+	editor.wait_value('%val{bufname}', '*v-search*', false, 'reopened search results')!
 	result_row := search_row(mut editor, os.join_path(root, 'results'))!
+	editor.keys('<tab>')
+	require(editor.value('%val{bufname}')! == '*v-search*', 'Tab closed the search results')!
 	select_line(mut editor, result_row)!
 	editor.keys('<ret>')
 	editor.wait_value('${buffer_file} %val{cursor_line}', '${target} 2', false,
@@ -274,6 +288,14 @@ fn exercise(kak string) ! {
 	editor.keys('<esc>')
 	editor.remote('nop')!
 	require(editor.value(buffer_file)! == source, 'Empty search changed the source file')!
+	editor.keys('<space>/no_such_browsing_marker_9327<ret>')
+	editor.wait_value('%val{bufname}', '*v-search*', false, 'empty search results')!
+	editor.keys('<esc>')
+	editor.wait_value(buffer_file, source, false, 'Escape returned from empty results')!
+	// Ordinary :grep keeps the runtime's controls, even when reusing *v-search*.
+	editor.remote('grep -e ${quote(marker)} ${quote(project)}')!
+	require(editor.value('%opt{v_search_results}')! == 'false', 'Ordinary grep inherited IDE search controls')!
+	editor.remote('edit -- ${quote(source)}')!
 	check_project_targets(mut editor, root, project, target)!
 	check_result_navigation(mut editor, root)!
 	check_alternate_files(mut editor, root)!

@@ -247,7 +247,8 @@ fn check(kak string) ! {
 
 	for scenario in ['annotated', 'lightweight'] {
 		env['DISCOVERY_SCENARIO'] = scenario
-		assert discovery(env, [])!.trim_space() == 'Up to date: ${listed_release}'
+		actual := discovery(env, [])!.trim_space()
+		assert actual == 'Up to date: ${listed_release}', '${scenario}: ${actual}\n${os.read_file(operations_path)!}'
 	}
 	env['DISCOVERY_SCENARIO'] = 'ahead'
 	old_time := time.utc().add_days(-expired_stamp_age_days).unix()

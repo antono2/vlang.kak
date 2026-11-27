@@ -244,6 +244,10 @@ declare-option bool v_explorer_enabled true
 declare-option bool v_live_search_enabled true
 declare-option str v_pane_mode auto
 declare-option str v_window_backend auto
+declare-option bool v_startup_tree true
+declare-option bool v_restore_last_file true
+declare-option bool v_lsp_feedback true
+declare-option -hidden str v_workspace_root
 declare-option -hidden str v_plugin_source %val{source}
 declare-option -hidden str v_tree_state
 declare-option -hidden str v_tree_origin
@@ -274,6 +278,7 @@ declare-option -hidden str v_results_selection
 declare-option -hidden str v_results_modeline
 declare-option -hidden str-to-str-map v_results_origins
 declare-option -hidden str-to-str-map v_results_selections
+declare-option -hidden bool v_search_results false
 define-command -hidden -params 2 v-results-remember %{
   evaluate-commands %sh{
     source=$(readlink -f "$kak_opt_v_plugin_source")
@@ -334,10 +339,44 @@ define-command -hidden -params 2 v-results-install %{
   }
 }
 
-define-command v-definition -docstring 'Go to the V symbol definition' %{ v-results-prepare; lsp-definition }
-define-command v-declaration -docstring 'Go to the V symbol declaration' %{ v-results-prepare; lsp-declaration }
-define-command v-references -docstring 'Find V symbol references' %{ v-results-prepare; lsp-references }
+# Status messages acknowledge explicit requests without pretending to know when
+# an empty result is complete. kak-lsp does not expose navigation completion hooks.
+define-command -hidden -params 1 v-lsp-waiting %{
+  evaluate-commands %sh{
+    [ "$kak_opt_v_lsp_feedback" = true ] || exit 0
+    printf "echo -markup '{Information}VLS: %s… request sent; results may take a moment'\n" "$1"
+  }
+}
+declare-option -hidden str v_lsp_progress
+hook -group v-lsp-progress global GlobalSetOption v_lsp_feedback=false %{
+  set-option global v_lsp_progress ''
+}
+hook -group v-lsp-progress global GlobalSetOption lsp_modeline_progress=.* %{
+  set-option global v_lsp_progress ''
+  evaluate-commands %sh{
+    [ "$kak_opt_v_lsp_feedback" = true ] && [ -n "$kak_opt_lsp_modeline_progress" ] && echo "set-option global v_lsp_progress ' [VLS working]'"
+    exit 0
+  }
+}
+define-command -hidden v-lsp-progress-install %{
+  try %{
+    nop %opt{lsp_progress_indicator}
+    evaluate-commands %sh{
+      [ "$kak_opt_v_lsp_feedback" = true ] || exit 0
+      [ -n "$kak_opt_lsp_progress_indicator" ] || echo "set-option global lsp_progress_indicator 'VLS working'"
+      case "$kak_opt_modelinefmt" in
+        *'%opt{v_lsp_progress}'*) ;;
+        *) echo "set-option -add window modelinefmt ' %opt{v_lsp_progress}'" ;;
+      esac
+    }
+  }
+}
+
+define-command v-definition -docstring 'Go to the V symbol definition' %{ v-results-prepare; v-lsp-waiting 'Finding definition'; lsp-definition }
+define-command v-declaration -docstring 'Go to the V symbol declaration' %{ v-results-prepare; v-lsp-waiting 'Finding declaration'; lsp-declaration }
+define-command v-references -docstring 'Find V symbol references' %{ v-results-prepare; v-lsp-waiting 'Finding references'; lsp-references }
 define-command v-highlight-references -docstring 'Highlight uses of the V symbol in this file' %{
+  v-lsp-waiting 'Highlighting references'
   lsp-highlight-references
 }
 define-command v-select-syntax -docstring 'Expand and contract the V syntax selection' %{
@@ -346,17 +385,19 @@ define-command v-select-syntax -docstring 'Expand and contract the V syntax sele
     lsp-send textDocument/selectionRange %val{cursor_line} %val{cursor_column} 1 %val{selection_desc}
   }
 }
-define-command v-implementation -docstring 'Find V implementations' %{ v-results-prepare; lsp-implementation }
-define-command v-type-definition -docstring 'Go to the V type definition' %{ v-results-prepare; lsp-type-definition }
+define-command v-implementation -docstring 'Find V implementations' %{ v-results-prepare; v-lsp-waiting 'Finding implementations'; lsp-implementation }
+define-command v-type-definition -docstring 'Go to the V type definition' %{ v-results-prepare; v-lsp-waiting 'Finding type definition'; lsp-type-definition }
 define-command v-rename -docstring 'Rename a V symbol' %{ lsp-rename-prompt }
 define-command -params 1 v-rename-to -docstring 'Rename a V symbol to the given name' %{
+  v-lsp-waiting 'Renaming symbol'
   lsp-rename %arg{1}
 }
-define-command v-code-actions -docstring 'Show VLS code actions' %{ lsp-code-actions }
+define-command v-code-actions -docstring 'Show VLS code actions' %{ v-lsp-waiting 'Finding code actions'; lsp-code-actions }
 define-command v-organize-imports -docstring 'Choose the VLS action to organize V imports' %{
+  v-lsp-waiting 'Organizing imports'
   lsp-code-actions -auto-single source.organizeImports
 }
-define-command v-hover -docstring 'Show VLS hover information' %{ lsp-hover }
+define-command v-hover -docstring 'Show VLS hover information' %{ v-lsp-waiting 'Loading documentation'; lsp-hover }
 declare-option -hidden str-to-str-map v_doc_origins
 declare-option -hidden str-to-str-map v_doc_selections
 declare-option -hidden str v_doc_origin
@@ -366,6 +407,7 @@ define-command v-doc -docstring 'Show VLS documentation; q or Esc returns to sou
     source=$(readlink -f "$kak_opt_v_plugin_source")
     "${source%/rc/vlang.kak}/scripts/helper-cache.sh" navigation remember-doc "${kak_opt_docsclient:-$kak_client}" "$kak_bufname" "$kak_selection_desc"
   }
+  v-lsp-waiting 'Loading documentation'
   lsp-hover-buffer
 }
 define-command -hidden v-doc-init %{
@@ -385,8 +427,8 @@ define-command v-doc-return -docstring 'Return from documentation to the origina
 }
 hook -group v-doc global WinDisplay .* %{ v-doc-init }
 
-define-command v-signature -docstring 'Show signature and parameter help at a V function call' %{ lsp-signature-help }
-define-command v-symbols -docstring 'Browse V document symbols; Enter opens, q returns' %{ v-results-prepare; lsp-document-symbol }
+define-command v-signature -docstring 'Show signature and parameter help at a V function call' %{ v-lsp-waiting 'Loading signature help'; lsp-signature-help }
+define-command v-symbols -docstring 'Browse V document symbols; Enter opens, q returns' %{ v-results-prepare; v-lsp-waiting 'Loading file symbols'; lsp-document-symbol }
 define-command v-workspace-symbols -docstring 'Enter a query, then browse V project symbols' %{
   v-results-prepare
   prompt 'Project symbol query (Enter to list): ' %{ v-workspace-symbols-query %val{text} }
@@ -394,17 +436,18 @@ define-command v-workspace-symbols -docstring 'Enter a query, then browse V proj
 define-command -hidden -params 1 v-workspace-symbols-query %{
   # Send from the source context before displaying results. kak-lsp sends no
   # editor response for an empty result, so keep a cancellable empty view.
+  v-lsp-waiting 'Finding project symbols'
   lsp-workspace-symbol %arg{1}
   lsp-show-goto-buffer *symbols* lsp-goto %{} 'No matches displayed yet. Results appear here when available; q/Esc returns.'
   evaluate-commands -try-client %opt{toolsclient} %{ v-results-init }
 }
 define-command v-diagnostics -docstring 'Show V project diagnostics' %{ v-results-prepare; lsp-diagnostics }
-define-command v-incoming-calls -docstring 'Find callers of the V function' %{ v-results-prepare; lsp-incoming-calls }
-define-command v-outgoing-calls -docstring 'Find functions called here' %{ v-results-prepare; lsp-outgoing-calls }
+define-command v-incoming-calls -docstring 'Find callers of the V function' %{ v-results-prepare; v-lsp-waiting 'Finding callers'; lsp-incoming-calls }
+define-command v-outgoing-calls -docstring 'Find functions called here' %{ v-results-prepare; v-lsp-waiting 'Finding callees'; lsp-outgoing-calls }
 define-command v-code-lens -docstring 'Run a VLS code lens' %{ lsp-code-lens }
 define-command v-inlay-hints-enable -docstring 'Show VLS inlay hints' %{ lsp-inlay-hints-enable window }
 define-command v-inlay-hints-disable -docstring 'Hide VLS inlay hints' %{ lsp-inlay-hints-disable window }
-define-command v-format -docstring 'Format the V buffer with VLS without saving it' %{ lsp-formatting }
+define-command v-format -docstring 'Format the V buffer with VLS without saving it' %{ v-lsp-waiting 'Formatting buffer'; lsp-formatting }
 define-command v-next-diagnostic -docstring 'Go to the next V diagnostic' %{ lsp-find-error }
 define-command v-previous-diagnostic -docstring 'Go to the previous V diagnostic' %{
   lsp-find-error --previous
@@ -418,17 +461,45 @@ define-command -hidden -params 1 v-search-preview %{
   evaluate-commands %sh{
     [ "$kak_opt_v_live_search_enabled" = true ] || exit
     source=$(readlink -f "$kak_opt_v_plugin_source")
+    : "$kak_opt_v_workspace_root"
     "${source%/rc/vlang.kak}/scripts/explorer.sh" search "$kak_buffile" preview "$1" "$kak_opt_grepcmd"
   }
 }
 define-command v-search -docstring 'Search project files: enter a pattern; the project directory is chosen automatically' %{
+  v-results-prepare
   prompt -on-change %{ v-search-preview %val{text} } 'Search project pattern (regex): ' %{
     evaluate-commands %sh{
       [ -n "$kak_text" ] || exit
       source=$(readlink -f "$kak_opt_v_plugin_source")
+      : "$kak_opt_v_workspace_root"
       "${source%/rc/vlang.kak}/scripts/explorer.sh" search "$kak_buffile" results "$kak_text" "$kak_opt_grepcmd"
     }
   }
+}
+define-command -hidden v-search-results-init %{
+  evaluate-commands -try-client %opt{toolsclient} %{
+    set-option buffer v_search_results true
+    v-results-init
+  }
+}
+define-command -hidden -params 3 v-search-run %{
+  require-module fifo
+  evaluate-commands -save-regs g %{
+    set-register g %arg{1}
+    evaluate-commands -try-client %opt{toolsclient} %{
+      fifo -name *v-search* -script %{
+        # The user's configured search command is shell syntax; search text and
+        # root remain positional arguments, as in Kakoune's grep wrapper.
+        eval "$kak_reg_g -e \"\$1\" \"\$2\"" 2>&1 | tr -d '\r'
+      } -- %arg{2} %arg{3}
+      set-option buffer filetype grep
+      set-option buffer jump_current_line 0
+      v-search-results-init
+    }
+  }
+}
+hook -group v-search-results global WinSetOption filetype=grep %{
+  set-option buffer v_search_results false
 }
 define-command v-find -docstring 'Find text in the current buffer' %{
   execute-keys '/'
@@ -440,6 +511,7 @@ define-command -params 1 v-project-edit -docstring 'Open a file from the current
 }
 complete-command -menu v-project-edit shell-script-candidates %{
   source=$(readlink -f "$kak_opt_v_plugin_source")
+  : "$kak_opt_v_workspace_root"
   "${source%/rc/vlang.kak}/scripts/explorer.sh" candidates "$kak_buffile"
 }
 define-command v-project-files -docstring 'Find a project file using path completion' %{
@@ -447,6 +519,7 @@ define-command v-project-files -docstring 'Find a project file using path comple
 }
 define-command -hidden -params 1 v-tree-start %{
   evaluate-commands %sh{
+    : "$kak_opt_v_workspace_root"
     source=$(readlink -f "$kak_opt_v_plugin_source")
     "${source%/rc/vlang.kak}/scripts/explorer.sh" begin-tree "$1" "$kak_client" ||
       echo "fail 'Project explorer could not start; check V on PATH and *debug*'"
@@ -471,7 +544,7 @@ define-command -hidden -params 3 v-tree-install %{
   map buffer normal q ':v-tree-close<ret>' -docstring 'Return to source or close tree pane'
 }
 define-command v-tree -docstring 'Open the interactive project explorer' %{
-  v-tree-open %val{buffile}
+  v-tree-open %sh{ printf %s "${kak_buffile:-$kak_bufname}" }
   v-tree-refresh
 }
 define-command -hidden -params 1 v-tree-open %{
@@ -484,6 +557,7 @@ define-command -hidden -params 1 v-tree-open %{
 }
 define-command -hidden v-tree-refresh %{
   evaluate-commands %sh{
+    : "$kak_opt_v_workspace_root"
     source=$(readlink -f "$kak_opt_v_plugin_source")
     "${source%/rc/vlang.kak}/scripts/explorer.sh" render-tree "$kak_opt_v_tree_state" "$kak_opt_v_tree_origin" "$kak_opt_v_tree_is_pane" ||
       echo "fail 'Project explorer could not render; check *debug*'"
@@ -516,8 +590,35 @@ define-command -hidden v-tree-close %{
 }
 define-command -hidden v-tree-close-true %{ quit }
 define-command -hidden v-tree-close-false %{ buffer %opt{v_tree_origin} }
+
+# Directory startup is separate from restart replay, which restores its own views.
+define-command -hidden -params 1 v-workspace-start %{
+  evaluate-commands %sh{
+    root=$(printf %s "$1" | sed "s/'/''/g")
+    if [ -z "${VLANG_KAK_RESTART_SOURCE:-}" ]; then
+      printf "v-open-project '%s'\n" "$root"
+    fi
+  }
+}
+define-command -params 1 -file-completion v-open-project -docstring 'Open a directory, its recent file and project explorer' %{
+  evaluate-commands %sh{
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/helper-cache.sh" workspace open "$1" "$kak_opt_v_restore_last_file" || echo "fail 'Could not open project directory; inspect *debug*'"
+  }
+}
+define-command -hidden v-workspace-show-tree %{
+  evaluate-commands %sh{
+    [ "$kak_opt_v_startup_tree" = true ] && [ "$kak_opt_v_explorer_enabled" = true ] && echo v-tree-pane
+    exit 0
+  }
+}
+hook -group v-workspace global WinDisplay .* %{ nop %sh{
+  [ -n "$kak_opt_v_workspace_root" ] && [ "$kak_opt_v_restore_last_file" = true ] && [ -f "$kak_buffile" ] || exit 0
+  source=$(readlink -f "$kak_opt_v_plugin_source")
+  "${source%/rc/vlang.kak}/scripts/helper-cache.sh" workspace remember "$kak_opt_v_workspace_root" "$kak_buffile"
+} }
 define-command -hidden -params 2 v-tree-pane-init %{
-  edit -existing -- %arg{1}
+  try %{ buffer %arg{1} } catch %{ edit -existing -- %arg{1} }
   v-tree
   set-option buffer v_tree_target_client %arg{2}
   set-option buffer v_tree_is_pane true
@@ -538,7 +639,7 @@ define-command v-window-status -docstring 'Show the active client window backend
   v-window-dispatch status %opt{v_window_backend} %opt{v_pane_mode}
 }
 define-command v-tree-pane -docstring 'Open the project explorer in another view when supported' %{
-  v-window-dispatch view tree %opt{v_window_backend} %opt{v_pane_mode} %val{session} %val{buffile} %val{client}
+  v-window-dispatch view tree %opt{v_window_backend} %opt{v_pane_mode} %val{session} %sh{ printf %s "${kak_buffile:-$kak_bufname}" } %val{client}
 }
 define-command -hidden -params 3 v-peek-definition-init %{
   edit -existing -- %arg{1}
@@ -558,6 +659,7 @@ define-command v-project-path -docstring 'Open the project explorer, or a projec
       exit
     fi
     source=$(readlink -f "$kak_opt_v_plugin_source")
+    : "$kak_opt_v_workspace_root"
     "${source%/rc/vlang.kak}/scripts/explorer.sh" prompt "$kak_buffile" || echo "fail 'Could not open the project path prompt'"
   }
 }
@@ -586,7 +688,7 @@ define-command -hidden -params .. v-update-one-client %{
 define-command -hidden -params .. v-update-save-state %{
   evaluate-commands %sh{
     source=$(readlink -f "$kak_opt_v_plugin_source")
-    : "$kak_buffile" "$kak_cursor_line" "$kak_cursor_column" \
+    : "$kak_buffile" "$kak_cursor_line" "$kak_cursor_column" "$kak_opt_v_workspace_root" \
       "$kak_opt_v_update_resume_file" "$kak_opt_v_update_resume_line" "$kak_opt_v_update_resume_column"
     "${source%/rc/vlang.kak}/scripts/session-buffer.sh" restart-files "$@"
   }
@@ -793,6 +895,12 @@ define-command -hidden v-default-source-keys %{
   map window user t ':v-testing-menu<ret>' -docstring 'Testing…'
   map window user i ':v-investigation-menu<ret>' -docstring 'Investigation…'
   map window user U ':v-maintenance-menu<ret>' -docstring 'Maintenance…'
+  v-default-maintenance-keys
+  map window v-investigation V ':v-history<ret>' -docstring 'View file at Git revision…'
+  map window user / ':v-search<ret>' -docstring 'Search project text…'
+}
+
+define-command -hidden v-default-maintenance-keys %{
   map window v-maintenance u ':v-update<ret>' -docstring 'Update and restart V IDE'
   map window v-maintenance r ':v-restart<ret>' -docstring 'Restart V IDE'
   map window v-maintenance w ':v-window-status<ret>' -docstring 'Show pane backend'
@@ -810,8 +918,6 @@ define-command -hidden v-default-source-keys %{
   map window v-maintenance n ':v-check-updates<ret>' -docstring 'Check for a release'
   map window v-maintenance v ':v-update-release<ret>' -docstring 'Update to verified release'
   map window v-maintenance d ':v-diagnostic-report<ret>' -docstring 'Prepare diagnostic report'
-  map window v-investigation V ':v-history<ret>' -docstring 'View file at Git revision…'
-  map window user / ':v-search<ret>' -docstring 'Search project text…'
 }
 
 define-command -hidden v-unbind-keys %{
@@ -1149,7 +1255,7 @@ define-command v-refresh-keys -docstring 'Refresh context-aware V user-menu bind
 define-command -hidden -params .. v-context-refresh %{
   evaluate-commands %sh{
     # Kakoune exports only the values referenced in its shell expansion.
-    : "$kak_opt_filetype" "$kak_bufname" "$kak_buffile" "$kak_modified" "$kak_opt_readonly" \
+    : "$kak_opt_filetype" "$kak_bufname" "$kak_buffile" "$kak_modified" "$kak_opt_readonly" "$kak_opt_v_workspace_root" "$kak_opt_v_search_results" \
       "$kak_opt_v_doc_origin" "$kak_opt_v_results_origin" "$kak_opt_v_keys_context" "$kak_opt_v_context_keys" \
       "$kak_opt_v_explorer_enabled" "$kak_opt_v_tree_is_pane" "$kak_opt_v_pane_mode" "$kak_opt_v_window_backend" \
       "$kak_opt_v_task_output" "$kak_opt_v_task_available" "$kak_opt_v_last_test_command" "$kak_opt_v_menu_lsp" \
@@ -1166,7 +1272,7 @@ hook -group v-context-menu global ModeChange pop:insert:normal %{ v-refresh-keys
 hook -group v-context-menu global WinSetOption (v_context_keys|v_pane_mode|v_explorer_enabled|readonly|lsp_fail_if_disabled|filetype|v_debug_phase|v_debug_status|v_debug_has_watches|v_debug_enabled|v_debug_adapter|v_debug_build|v_debug_source)=.* %{ v-refresh-keys }
 hook -group v-context-menu global BufWritePost .* %{ v-refresh-keys }
 hook -group v-context-menu global WinDisplay .* %{ v-refresh-keys }
-hook -group v-context-menu global WinSetOption filetype=(v|v-tree|make|lsp-document-symbol|lsp-goto|lsp-diagnostics|v-debug-.*) %{
+hook -group v-context-menu global WinSetOption filetype=(v|json|grep|v-tree|make|lsp-document-symbol|lsp-goto|lsp-diagnostics|v-debug-.*) %{
   hook -group v-context-menu window NormalIdle .* %{ v-refresh-keys }
   hook -once -always window WinSetOption filetype=.* %{
     v-unbind-keys
@@ -1180,6 +1286,7 @@ hook -group v-ide global WinSetOption filetype=v %{
   try %{
     set-option buffer lsp_servers %opt{v_lsp_servers}
     lsp-enable-window
+    v-lsp-progress-install
   }
   try %{
     set-option buffer lsp_semantic_tokens %opt{v_lsp_semantic_tokens}
@@ -1260,7 +1367,8 @@ define-command v-project-targets -docstring 'List runnable V entry points for th
   v-project-preference targets-menu
 }
 hook -group v-project-preferences global WinDisplay .* %{ try %{ evaluate-commands %sh{
-  [ "$kak_opt_filetype" = v ] && [ -n "$kak_buffile" ] || exit
+  [ -n "$kak_buffile" ] || exit
+  [ "$kak_opt_filetype" = v ] || [ "${kak_buffile##*/}" = v.mod ] || exit
   command -v v >/dev/null 2>&1 || exit
   source=$(readlink -f "$kak_opt_v_plugin_source")
   "${source%/rc/vlang.kak}/scripts/preferences.sh" load "$kak_buffile"
@@ -1304,6 +1412,7 @@ define-command -hidden -params .. v-session-save-clients %{
 define-command v-session-save -docstring 'Checkpoint buffers and client positions without saving project files' %{
   v-debug-require-inactive
   evaluate-commands %sh{
+    : "$kak_opt_v_workspace_root"
     root=${XDG_CACHE_HOME:-$HOME/.cache}/vlang.kak/sessions
     source=$(readlink -f "$kak_opt_v_plugin_source")
     "${source%/rc/vlang.kak}/scripts/session-buffer.sh" begin "$root"

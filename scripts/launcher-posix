@@ -1,11 +1,53 @@
 #!/bin/sh
 # Run Kakoune and replay restart state when the V launcher is unavailable.
 VLANG_KAK_RESTART_ALLOWED=1
+skip=false
 for argument in "$@"; do
+  if [ "$skip" = true ]; then skip=false; continue; fi
   case "$argument" in
+    --) break ;;
     -c|-C|-d|-p|-f) VLANG_KAK_RESTART_ALLOWED=0 ;;
+    -e|-E|-s|-ui|-debug|-i) skip=true ;;
   esac
 done
+if [ "$VLANG_KAK_RESTART_ALLOWED" = 1 ]; then
+  remaining=$#
+  directory=
+  commands=
+  [ "$remaining" -ne 0 ] || directory=$(pwd -P)
+  # Rotate original arguments through the positional list, preserving each
+  # argument's exact bytes without constructing or evaluating shell code.
+  options=true
+  while [ "$remaining" -gt 0 ]; do
+    argument=$1; shift; remaining=$((remaining - 1))
+    if [ "$options" = true ]; then
+      case "$argument" in
+        --) options=false; continue ;;
+        -e|-E|-s|-ui|-debug|-i)
+          if [ "$remaining" -gt 0 ]; then
+            if [ "$argument" = -e ]; then commands="$commands
+$1"; else set -- "$@" "$argument" "$1"; fi
+            shift; remaining=$((remaining - 1)); continue
+          fi ;;
+        -*|+*) set -- "$@" "$argument"; continue ;;
+      esac
+    fi
+    if [ -d "$argument" ]; then
+      [ -z "$directory" ] || { echo 'Open one directory per kak-v session.' >&2; exit 1; }
+      directory=$(CDPATH= cd -- "$argument" && pwd -P) || exit 1
+      continue
+    fi
+    if [ "$options" = false ]; then
+      case "$argument" in -*|+*) argument=$PWD/$argument ;; esac
+    fi
+    set -- "$@" "$argument"
+  done
+  if [ -n "$directory" ]; then
+    escaped=$(printf '%s.' "$directory" | sed "s/'/''/g")
+    commands="v-workspace-start '${escaped%.}'$commands"
+  fi
+  [ -z "$commands" ] || set -- "$@" -e "$commands"
+fi
 restart_dir=$(mktemp -d "$VLANG_KAK_PREFIX/opt/vlang-kakoune/restart.XXXXXXXX") || exit 1
 printf '%s\n' "$$" > "$restart_dir/owner-pid"
 for tool in kakoune kak-lsp vls v; do readlink -f "$VLANG_KAK_PREFIX/opt/vlang-$tool/current" 2>/dev/null || true; done > "$restart_dir/tool-releases"

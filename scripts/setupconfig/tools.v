@@ -123,6 +123,10 @@ pub fn prepare_tools(prefix string, repo string, options ToolOptions) !PreparedT
 			run_tool(os.join_path(scripts, 'debug.sh'), ['--prepare'])!
 		}
 		run_tool(os.join_path(scripts, 'preferences.sh'), ['--prepare'])!
+		// Keep compilation outside the first interactive editor startup.
+		for helper in ['launcher', 'workspace', 'context', 'navigation', 'task'] {
+			run_tool(os.join_path(scripts, 'helper-cache.sh'), [helper, '--prepare'])!
+		}
 	}
 	return PreparedTools{kak_runtime, lsp, vls_path}
 }

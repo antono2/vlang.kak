@@ -9,6 +9,74 @@ const command_not_found_status = 127
 const server_flags = ['-c', '-C', '-d', '-p', '-f']
 const leased_tools = ['kakoune', 'kak-lsp', 'vls', 'v']
 
+fn quote(value string) string {
+	return "'" + value.replace("'", "''") + "'"
+}
+
+fn owns_client(args []string) bool {
+	mut value := false
+	for arg in args {
+		if value {
+			value = false
+			continue
+		}
+		if arg == '--' {
+			break
+		}
+		if arg in server_flags {
+			return false
+		}
+		value = arg in ['-e', '-E', '-s', '-ui', '-debug', '-i']
+	}
+	return true
+}
+
+fn directory_args(args []string) ![]string {
+	// Connection, filter and headless modes retain Kakoune's original CLI.
+	mut directory := ''
+	mut commands := []string{}
+	mut result := []string{}
+	mut options := true
+	mut index := 0
+	for index < args.len {
+		arg := args[index]
+		if options && arg == '--' {
+			options = false
+			index++
+			continue
+		}
+		if options && arg in server_flags {
+			return args
+		}
+		if options && arg in ['-e', '-E', '-s', '-ui', '-debug', '-i'] && index + 1 < args.len {
+			if arg == '-e' { commands << args[index + 1] } else { result << args[index..index + 2] }
+			index += 2
+			continue
+		}
+		if (!options || (!arg.starts_with('-') && !arg.starts_with('+'))) && os.is_dir(arg) {
+			if directory != '' {
+				return error('Open one directory per kak-v session.')
+			}
+			directory = os.real_path(arg)
+		} else {
+			result << if !options && (arg.starts_with('-') || arg.starts_with('+')) {
+				os.abs_path(arg)
+			} else {
+				arg
+			}
+		}
+		index++
+	}
+	if args.len == 0 {
+		directory = os.getwd()
+	}
+	if directory != '' {
+		commands.prepend('v-workspace-start ' + quote(directory))
+	}
+	if commands.len > 0 { result << ['-e', commands.join('\n')] }
+	return result
+}
+
 fn has_checkpoint(path string) bool {
 	info := os.stat(path) or { return false }
 	return info.size > 0
@@ -31,6 +99,7 @@ fn start_editor(args []string, env map[string]string) !int {
 }
 
 fn launch(args []string) !int {
+	editor_args := directory_args(args)!
 	prefix := os.getenv('VLANG_KAK_PREFIX')
 	if !os.is_abs_path(prefix) {
 		return error('The managed launcher requires an absolute VLANG_KAK_PREFIX.')
@@ -59,7 +128,7 @@ fn launch(args []string) !int {
 
 	mut env := os.environ()
 	env['VLANG_KAK_RESTART_STATE'] = state
-	env['VLANG_KAK_RESTART_ALLOWED'] = if args.any(it in server_flags) { '0' } else { '1' }
+	env['VLANG_KAK_RESTART_ALLOWED'] = if owns_client(args) { '1' } else { '0' }
 	for {
 		mut editor_env := env.clone()
 		replaying := has_checkpoint(state)
@@ -67,7 +136,7 @@ fn launch(args []string) !int {
 			os.rename_dir(state, replay)!
 			editor_env['VLANG_KAK_RESTART_SOURCE'] = replay
 		}
-		status := start_editor(args, editor_env)!
+		status := start_editor(editor_args, editor_env)!
 		if replaying {
 			os.rm(replay) or {}
 		}
