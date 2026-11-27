@@ -276,6 +276,8 @@ declare-option str v_lsp_semantic_tokens %{
 declare-option -hidden str v_results_origin
 declare-option -hidden str v_results_selection
 declare-option -hidden str v_results_modeline
+declare-option -hidden bool v_results_installed false
+declare-option -hidden str v_results_buffer
 declare-option -hidden str-to-str-map v_results_origins
 declare-option -hidden str-to-str-map v_results_selections
 declare-option -hidden bool v_search_results false
@@ -289,17 +291,42 @@ define-command -hidden v-results-prepare %{
   evaluate-commands -try-client %opt{toolsclient} -verbatim -- v-results-remember %val{bufname} %val{selection_desc}
 }
 define-command -hidden v-results-next %{
+  evaluate-commands "v-results-next-%opt{v_search_results}"
+}
+define-command -hidden v-results-next-true %{
+  evaluate-commands -save-regs / %{
+    try %{
+      execute-keys ge %val{cursor_line}g<a-l> /^[^:\n]+:\d+:<ret>
+      try %{ set-option buffer grep_current_line %val{cursor_line} }
+      try %{ set-option buffer jump_current_line %val{cursor_line} }
+    } catch %{ echo 'No results to browse; q or Esc returns to source' }
+  }
+}
+define-command -hidden v-results-next-false %{
   evaluate-commands -save-regs / %{
     set-option buffer jump_current_line %val{cursor_line}
     try %{ jump-select-next } catch %{ echo 'No results to browse; q or Esc returns to source' }
   }
 }
 define-command -hidden v-results-previous %{
+  evaluate-commands "v-results-previous-%opt{v_search_results}"
+}
+define-command -hidden v-results-previous-true %{
+  evaluate-commands -save-regs / %{
+    try %{
+      execute-keys ge %val{cursor_line}g<a-h> <a-/>^[^:\n]+:\d+:<ret>
+      try %{ set-option buffer grep_current_line %val{cursor_line} }
+      try %{ set-option buffer jump_current_line %val{cursor_line} }
+    } catch %{ echo 'No results to browse; q or Esc returns to source' }
+  }
+}
+define-command -hidden v-results-previous-false %{
   evaluate-commands -save-regs / %{
     set-option buffer jump_current_line %val{cursor_line}
     try %{ jump-select-previous } catch %{ echo 'No results to browse; q or Esc returns to source' }
   }
 }
+define-command -hidden v-results-open %{ try %{ jump } catch %{ grep-jump } }
 define-command -hidden -params 2 v-results-return %{
   buffer %arg{1}
   select %arg{2}
@@ -312,6 +339,7 @@ hook -group v-results global WinSetOption filetype=lsp-(document-symbol|goto|dia
   hook -once -group v-results-init window NormalIdle .* %{ v-results-init }
   hook -once -always window WinSetOption filetype=.* %{ remove-hooks window v-results-init }
 }
+hook -group v-search-results global WinDisplay \*v-search\* %{ try %{ v-results-init } }
 define-command -hidden v-results-init %{
   remove-hooks window v-results-init
   evaluate-commands %sh{
@@ -324,19 +352,31 @@ define-command -hidden v-results-init %{
 define-command -hidden -params 2 v-results-install %{
   set-option window v_results_origin %arg{1}
   set-option window v_results_selection %arg{2}
+  evaluate-commands "v-results-setup-%opt{v_results_installed}"
+}
+define-command -hidden v-results-setup-true %{ nop }
+define-command -hidden v-results-setup-false %{
+  set-option window v_results_installed true
+  set-option window v_results_buffer %val{bufname}
   set-option window v_results_modeline %opt{modelinefmt}
   set-option -add window modelinefmt '  [Tab/S-Tab browse | Enter open | q/Esc back]'
   map window normal <tab> ':v-results-next<ret>' -docstring 'Next result'
   map window normal <s-tab> ':v-results-previous<ret>' -docstring 'Previous result'
   map window normal q ':v-results-cancel<ret>' -docstring 'Return to source'
   map window normal <esc> ':v-results-cancel<ret>' -docstring 'Return to source'
-  hook -once -always window WinSetOption filetype=.* %{
+  hook -once -always -group v-results-view window WinSetOption filetype=.* %{ v-results-uninstall }
+  hook -always -group v-results-view window WinDisplay .* %{ evaluate-commands %sh{
+    [ "$kak_bufname" = "$kak_opt_v_results_buffer" ] || echo v-results-uninstall
+  } }
+}
+define-command -hidden v-results-uninstall %{
+    remove-hooks window v-results-view
     try %{ unmap window normal <tab> ':v-results-next<ret>' }
     try %{ unmap window normal <s-tab> ':v-results-previous<ret>' }
     try %{ unmap window normal q ':v-results-cancel<ret>' }
     try %{ unmap window normal <esc> ':v-results-cancel<ret>' }
     set-option window modelinefmt %opt{v_results_modeline}
-  }
+    set-option window v_results_installed false
 }
 
 # Status messages acknowledge explicit requests without pretending to know when
@@ -484,21 +524,30 @@ define-command -hidden v-search-results-init %{
   }
 }
 define-command -hidden -params 3 v-search-run %{
-  require-module fifo
-  evaluate-commands -save-regs g %{
-    set-register g %arg{1}
-    evaluate-commands -try-client %opt{toolsclient} %{
-      fifo -name *v-search* -script %{
-        # The user's configured search command is shell syntax; search text and
-        # root remain positional arguments, as in Kakoune's grep wrapper.
-        eval "$kak_reg_g -e \"\$1\" \"\$2\"" 2>&1 | tr -d '\r'
-      } -- %arg{2} %arg{3}
-      set-option buffer filetype grep
-      set-option buffer jump_current_line 0
-      v-search-results-init
+  try %{
+    evaluate-commands %sh{
+      source=$(readlink -f "$kak_opt_v_plugin_source")
+      "${source%/rc/vlang.kak}/scripts/explorer.sh" search-buffer "$@" || echo "fail 'Could not start project search; inspect *debug*'"
     }
+  } catch %{
+    # Preserve compiler-free search when neither V nor a cached helper is usable.
+    grep -e %arg{2} %arg{3}
   }
 }
+define-command -hidden -params 2 v-search-install %{
+  evaluate-commands -try-client %opt{toolsclient} %{
+    edit! -fifo %arg{1} *v-search*
+    hook -always -once buffer BufCloseFifo .* %arg{2}
+    set-option buffer filetype grep
+    try %{ set-option buffer jump_current_line 0 }
+    try %{ set-option buffer grep_current_line 0 }
+    v-search-results-init
+  }
+}
+define-command -hidden -params 1 v-search-cleanup %{ nop %sh{
+  source=$(readlink -f "$kak_opt_v_plugin_source")
+  "${source%/rc/vlang.kak}/scripts/explorer.sh" cleanup-search "$1"
+} }
 hook -group v-search-results global WinSetOption filetype=grep %{
   set-option buffer v_search_results false
 }
@@ -920,6 +969,7 @@ define-command -hidden v-default-maintenance-keys %{
 }
 
 define-command -hidden v-unbind-keys %{
+  try %{ unmap window user <ret> ':v-results-open<ret>' }
   try %{ unmap window normal q ':v-recovery-close<ret>' }
   try %{ unmap window user q ':v-recovery-close<ret>' }
   try %{ unmap window normal q ':v-doc-return<ret>' }

@@ -19,6 +19,7 @@ All notable changes to `vlang.kak` will be documented in this file.
 - Preserve launcher option values when checking whether a client owns a restartable session.
 - Retain the selected workspace across ordinary and recovery restarts; prepare startup helpers during setup instead of compiling them in the first interactive client.
 - Remove the debugger's modeline indicator correctly when another indicator follows it.
+- Keep search streaming and result selection compatible with packaged Kakoune; restore result controls when revisiting a list without repeating its modeline hints.
 - Start `:v-search` at the project root from nested files in linked Git worktrees.
 - Start V project tasks and tests at the project root from nested files in linked Git worktrees.
 

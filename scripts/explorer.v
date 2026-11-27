@@ -7,6 +7,15 @@ import projectroot
 import rand
 import time
 
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+
+fn C.mkfifo(&char, u32) int
+fn C.open(&char, int, ...int) int
+fn C.fcntl(int, int, ...int) int
+fn C.close(int) int
+
 const search_preview_lines = 12
 const search_preview_columns = 140
 const file_preview_lines = 24
@@ -17,6 +26,73 @@ const root_display_line = 4
 const default_grep_command = 'grep -RHn'
 const tree_directory_prefix = 'vlang-kak-tree-'
 const tree_state_name = 'tree.json'
+const search_directory_prefix = 'vlang-kak-search-'
+const search_reader_timeout = 15 * time.second
+
+fn cleanup_search(directory string) {
+	if os.real_path(os.dir(directory)) != os.real_path(os.temp_dir())
+		|| !os.base(directory).starts_with(search_directory_prefix) {
+		return
+	}
+	os.rm(os.join_path(directory, 'fifo')) or {}
+	os.rmdir(directory) or {}
+}
+
+fn start_search(command string, pattern string, root string) ! {
+	directory := os.join_path(os.temp_dir(), search_directory_prefix + rand.uuid_v4())
+	os.mkdir(directory, mode: 0o700)!
+	fifo := os.join_path(directory, 'fifo')
+	if C.mkfifo(fifo.str, 0o600) != 0 {
+		os.rmdir(directory) or {}
+		return error('Could not create the project search stream')
+	}
+	mut worker := os.new_process(os.executable())
+	worker.set_args(['search-worker', directory, command, pattern, root])
+	// Do not keep Kakoune's shell expansion pipes open in the detached worker.
+	worker.set_redirect_stdio()
+	worker.run()
+	worker.close()
+	println('v-search-install ${kak_quote(fifo)} ${kak_quote('v-search-cleanup ' +
+		kak_quote(directory))}')
+}
+
+fn watch_search_reader(directory string, opened chan bool) {
+	select {
+		_ := <-opened {}
+		search_reader_timeout {
+			cleanup_search(directory)
+			exit(1)
+		}
+	}
+}
+
+fn run_search(directory string, command string, pattern string, root string) ! {
+	mut null_output := os.open_file('/dev/null', 'w')!
+	for fd in [1, 2] {
+		if os.fd_dup2(null_output.fd, fd) < 0 { return error('Could not detach project search') }
+	}
+	null_output.close()
+	fifo := os.join_path(directory, 'fifo')
+	opened := chan bool{cap: 1}
+	spawn watch_search_reader(directory, opened)
+	// A blocking writer pairs atomically with Kakoune opening the read end;
+	// polling a nonblocking writer could let an older Kakoune see premature EOF.
+	output := C.open(fifo.str, C.O_WRONLY)
+	if output < 0 {
+		cleanup_search(directory)
+		return error('The project search view did not open')
+	}
+	opened <- true
+	defer { C.close(output) }
+	if C.fcntl(output, C.F_SETFL, 0) < 0 || C.fcntl(output, C.F_SETFD, C.FD_CLOEXEC) < 0
+		|| os.fd_dup2(output, 1) < 0 || os.fd_dup2(output, 2) < 0 {
+		return error('Could not connect the project search stream')
+	}
+	// The configured command is intentionally shell syntax. Pattern and root
+	// remain arguments; neither is interpolated into shell program text.
+	os.execvp('sh', ['-c', r'eval "$1 -e \"\$2\" \"\$3\"" 2>&1 | tr -d "\r"', 'vlang-search', command,
+		pattern, root])!
+}
 
 struct Row {
 	path      string
@@ -200,7 +276,9 @@ fn project_search(root string, mode string, pattern string, grepcmd string) ! {
 				} else {
 					'grep -RHn --exclude-dir=.git'
 				}
-			} else { grepcmd }
+			} else {
+				grepcmd
+			}
 			println('v-search-run ${kak_quote(command)} ${kak_quote(pattern)} ${kak_quote(root)}')
 		}
 		else {
@@ -385,6 +463,16 @@ fn action(path string, line int, verb string, client string) ! {
 }
 
 fn run() ! {
+	if os.args.len == 6 && os.args[1] == 'search-worker' {
+		return run_search(os.args[2], os.args[3], os.args[4], os.args[5])
+	}
+	if os.args.len == 5 && os.args[1] == 'search-buffer' {
+		return start_search(os.args[2], os.args[3], os.args[4])
+	}
+	if os.args.len == 3 && os.args[1] == 'cleanup-search' {
+		cleanup_search(os.args[2])
+		return
+	}
 	if os.args.len < 3 {
 		return error('Usage: explorer COMMAND STATE [ARG...]')
 	}

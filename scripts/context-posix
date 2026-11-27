@@ -231,7 +231,7 @@ bind_debug() {
       map_key n v-results-next 'Next result'
       map_key N v-results-previous 'Previous result'
       map_key q v-results-cancel 'Return to source'
-      map_key '<ret>' jump 'Open selected result'
+      map_key '<ret>' v-results-open 'Open selected result'
     fi
     [ "$repeat" = true ] || echo 'try %{ unmap window user x }'
     bind_debug

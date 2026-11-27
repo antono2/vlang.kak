@@ -264,7 +264,7 @@ fn (mut out Commands) result_keys() {
 	out.user('n', 'v-results-next', 'Next result')
 	out.user('N', 'v-results-previous', 'Previous result')
 	out.user('q', 'v-results-cancel', 'Return to source')
-	out.user('<ret>', 'jump', 'Open selected result')
+ out.user('<ret>', 'v-results-open', 'Open selected result')
 }
 
 fn (editor Editor) debug_keys(mut out Commands, saved bool) {

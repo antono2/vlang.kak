@@ -116,6 +116,9 @@ Task output provides `Space r` (repeat this task), `Space x` (last test, once av
 These result controls also apply to project searches started by `:v-search`
 or `Space /`, including empty results. `q` or Escape returns to the original
 buffer and selection. Ordinary `:grep` keeps Kakoune's own behavior.
+The V helper supplies the search stream on both old and current Kakoune
+runtimes. If neither V nor a usable cached helper is available, search falls
+back to Kakoune's ordinary grep view and its Enter shortcut.
 
 ## Debugger
 
