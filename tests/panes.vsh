@@ -188,6 +188,13 @@ fn (check PaneCheck) run_client() ! {
 	}
 	check.exercise(panes[0], ['Space', 'q'])!
 	check.exercise(panes[0], ['q'])!
+	// Directory startup without a module uses a scratch source buffer. The
+	// auxiliary client must select that shared buffer rather than edit its name.
+	check.remote('edit -scratch *project*; set-option global v_workspace_root ${quote(check.root)}; v-tree-pane')!
+	scratch_tree := check.opened_pane(panes[0], 'scratch project tree pane')!
+	check.wait_text(['capture-pane', '-p', '-t', scratch_tree], 'q close pane', 'scratch tree close hint')!
+	check.close_pane(scratch_tree, ['q'], 'scratch project tree closes')!
+	check.remote("edit -existing -- ${quote(check.source)}; set-option global v_workspace_root ''")!
 }
 
 fn stop(mut server os.Process) {

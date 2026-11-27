@@ -86,8 +86,8 @@ fn check_helpers(root string, file string) ! {
 		assert hidden == 'set-option window modelinefmt ${quote(personal)}\n' +
 			'set-option window v_debug_status_visible false\n'
 		env['kak_opt_modelinefmt'] = personal + suffix + ' %opt{v_lsp_progress}'
-		shared := capture(helper, ['context', 'editor one'], true, environment: env)!
-		assert shared == 'set-option window modelinefmt ${quote(personal + ' %opt{v_lsp_progress}')}\n' +
+		combined_status := capture(helper, ['context', 'editor one'], true, environment: env)!
+		assert combined_status == 'set-option window modelinefmt ${quote(personal + ' %opt{v_lsp_progress}')}\n' +
 			'set-option window v_debug_status_visible false\n'
 		env['kak_opt_modelinefmt'] = personal
 		replaced := capture(helper, ['context', 'editor one'], true, environment: env)!
