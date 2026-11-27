@@ -342,11 +342,12 @@ define-command -hidden -params 2 v-results-install %{
 # Status messages acknowledge explicit requests without pretending to know when
 # an empty result is complete. kak-lsp does not expose navigation completion hooks.
 define-command -hidden -params 1 v-lsp-waiting %{
-  evaluate-commands %sh{
-    [ "$kak_opt_v_lsp_feedback" = true ] || exit 0
-    printf "echo -markup '{Information}VLS: %s… request sent; results may take a moment'\n" "$1"
-  }
+  evaluate-commands -verbatim -- "v-lsp-waiting-%opt{v_lsp_feedback}" %arg{1}
 }
+define-command -hidden -params 1 v-lsp-waiting-true %{
+  echo -markup "{Information}VLS: %arg{1}… request sent; results may take a moment"
+}
+define-command -hidden -params 1 v-lsp-waiting-false %{ nop }
 declare-option -hidden str v_lsp_progress
 hook -group v-lsp-progress global GlobalSetOption v_lsp_feedback=false %{
   set-option global v_lsp_progress ''
@@ -594,10 +595,8 @@ define-command -hidden v-tree-close-false %{ buffer %opt{v_tree_origin} }
 # Directory startup is separate from restart replay, which restores its own views.
 define-command -hidden -params 1 v-workspace-start %{
   evaluate-commands %sh{
-    root=$(printf %s "$1" | sed "s/'/''/g")
-    if [ -z "${VLANG_KAK_RESTART_SOURCE:-}" ]; then
-      printf "v-open-project '%s'\n" "$root"
-    fi
+    source=$(readlink -f "$kak_opt_v_plugin_source")
+    "${source%/rc/vlang.kak}/scripts/helper-cache.sh" workspace open-start "$1" "$kak_opt_v_restore_last_file" || echo "fail 'Could not open project directory; inspect *debug*'"
   }
 }
 define-command -params 1 -file-completion v-open-project -docstring 'Open a directory, its recent file and project explorer' %{
