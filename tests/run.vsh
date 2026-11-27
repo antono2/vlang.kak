@@ -256,9 +256,10 @@ fn check() ! {
 	mut env := os.environ()
 	env['XDG_CONFIG_HOME'] = config
 	env['XDG_CACHE_HOME'] = os.join_path(scratch, 'cache')
+	env['XDG_STATE_HOME'] = os.join_path(scratch, 'state')
 	// Script stages inherit the process environment; use the same isolated
 	// cache as the direct cases and the helper preparation below.
-	for name in ['XDG_CONFIG_HOME', 'XDG_CACHE_HOME'] {
+	for name in ['XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME'] {
 		os.setenv(name, env[name], true)
 	}
 	mut suite := Suite{

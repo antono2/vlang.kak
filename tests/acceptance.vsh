@@ -20,6 +20,7 @@ fn configure(prefix string, root string) string {
 	os.setenv('PATH', os.join_path(prefix, 'bin') + ':' + os.getenv('PATH'), true)
 	os.setenv('XDG_CONFIG_HOME', os.join_path(root, 'config'), true)
 	os.setenv('XDG_CACHE_HOME', os.join_path(root, 'cache'), true)
+	os.setenv('XDG_STATE_HOME', os.join_path(root, 'state'), true)
 	os.setenv('VLANG_TEST_REAL_TOOLS_PREFIX', prefix, true)
 	os.setenv('VLANG_DEBUG_ARTIFACTS', os.join_path(root, 'debugger'), true)
 	os.setenv('VLANG_LSP_ARTIFACTS', os.join_path(root, 'lsp'), true)

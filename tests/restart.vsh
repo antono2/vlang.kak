@@ -35,6 +35,7 @@ fn setup_tools(root string, kak string) !string {
 		'/bin/true'
 	}
 	os.setenv('XDG_CONFIG_HOME', os.join_path(root, 'config'), true)
+	os.setenv('XDG_STATE_HOME', os.join_path(root, 'state'), true)
 	os.setenv('PATH', bin + ':' + os.getenv('PATH'), true)
 	os.setenv('VLANG_KAK_SKIP_PULL', '1', true)
 	os.unsetenv('VLANG_KAK_CONFIG_HOME')

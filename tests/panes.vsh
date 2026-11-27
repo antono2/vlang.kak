@@ -230,6 +230,7 @@ fn run(prefix_path string) ! {
 	session := 'vlang-panes-' + rand.uuid_v4()
 	directory := os.join_path(os.temp_dir(), session)
 	os.mkdir(directory, mode: 0o700)!
+	os.setenv('XDG_STATE_HOME', os.join_path(directory, 'state'), true)
 	defer { os.rmdir_all(directory) or {} }
 	root := os.join_path(directory, 'project with spaces')
 	os.mkdir(root)!
