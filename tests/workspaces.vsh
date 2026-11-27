@@ -55,6 +55,11 @@ fn exercise(kak string) ! {
 	menu := editor.wait_info(menu_offset, 'Find project file')!
 	require(menu.contains('Build project') && !menu.contains('Find references'), 'Manifest menu has incorrect actions')!
 	editor.keys('<esc>')
+	prompt_offset := editor.offset()
+	editor.keys('<space>Uo')
+	editor.wait_event(prompt_offset, 'draw_status', ['Project directory:'])!
+	editor.keys('<esc>')
+	editor.wait_value('%val{buffile}', manifest, false, 'directory prompt cancellation preserved the manifest')!
 	editor.remote('edit -- ${quote(file)}')!
 	editor.remote('v-tree')!
 	editor.keys('q')

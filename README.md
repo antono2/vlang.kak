@@ -47,7 +47,7 @@ Directories without a module or recent file get a project scratch buffer.
 `v.mod` and that buffer have a project-specific Space menu for navigation and
 available project tasks. Ordinary file arguments keep their usual behavior.
 
-Use `:v-open-project /path/to/directory` inside the editor. The tree, project
+Use `Space U o` or `:v-open-project /path/to/directory` inside the editor. The tree, project
 file picker and project text search use the opened directory. Nothing saves
 source files automatically. See [startup customization](docs/customization.md#project-startup-and-language-server-feedback)
 to disable the startup tree or recent-file restoration.

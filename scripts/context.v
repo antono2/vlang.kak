@@ -346,6 +346,7 @@ fn (editor Editor) commands(context string) []string {
 			out.user('F', 'v-project-path',
 				if editor.explorer { 'Open project explorer' } else { 'Open project path…' })
 			out.user('/', 'v-search', 'Search project text')
+			out.user('q', 'v-close-view', 'Close this view')
 			if saved {
 				out.user('b', 'v-build', 'Build project')
 				out.user('u', 'v-run-project', 'Run project')

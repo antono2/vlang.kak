@@ -135,6 +135,7 @@ bind_debug() {
       map_key P v-project-files 'Find project file'
       if [ "$kak_opt_v_explorer_enabled" = true ]; then map_key F v-project-path 'Open project explorer'; else map_key F v-project-path 'Open project path…'; fi
       map_key / v-search 'Search project text'
+      map_key q v-close-view 'Close this view'
       if [ "$saved" = true ]; then
         map_key b v-build 'Build project'
         map_key u v-run-project 'Run project'

@@ -27,7 +27,8 @@ your personal file from kakrc yourself after loading the plugin.
 `kak-v DIRECTORY` opens that directory's recent existing file or first `v.mod`
 and the tree. `kak-v` without arguments opens the current directory. A file
 argument continues to open that file. Connection, daemon and filter modes keep
-Kakoune's CLI behavior. Open one directory per session; use another session
+Kakoune's CLI behavior. `Space U o` opens the directory prompt from source or
+project buffers. Open one directory per session; use another session
 for a different independent project. `:v-open-project DIRECTORY` changes the
 workspace in an existing session without closing any buffers.
 

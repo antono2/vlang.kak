@@ -654,6 +654,9 @@ define-command -params 1 -file-completion v-open-project -docstring 'Open a dire
     "${source%/rc/vlang.kak}/scripts/helper-cache.sh" workspace open "$1" "$kak_opt_v_restore_last_file" || echo "fail 'Could not open project directory; inspect *debug*'"
   }
 }
+define-command -hidden v-open-project-prompt %{
+  prompt -file-completion 'Project directory: ' %{ v-open-project %val{text} }
+}
 define-command -hidden v-workspace-show-tree %{
   evaluate-commands %sh{
     [ "$kak_opt_v_startup_tree" = true ] && [ "$kak_opt_v_explorer_enabled" = true ] && echo v-tree-pane
@@ -949,6 +952,7 @@ define-command -hidden v-default-source-keys %{
 }
 
 define-command -hidden v-default-maintenance-keys %{
+  map window v-maintenance o ':v-open-project-prompt<ret>' -docstring 'Open project directory…'
   map window v-maintenance u ':v-update<ret>' -docstring 'Update and restart V IDE'
   map window v-maintenance r ':v-restart<ret>' -docstring 'Restart V IDE'
   map window v-maintenance w ':v-window-status<ret>' -docstring 'Show pane backend'
@@ -969,6 +973,7 @@ define-command -hidden v-default-maintenance-keys %{
 }
 
 define-command -hidden v-unbind-keys %{
+  try %{ unmap window v-maintenance o ':v-open-project-prompt<ret>' }
   try %{ unmap window user <ret> ':v-results-open<ret>' }
   try %{ unmap window normal q ':v-recovery-close<ret>' }
   try %{ unmap window user q ':v-recovery-close<ret>' }
