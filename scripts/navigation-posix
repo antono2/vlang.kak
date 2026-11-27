@@ -9,6 +9,12 @@ quote() {
 }
 escape_map() { printf '%s' "$1" | sed 's/[=\\]/\\&/g'; }
 case $action in
+  results-modeline)
+    hint='  [Tab/S-Tab browse | Enter open | q/Esc back]'
+    case "$client" in
+      *"$hint"*) printf 'set-option window modelinefmt %s\n' "$(quote "${client%%"$hint"*}${client#*"$hint"}")" ;;
+    esac
+    ;;
   alternate)
     [ "$#" -eq 0 ] || exit 2
     case $client in

@@ -157,6 +157,14 @@ fn check_result_navigation(mut editor editorui.Client, root string) ! {
 		'Results omitted their browse and return hints')!
 	editor.keys('q')
 	editor.wait_value(buffer_file, source, false, 'q returned to the source file')!
+	editor.remote("v-results-prepare; edit -scratch *custom-results*; v-results-init; set-option window modelinefmt 'Personal modeline changed while viewing results'; set-option window filetype text")!
+	require(editor.value('%opt{modelinefmt}')! == 'Personal modeline changed while viewing results',
+		'Removing result controls overwrote the window modeline')!
+	editor.remote('v-results-cancel')!
+	editor.remote("v-results-prepare; edit -scratch *custom-results-again*; v-results-init; set-option window modelinefmt 'Owner format  [Tab/S-Tab browse | Enter open | q/Esc back] Added later'; set-option window filetype text")!
+	require(editor.value('%opt{modelinefmt}')! == 'Owner format Added later',
+		'Removing result controls removed another modeline component')!
+	editor.remote('v-results-cancel')!
 	require(editor.value('%val{selection_desc}')! == selection,
 		'Returning from results did not restore the selection')!
 

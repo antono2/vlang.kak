@@ -277,7 +277,6 @@ declare-option -hidden str v_results_origin
 declare-option -hidden str v_results_selection
 declare-option -hidden str v_results_modeline
 declare-option -hidden bool v_results_installed false
-declare-option -hidden str v_results_buffer
 declare-option -hidden str-to-str-map v_results_origins
 declare-option -hidden str-to-str-map v_results_selections
 declare-option -hidden bool v_search_results false
@@ -339,7 +338,10 @@ hook -group v-results global WinSetOption filetype=lsp-(document-symbol|goto|dia
   hook -once -group v-results-init window NormalIdle .* %{ v-results-init }
   hook -once -always window WinSetOption filetype=.* %{ remove-hooks window v-results-init }
 }
-hook -group v-search-results global WinDisplay \*v-search\* %{ try %{ v-results-init } }
+hook -group v-search-results global WinDisplay \*v-search\* %{ evaluate-commands %sh{
+  [ "$kak_opt_filetype" = grep ] && [ "$kak_opt_v_search_results" = true ] && echo 'try %{ v-results-init }'
+  exit 0
+} }
 define-command -hidden v-results-init %{
   remove-hooks window v-results-init
   evaluate-commands %sh{
@@ -357,7 +359,6 @@ define-command -hidden -params 2 v-results-install %{
 define-command -hidden v-results-setup-true %{ nop }
 define-command -hidden v-results-setup-false %{
   set-option window v_results_installed true
-  set-option window v_results_buffer %val{bufname}
   set-option window v_results_modeline %opt{modelinefmt}
   set-option -add window modelinefmt '  [Tab/S-Tab browse | Enter open | q/Esc back]'
   map window normal <tab> ':v-results-next<ret>' -docstring 'Next result'
@@ -365,9 +366,6 @@ define-command -hidden v-results-setup-false %{
   map window normal q ':v-results-cancel<ret>' -docstring 'Return to source'
   map window normal <esc> ':v-results-cancel<ret>' -docstring 'Return to source'
   hook -once -always -group v-results-view window WinSetOption filetype=.* %{ v-results-uninstall }
-  hook -always -group v-results-view window WinDisplay .* %{ evaluate-commands %sh{
-    [ "$kak_bufname" = "$kak_opt_v_results_buffer" ] || echo v-results-uninstall
-  } }
 }
 define-command -hidden v-results-uninstall %{
     remove-hooks window v-results-view
@@ -375,7 +373,10 @@ define-command -hidden v-results-uninstall %{
     try %{ unmap window normal <s-tab> ':v-results-previous<ret>' }
     try %{ unmap window normal q ':v-results-cancel<ret>' }
     try %{ unmap window normal <esc> ':v-results-cancel<ret>' }
-    set-option window modelinefmt %opt{v_results_modeline}
+    evaluate-commands %sh{
+      source=$(readlink -f "$kak_opt_v_plugin_source")
+      "${source%/rc/vlang.kak}/scripts/helper-cache.sh" navigation results-modeline "$kak_opt_modelinefmt"
+    }
     set-option window v_results_installed false
 }
 
