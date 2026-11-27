@@ -266,7 +266,7 @@ fn check() ! {
 	println('Testing with ${kak_version} and ${v_version}')
 	// Build the initial editing helpers outside the per-editor timeout.
 	dispatcher := os.join_path(os.dir(@DIR), 'scripts', 'helper-cache.sh')
-	for tool in ['context', 'task', 'navigation'] {
+	for tool in ['context', 'task', 'navigation', 'preferences', 'debug'] {
 		capture(dispatcher, [tool, '--prepare'], true, environment: env)!
 	}
 	suite.run()!
