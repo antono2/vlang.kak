@@ -85,9 +85,25 @@ fn check_helpers(root string, file string) ! {
 		hidden := capture(helper, ['context', 'editor one'], true, environment: env)!
 		assert hidden == 'set-option window modelinefmt ${quote(personal)}\n' +
 			'set-option window v_debug_status_visible false\n'
+		env['kak_opt_modelinefmt'] = personal + suffix + ' %opt{v_lsp_progress}'
+		combined_status := capture(helper, ['context', 'editor one'], true, environment: env)!
+		assert combined_status == 'set-option window modelinefmt ${quote(personal + ' %opt{v_lsp_progress}')}\n' +
+			'set-option window v_debug_status_visible false\n'
 		env['kak_opt_modelinefmt'] = personal
 		replaced := capture(helper, ['context', 'editor one'], true, environment: env)!
 		assert replaced == 'set-option window v_debug_status_visible false\n'
+		env['kak_opt_v_debug_status_visible'] = 'false'
+		env['kak_opt_v_debug_phase'] = 'idle'
+		env['kak_opt_v_keys_context'] = ''
+		env['kak_opt_filetype'] = 'json'
+		env['kak_buffile'] = os.join_path(os.dir(file), 'v.mod')
+		os.write_file(env['kak_buffile'], "Module { name: 'context' }\n")!
+		project := capture(helper, ['context', 'editor one'], true, environment: env)!
+		check_items(project, ['Find project file', 'Build project', 'v-run-project',
+			'v-default-maintenance-keys', 'VProjectKeysApplied'], true)!
+		check_items(project, ['v-default-source-keys', 'v-references', 'v-test-nearest'], false)!
+		env['kak_buffile'] = os.join_path(os.dir(file), 'unrelated.json')
+		assert capture(helper, ['context', 'editor one'], true, environment: env)! == ''
 	}
 	assert !os.exists(fallback['XDG_CACHE_HOME'])
 }

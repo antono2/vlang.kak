@@ -35,6 +35,7 @@ fn setup_tools(root string, kak string) !string {
 		'/bin/true'
 	}
 	os.setenv('XDG_CONFIG_HOME', os.join_path(root, 'config'), true)
+	os.setenv('XDG_STATE_HOME', os.join_path(root, 'state'), true)
 	os.setenv('PATH', bin + ':' + os.getenv('PATH'), true)
 	os.setenv('VLANG_KAK_SKIP_PULL', '1', true)
 	os.unsetenv('VLANG_KAK_CONFIG_HOME')
@@ -124,6 +125,35 @@ fn exercise(root string, kak string) ! {
 		'Restart did not keep the unsaved buffer open in the same client')!
 	require(os.read_file(first)! == first_text, 'Restart wrote the unsaved edit to disk')!
 	editor.quit()!
+	os.rm(os.join_path(root, 'ready'))!
+	os.write_file(personal, personal_text + 'set-option global v_pane_mode off\n')!
+	project := os.join_path(root, 'directory project')
+	os.mkdir(project)!
+	os.write_file(os.join_path(project, 'v.mod'), "Module { name: 'restart' }\n")!
+	main_file := os.join_path(project, 'main.v')
+	os.write_file(main_file, 'module main\nfn main() {}\n')!
+	mut directory := editorui.open_managed(kak, os.join_path(prefix, 'bin', 'kak-v'), root, project)!
+	defer { directory.close() }
+	directory.wait_value('%opt{filetype}', 'v-tree', false, 'directory startup tree')!
+	directory.keys('q')
+	directory.remote('edit -- ${quote(main_file)}\nselect 2.2,2.2')!
+	directory.restart('v-restart')!
+	require(directory.value('%opt{v_workspace_root}')! == project,
+		'Directory restart lost the workspace root')!
+	require(directory.value(cursor_expression)! == '${main_file} 2 2',
+		'Directory restart reopened the startup tree instead of restoring the source')!
+	// A directory selected later must survive, rather than reverting to the CLI directory.
+	other := os.join_path(root, 'another workspace')
+	os.mkdir(other)!
+	other_manifest := os.join_path(other, 'v.mod')
+	os.write_file(other_manifest, "Module { name: 'another' }\n")!
+	directory.remote('v-open-project ${quote(other)}')!
+	directory.keys('q')
+	directory.wait_value('%val{buffile}', other_manifest, false, 'switched directory manifest')!
+	directory.restart('v-restart')!
+	require(directory.value('%opt{v_workspace_root}')! == other,
+		'Restart reverted to the original directory argument')!
+	directory.quit()!
 }
 
 fn check(kak_path string) ! {

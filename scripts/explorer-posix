@@ -24,6 +24,9 @@ while :; do
   [ "$parent" != "$current" ] || break
   current=$parent
 done
+if [ -n "${kak_opt_v_workspace_root:-}" ] && [ -d "$kak_opt_v_workspace_root" ]; then
+  case "$file" in "$kak_opt_v_workspace_root/"*) root=$kak_opt_v_workspace_root ;; esac
+fi
 prefix=${root%/}/
 case "$1" in
   prompt)
@@ -64,17 +67,15 @@ case "$1" in
         printf "info -title 'Project search · Enter for all' %s\n" "$(kak_quote "${matches:-No matches yet}")" ;;
       results)
         [ -n "$4" ] || exit 0
+        command=$5
         if [ "$5" = 'grep -RHn' ]; then
           if command -v rg >/dev/null 2>&1; then
-            printf "set-option window grepcmd 'rg -n --no-heading'\n"
+            command='rg -n --no-heading'
           else
-            printf "set-option window grepcmd 'grep -RHn --exclude-dir=.git'\n"
+            command='grep -RHn --exclude-dir=.git'
           fi
         fi
-        printf 'grep -e %s %s\n' "$(kak_quote "$4")" "$(kak_quote "$root")"
-        if [ "$5" = 'grep -RHn' ]; then
-          printf 'unset-option window grepcmd\n'
-        fi ;;
+        printf 'v-search-run %s %s %s\n' "$(kak_quote "$command")" "$(kak_quote "$4")" "$(kak_quote "$root")" ;;
       *) exit 2 ;;
     esac ;;
   *) exit 2 ;;

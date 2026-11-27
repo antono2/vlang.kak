@@ -167,6 +167,9 @@ fn (mut suite Suite) run() ! {
 	suite.check_file('keymaps-ok', 'ok', true)!
 	suite.script('context.vsh', [suite.kak])!
 	suite.script('browsing.vsh', [suite.kak])!
+	suite.script('workspaces.vsh', [suite.kak])!
+	suite.script('launcher_args.vsh', [])!
+	suite.script('lsp_feedback.vsh', [suite.kak])!
 
 	suite.kak_case('test at cursor and rerun', 'project/nearest_test.v', 'nearest_test.kak')!
 	suite.check_file('nearest-ok', 'ok', true)!
@@ -253,6 +256,12 @@ fn check() ! {
 	mut env := os.environ()
 	env['XDG_CONFIG_HOME'] = config
 	env['XDG_CACHE_HOME'] = os.join_path(scratch, 'cache')
+	env['XDG_STATE_HOME'] = os.join_path(scratch, 'state')
+	// Script stages inherit the process environment; use the same isolated
+	// cache as the direct cases and the helper preparation below.
+	for name in ['XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME'] {
+		os.setenv(name, env[name], true)
+	}
 	mut suite := Suite{
 		scratch: scratch
 		kak:     kak
@@ -263,7 +272,7 @@ fn check() ! {
 	println('Testing with ${kak_version} and ${v_version}')
 	// Build the initial editing helpers outside the per-editor timeout.
 	dispatcher := os.join_path(os.dir(@DIR), 'scripts', 'helper-cache.sh')
-	for tool in ['context', 'task', 'navigation'] {
+	for tool in ['context', 'task', 'navigation', 'preferences', 'debug'] {
 		capture(dispatcher, [tool, '--prepare'], true, environment: env)!
 	}
 	suite.run()!

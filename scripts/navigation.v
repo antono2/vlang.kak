@@ -50,6 +50,13 @@ fn navigate(args []string) {
 		alternate(args[1])
 		return
 	}
+	if args[0] == 'results-modeline' && args.len == 2 {
+		hint := '  [Tab/S-Tab browse | Enter open | q/Esc back]'
+		if args[1].contains(hint) {
+			println('set-option window modelinefmt ' + quote(args[1].replace_once(hint, '')))
+		}
+		return
+	}
 	action, client := args[0], args[1]
 	if action in ['remember-doc', 'remember-results'] && args.len == 4 {
 		view := action.trim_string_left('remember-')

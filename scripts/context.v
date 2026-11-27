@@ -11,7 +11,7 @@ import windowhost
 const active_phases = ['building', 'starting', 'running', 'stopped']
 const idle_phases = ['idle', 'failed', 'exited']
 const debug_status_suffix = '  [debug: %opt{v_debug_phase}]'
-const results_types = ['lsp-document-symbol', 'lsp-goto', 'lsp-diagnostics']
+const results_types = ['lsp-document-symbol', 'lsp-goto', 'lsp-diagnostics', 'grep']
 const context_types = ['v', 'v-tree', 'v-doc', 'v-recovery', 'v-debug-stack', 'v-debug-variables',
 	'v-debug-output', 'v-debug-breakpoints']
 
@@ -91,6 +91,13 @@ fn read_editor(clients int) Editor {
 }
 
 fn (editor Editor) context() string {
+	if editor.filetype == 'grep' && !enabled('v_search_results') {
+		return ''
+	}
+	if os.file_name(editor.file) == 'v.mod'
+		|| (editor.buffer == '*project*' && option('v_workspace_root') != '') {
+		return 'v-project'
+	}
 	if editor.buffer == '*hover*' && editor.doc_origin != '' {
 		return 'v-doc'
 	}
@@ -257,7 +264,7 @@ fn (mut out Commands) result_keys() {
 	out.user('n', 'v-results-next', 'Next result')
 	out.user('N', 'v-results-previous', 'Previous result')
 	out.user('q', 'v-results-cancel', 'Return to source')
-	out.user('<ret>', 'jump', 'Open selected result')
+ out.user('<ret>', 'v-results-open', 'Open selected result')
 }
 
 fn (editor Editor) debug_keys(mut out Commands, saved bool) {
@@ -333,6 +340,25 @@ fn (editor Editor) commands(context string) []string {
 	mut out := Commands{}
 	saved := editor.file != '' && os.is_file(editor.file)
 	hook := match context {
+		'v-project' {
+			out.user('p', 'v-files', 'Open file by path')
+			out.user('P', 'v-project-files', 'Find project file')
+			out.user('F', 'v-project-path',
+				if editor.explorer { 'Open project explorer' } else { 'Open project path…' })
+			out.user('/', 'v-search', 'Search project text')
+			out.user('q', 'v-close-view', 'Close this view')
+			if saved {
+				out.user('b', 'v-build', 'Build project')
+				out.user('u', 'v-run-project', 'Run project')
+				out.user('t', 'v-testing-menu', 'Testing')
+				out.bind('v-testing', 't', 'v-test', 'Test project')
+			}
+			out.user('U', 'v-maintenance-menu', 'Maintenance')
+			out.lines << 'v-default-maintenance-keys'
+			if !editor.restart { out.unmap('v-maintenance', ['u', 'r', 'v']) }
+			if !editor.managed { out.unmap('v-maintenance', ['b', 'f', 'c', 'C', 'x', 'R']) }
+			'VProjectKeysApplied'
+		}
 		'v' {
 			editor.source_keys(mut out, saved)
 			'VKeysApplied'
@@ -388,9 +414,9 @@ fn (editor Editor) render_debug_status() {
 		println('set-option -add window modelinefmt ' + quote(debug_status_suffix))
 	} else {
 		current := option('modelinefmt')
-		if current.ends_with(debug_status_suffix) {
+		if current.contains(debug_status_suffix) {
 			println('set-option window modelinefmt ' +
-				quote(current.trim_string_right(debug_status_suffix)))
+				quote(current.replace_once(debug_status_suffix, '')))
 		}
 	}
 	println('set-option window v_debug_status_visible ' + show.str())

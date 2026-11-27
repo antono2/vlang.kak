@@ -218,6 +218,13 @@ fn check_persisted_settings(root string, search_path string) ! {
 	assert rejected.stderr.contains('Malformed preferences block')
 	assert os.read_file(target)! == malformed && !os.exists(lock_dir)
 	assert os.ls(root)!.filter(it.starts_with('personal.kak.vlang-backup.')).len == backups.len
+	os.write_file(target, expected)!
+	for name in ['v_startup_tree', 'v_restore_last_file', 'v_lsp_feedback'] {
+		assert capture(program, [name, 'false'], true, environment: environment)! ==
+			'set-option global ${name} false\nv-refresh-keys\n'
+		assert os.read_file(target)!.contains('try %{ set-option global ${name} false }')
+	}
+	assert os.is_link(path) && os.read_file(target)!.starts_with(personal_settings)
 }
 
 fn check_settings_menu(root string, kak string, search_path string, native bool) ! {

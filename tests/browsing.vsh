@@ -46,12 +46,12 @@ fn check_failed_helper(mut editor editorui.Client, root string, source string, p
 	require(os.read_file(path)! == os.read_file(source)!, 'Failed tree helper changed source text')!
 }
 
-fn search_row(mut editor editorui.Client, path string) !int {
+fn search_row(mut editor editorui.Client, path string, target string) !int {
 	deadline := time.sys_mono_now() + u64(buffer_write_timeout)
 	for time.sys_mono_now() < deadline {
 		editor.remote('write -force ${quote(path)}')!
 		for i, line in os.read_lines(path)! {
-			if line.contains(marker) {
+			if line.contains(marker) && line.contains(target) {
 				return i + 1
 			}
 		}
@@ -157,6 +157,14 @@ fn check_result_navigation(mut editor editorui.Client, root string) ! {
 		'Results omitted their browse and return hints')!
 	editor.keys('q')
 	editor.wait_value(buffer_file, source, false, 'q returned to the source file')!
+	editor.remote("v-results-prepare; edit -scratch *custom-results*; v-results-init; set-option window modelinefmt 'Personal modeline changed while viewing results'; set-option window filetype text")!
+	require(editor.value('%opt{modelinefmt}')! == 'Personal modeline changed while viewing results',
+		'Removing result controls overwrote the window modeline')!
+	editor.remote('v-results-cancel')!
+	editor.remote("v-results-prepare; edit -scratch *custom-results-again*; v-results-init; set-option window modelinefmt 'Owner format  [Tab/S-Tab browse | Enter open | q/Esc back] Added later'; set-option window filetype text")!
+	require(editor.value('%opt{modelinefmt}')! == 'Owner format Added later',
+		'Removing result controls removed another modeline component')!
+	editor.remote('v-results-cancel')!
 	require(editor.value('%val{selection_desc}')! == selection,
 		'Returning from results did not restore the selection')!
 
@@ -184,11 +192,15 @@ fn exercise(kak string) ! {
 	source := os.join_path(project, 'main.v')
 	target := os.join_path(folder, "it's.v")
 	plugin := os.join_path(os.dir(@DIR), 'rc', 'vlang.kak')
-	os.write_file(source, 'module main\nfn main() {}\n// root_browsing_marker\n')!
+	os.write_file(source, 'module main\nfn main() {}\n// root_browsing_marker\n// ${marker}\n')!
 	os.write_file(os.join_path(project, 'v.mod'), "Module { name: 'browsing' }\n")!
 	os.write_file(target, 'module main\n// ${marker}\nfn helper() {}\n')!
 	os.write_file(os.join_path(config, 'kakrc'),
 		'source ${quote(plugin)}\nset-option global v_pane_mode off\n')!
+	helper_cache := os.join_path(os.dir(@DIR), 'scripts', 'helper-cache.sh')
+	for tool in ['context', 'navigation', 'preferences', 'explorer'] {
+		capture(helper_cache, [tool, '--prepare'], true)!
+	}
 	mut editor := editorui.open(kak, root, source)!
 	defer { editor.close() }
 
@@ -253,12 +265,33 @@ fn exercise(kak string) ! {
 	editor.keys('<esc>')
 	editor.wait_value(buffer_file, source, false, 'search cancellation preserved source')!
 	editor.keys('<space>/${marker}<ret>')
-	editor.wait_value('%val{bufname}', '*grep*', false, 'search results opened')!
-	result_row := search_row(mut editor, os.join_path(root, 'results'))!
+	editor.wait_value('%val{bufname}', '*v-search*', false, 'search results opened')!
+	offset = editor.offset()
+	editor.keys('<space>')
+	editor.wait_info(offset, 'Next result')!
+	editor.keys('<esc>')
+	editor.keys('q')
+	editor.wait_value(buffer_file, source, false, 'q returned from search results')!
+	editor.keys('<space>/${marker}<ret>')
+	editor.wait_value('%val{bufname}', '*v-search*', false, 'reopened search results')!
+	require(editor.value('%opt{modelinefmt}')!.count('Tab/S-Tab browse') == 1,
+		'Reopening results duplicated the modeline controls')!
+	result_row := search_row(mut editor, os.join_path(root, 'results'), target)!
+	other_row := search_row(mut editor, os.join_path(root, 'results'), source)!
+	select_line(mut editor, result_row)!
+	editor.keys('<tab>')
+	require(editor.value('%val{bufname}')! == '*v-search*', 'Tab closed the search results')!
+	editor.wait_value('%val{cursor_line}', other_row.str(), false, 'Tab selected the next search result')!
+	editor.keys('<s-tab>')
+	editor.wait_value('%val{cursor_line}', result_row.str(), false, 'Shift-Tab selected the previous search result')!
 	select_line(mut editor, result_row)!
 	editor.keys('<ret>')
 	editor.wait_value('${buffer_file} %val{cursor_line}', '${target} 2', false,
 		'search opened the matching source line')!
+	editor.remote('buffer *v-search*')!
+	editor.keys('q')
+	editor.wait_value(buffer_file, source, false, 'reopened results retained direct return controls')!
+	editor.remote('edit -- ${quote(target)}')!
 
 	offset = editor.offset()
 	editor.keys('<space>/root_browsing_marker')
@@ -274,6 +307,14 @@ fn exercise(kak string) ! {
 	editor.keys('<esc>')
 	editor.remote('nop')!
 	require(editor.value(buffer_file)! == source, 'Empty search changed the source file')!
+	editor.keys('<space>/no_such_browsing_marker_9327<ret>')
+	editor.wait_value('%val{bufname}', '*v-search*', false, 'empty search results')!
+	editor.keys('<esc>')
+	editor.wait_value(buffer_file, source, false, 'Escape returned from empty results')!
+	// Ordinary :grep keeps the runtime's controls, even when reusing *v-search*.
+	editor.remote('grep -e ${quote(marker)} ${quote(project)}')!
+	require(editor.value('%opt{v_search_results}')! == 'false', 'Ordinary grep inherited IDE search controls')!
+	editor.remote('edit -- ${quote(source)}')!
 	check_project_targets(mut editor, root, project, target)!
 	check_result_navigation(mut editor, root)!
 	check_alternate_files(mut editor, root)!

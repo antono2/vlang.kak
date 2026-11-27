@@ -10,7 +10,7 @@ const update_option = 'v_update_check_enabled'
 
 fn allowed(name string, value string) bool {
 	return match name {
-		'v_explorer_enabled', 'v_live_search_enabled', update_option {
+		'v_explorer_enabled', 'v_live_search_enabled', 'v_startup_tree', 'v_restore_last_file', 'v_lsp_feedback', update_option {
 			value in ['true', 'false']
 		}
 		'v_pane_mode' {
@@ -28,7 +28,9 @@ fn allowed(name string, value string) bool {
 fn settings_text(original string, name string, value string) !string {
 	command := opt_command + name + ' '
 	setting := command + value
-	entry := if name == update_option { 'try %{ ${setting} }' } else { setting }
+	entry := if name in [update_option, 'v_startup_tree', 'v_restore_last_file', 'v_lsp_feedback'] {
+		'try %{ ${setting} }'
+	} else { setting }
 	malformed := 'Malformed preferences block; edit vlang-user.kak to repair it.'
 	mut result := strings.new_builder(original.len + entry.len)
 	mut in_block := false

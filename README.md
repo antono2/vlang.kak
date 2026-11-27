@@ -36,6 +36,27 @@ The plugin and its test harness use Kakoune's POSIX shell integration. On a
 Windows machine, use it inside WSL with Kakoune and V installed in the same WSL
 distribution. A native Win32 Kakoune environment is not currently tested.
 
+## Open a project directory
+
+Run `kak-v /path/to/project` (or `kak-v` in that directory). The IDE opens
+the last existing file used in that directory, or its root `v.mod`. If there
+is no root module, it chooses the first nested `v.mod` in breadth-first,
+alphabetical order. The project explorer opens automatically: in a separate
+view when supported, or in the current view with `q` to return to the file.
+Directories without a module or recent file get a project scratch buffer.
+`v.mod` and that buffer have a project-specific Space menu for navigation and
+available project tasks. Ordinary file arguments keep their usual behavior.
+
+Use `Space U o` or `:v-open-project /path/to/directory` inside the editor. The tree, project
+file picker and project text search use the opened directory. Nothing saves
+source files automatically. See [startup customization](docs/customization.md#project-startup-and-language-server-feedback)
+to disable the startup tree or recent-file restoration.
+
+Explicit LSP actions immediately acknowledge the request in the status line.
+Server-reported background work shows `[VLS working]` in the modeline and
+clears when the server finishes. Navigation does not block typing while VLS
+works. The acknowledgement is a receipt, not an indication of completion.
+
 ## Update
 
 ~~~sh

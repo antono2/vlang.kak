@@ -97,12 +97,11 @@ fn check_project_paths(helper string, root string) ! {
 		custom := capture(helper, ['search', file, 'results', pattern, 'custom-grep'], true,
 			environment: lane
 		)!
-		assert custom == "grep -e '-needle ''quoted''' '${worktree.replace("'", "''")}'\n"
+		assert custom == "v-search-run 'custom-grep' '-needle ''quoted''' '${worktree.replace("'", "''")}'\n"
 		default := capture(helper, ['search', file, 'results', pattern, 'grep -RHn'], true,
 			environment: lane
 		)!
-		assert default == "set-option window grepcmd 'grep -RHn --exclude-dir=.git'\n" + custom +
-			'unset-option window grepcmd\n'
+		assert default == custom.replace_once('custom-grep', 'grep -RHn --exclude-dir=.git')
 	}
 	assert !os.exists(fallback['XDG_CACHE_HOME'])
 	plain := os.join_path(root, 'plain folder')

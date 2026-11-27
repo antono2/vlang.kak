@@ -67,6 +67,16 @@ fn check_saved_file_restart(root string, launcher string, lane map[string]string
 	env['kak_cursor_column'] = '5'
 	assert capture(launcher, ['restart-files', second], true, environment: env)! == ''
 	assert os.read_file(state)!.ends_with("buffer '${second_quoted}'\nselect 4.5,4.5\n")
+	env['kak_opt_v_workspace_root'] = root
+	assert capture(launcher, ['restart-files', second], true, environment: env)! == ''
+	workspace := root.replace("'", "''")
+	assert os.read_file(state)!.contains("try %{ set-option global v_workspace_root '${workspace}'; cd '${workspace}' }\n")
+	checkpoints := os.join_path(root, 'workspace checkpoints')
+	capture(launcher, ['begin', checkpoints], true, environment: env)!
+	directories := os.ls(checkpoints)!.filter(it.starts_with('checkpoint.'))
+	assert directories.len == 1
+	assert os.read_file(os.join_path(checkpoints, directories[0], 'buffers.kak'))! ==
+		"try %{ set-option global v_workspace_root '${workspace}'; cd '${workspace}' }\n"
 	env.delete('VLANG_KAK_RESTART_STATE')
 	failed := execute(launcher, ['restart-files'], false, environment: env)!
 	assert failed.stdout.contains('Restart requires the managed kak-v launcher')

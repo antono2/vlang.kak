@@ -4,6 +4,12 @@ set -eu
 umask 077
 quote() { printf "'"; printf %s "$1" | sed "s/'/''/g"; printf "'"; }
 fail() { printf 'fail %s\n' "$(quote "$1")"; exit 1; }
+workspace_commands() {
+  workspace=${kak_opt_v_workspace_root:-}
+  if [ -n "$workspace" ] && [ -d "$workspace" ]; then
+    printf 'try %%{ set-option global v_workspace_root %s; cd %s }\n' "$(quote "$workspace")" "$(quote "$workspace")"
+  fi
+}
 write_restart_state() {
   temporary=$(mktemp -- "$1.XXXXXXXX") || fail 'Could not write restart state'
   trap 'rm -f -- "$temporary"' EXIT
@@ -37,6 +43,9 @@ case $1 in
     [ -n "$state" ] || fail 'Restart requires the managed kak-v launcher'
     shift
     commands=nop
+    workspace=$(workspace_commands)
+    [ -z "$workspace" ] || commands="$commands
+$workspace"
     for name do
       [ -f "$name" ] || continue
       quoted=$(quote "$name")
@@ -63,6 +72,8 @@ $(printf 'buffer %s\nselect %s.%s,%s.%s' "$(quote "$resume_file")" \
     mkdir -p -- "$2" || fail 'Could not create checkpoint root'
     root=$(readlink -f -- "$2") || fail 'Could not resolve checkpoint root'
     directory=$(mktemp -d -- "$root/checkpoint.XXXXXXXX") || fail 'Could not create checkpoint directory'
+    workspace=$(workspace_commands)
+    [ -z "$workspace" ] || printf '%s\n' "$workspace" > "$directory/buffers.kak"
     printf 'set-option global v_session_checkpoint %s\n' "$(quote "$directory")"
     exit 0 ;;
   restore|restart)
